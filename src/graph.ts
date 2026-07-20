@@ -1,20 +1,17 @@
 import { Chart, registerables } from 'chart.js';
-import { getBoard, getLogs } from './api';
+import { getLogs } from './api';
 import type { BoardRow, LogRow } from './types';
 
 Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
 
-export async function renderGraph(container: HTMLElement): Promise<void> {
-  container.innerHTML = '<p>読み込み中...</p>';
+// board は呼び出し元(main.ts)で取得済みのものを受け取る(管理表タブと二重取得しない)
+export async function renderGraph(container: HTMLElement, board: BoardRow[]): Promise<void> {
+  const exercises = board.filter((r) => r['分類'] !== 'Rest');
 
-  let exercises: BoardRow[] = [];
-  try {
-    const board = await getBoard();
-    exercises = board.filter((r) => r['分類'] !== 'Rest');
-  } catch (err) {
-    container.innerHTML = `<p class="error">種目一覧の取得に失敗しました: ${escapeHtml(String(err))}</p>`;
+  if (exercises.length === 0) {
+    container.innerHTML = '<p>種目が登録されていません</p>';
     return;
   }
 
@@ -95,11 +92,7 @@ export async function renderGraph(container: HTMLElement): Promise<void> {
     });
   });
 
-  if (exercises.length > 0) {
-    await update();
-  } else {
-    statusEl.textContent = '種目が登録されていません';
-  }
+  await update();
 }
 
 function periodRange(period: Period): { from?: string; to?: string } {

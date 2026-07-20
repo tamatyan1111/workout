@@ -3,9 +3,7 @@ export interface BoardRow {
   'サイクル': number;
   '分類': string;
   '種目名': string;
-  '現在重量(kg)': number | string;
-  '現在回数': number | string;
-  '現在セット': number | string;
+  '現在の記録': string;
   '目標重量(kg)': number | string;
   '目標回数': number | string;
   '目標セット': number | string;

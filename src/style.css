@@ -80,8 +80,26 @@ main {
 
 .board-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.85rem;
+}
+
+.board-table .col-name {
+  width: 26%;
+}
+
+.board-table .col-current {
+  width: 34%;
+}
+
+.board-table .col-target {
+  width: 13.33%;
+}
+
+.board-table .cell-current {
+  text-align: left;
+  word-break: break-word;
 }
 
 .board-table th,

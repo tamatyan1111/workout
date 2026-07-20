@@ -1,4 +1,5 @@
 import './style.css';
+import { getBoard } from './api';
 import { renderBoard } from './board';
 import { renderGraph } from './graph';
 
@@ -13,8 +14,8 @@ app.innerHTML = `
     </nav>
   </header>
   <main>
-    <section id="tab-board" class="tab-panel"></section>
-    <section id="tab-graph" class="tab-panel" hidden></section>
+    <section id="tab-board" class="tab-panel"><p>読み込み中...</p></section>
+    <section id="tab-graph" class="tab-panel" hidden><p>読み込み中...</p></section>
   </main>
 `;
 
@@ -34,5 +35,14 @@ tabButtons.forEach((btn) => {
   });
 });
 
-renderBoard(panels.board);
-renderGraph(panels.graph);
+// 管理表データはタブ間で共有し、二重にAPIを呼ばない
+getBoard()
+  .then((rows) => {
+    renderBoard(panels.board, rows);
+    renderGraph(panels.graph, rows);
+  })
+  .catch((err) => {
+    const message = `<p class="error">管理表の取得に失敗しました: ${String(err)}</p>`;
+    panels.board.innerHTML = message;
+    panels.graph.innerHTML = message;
+  });

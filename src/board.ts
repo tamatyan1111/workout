@@ -1,4 +1,3 @@
-import { getBoard } from './api';
 import type { BoardRow } from './types';
 
 const CYCLE_LABELS: Record<number, string> = {
@@ -8,14 +7,9 @@ const CYCLE_LABELS: Record<number, string> = {
   4: 'サイクル4: Rest',
 };
 
-export async function renderBoard(container: HTMLElement): Promise<void> {
-  container.innerHTML = '<p>読み込み中...</p>';
-  try {
-    const rows = await getBoard();
-    container.innerHTML = renderCycles(rows);
-  } catch (err) {
-    container.innerHTML = `<p class="error">管理表の取得に失敗しました: ${escapeHtml(String(err))}</p>`;
-  }
+// board は呼び出し元(main.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)
+export function renderBoard(container: HTMLElement, rows: BoardRow[]): void {
+  container.innerHTML = renderCycles(rows);
 }
 
 function renderCycles(rows: BoardRow[]): string {
@@ -33,17 +27,22 @@ function renderCycles(rows: BoardRow[]): string {
     .join('');
 }
 
-// 休憩(分類がRest)も同じ表の1行として表示する。重量・回数・セットは
-// 管理表シート上そもそも "-" が入っているため、特別扱いは不要(design.md §3)。
+// 休憩(分類がRest)も同じ表の1行として表示する。現在の記録・目標は
+// 管理表シート上そもそも "-" や空欄が入っているため、特別扱いは不要(design.md §3)。
 function renderTable(rows: BoardRow[]): string {
   return `
     <table class="board-table">
+      <colgroup>
+        <col class="col-name" />
+        <col class="col-current" />
+        <col class="col-target" />
+        <col class="col-target" />
+        <col class="col-target" />
+      </colgroup>
       <thead>
         <tr>
           <th>種目名</th>
-          <th>現在重量</th>
-          <th>現在回数</th>
-          <th>現在セット</th>
+          <th>現在の記録</th>
           <th>目標重量</th>
           <th>目標回数</th>
           <th>目標セット</th>
@@ -61,9 +60,7 @@ function renderRow(r: BoardRow): string {
   return `
     <tr>
       <td>${escapeHtml(String(r['種目名']))}</td>
-      <td>${cell(r['現在重量(kg)'])}</td>
-      <td>${cell(r['現在回数'])}</td>
-      <td>${cell(r['現在セット'])}</td>
+      <td class="cell-current">${cell(r['現在の記録'])}</td>
       <td>${cell(r['目標重量(kg)'])}</td>
       <td>${cell(r['目標回数'])}</td>
       <td>${cell(r['目標セット'])}</td>
