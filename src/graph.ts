@@ -71,14 +71,32 @@ export async function renderGraph(container: HTMLElement, board: BoardRow[]): Pr
     weightChart = new Chart(weightCanvas, {
       type: 'line',
       data: { labels, datasets: [{ label: '重量(kg)', data: weightData, borderColor: '#3b82f6' }] },
-      options: { responsive: true, plugins: { title: { display: true, text: '重量推移' } } },
+      options: {
+        responsive: true,
+        plugins: {
+          title: { display: true, text: `${exercise} - 重量推移(その日の最大重量)` },
+        },
+        scales: {
+          x: { title: { display: true, text: '日付' } },
+          y: { title: { display: true, text: '重量(kg)' }, beginAtZero: true },
+        },
+      },
     });
 
     volumeChart?.destroy();
     volumeChart = new Chart(volumeCanvas, {
       type: 'line',
       data: { labels, datasets: [{ label: '総作業量(kg)', data: volumeData, borderColor: '#22c55e' }] },
-      options: { responsive: true, plugins: { title: { display: true, text: '総作業量推移' } } },
+      options: {
+        responsive: true,
+        plugins: {
+          title: { display: true, text: `${exercise} - 総作業量推移(重量×回数の合計)` },
+        },
+        scales: {
+          x: { title: { display: true, text: '日付' } },
+          y: { title: { display: true, text: '総作業量(kg)' }, beginAtZero: true },
+        },
+      },
     });
   }
 

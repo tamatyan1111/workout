@@ -1,9 +1,12 @@
 // design.md §2.1「管理表(マスタ)シート」に対応
+// 現在系3列は改行区切りで複数行になり得る(ドロップセット等、design.md §2.4)
 export interface BoardRow {
   'サイクル': number;
   '分類': string;
   '種目名': string;
-  '現在の記録': string;
+  '現在重量(kg)': number | string;
+  '現在回数': number | string;
+  '現在セット': number | string;
   '目標重量(kg)': number | string;
   '目標回数': number | string;
   '目標セット': number | string;

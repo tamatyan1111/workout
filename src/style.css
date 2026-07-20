@@ -86,20 +86,11 @@ main {
 }
 
 .board-table .col-name {
-  width: 26%;
+  width: 22%;
 }
 
-.board-table .col-current {
-  width: 34%;
-}
-
-.board-table .col-target {
-  width: 13.33%;
-}
-
-.board-table .cell-current {
-  text-align: left;
-  word-break: break-word;
+.board-table .col-value {
+  width: 13%;
 }
 
 .board-table th,
@@ -107,6 +98,7 @@ main {
   border: 1px solid var(--border);
   padding: 0.4rem;
   text-align: center;
+  vertical-align: middle;
 }
 
 .graph-controls {
