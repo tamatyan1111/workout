@@ -103,7 +103,7 @@ main {
 
 .board-table td:first-child {
   word-break: keep-all;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 .graph-controls {
