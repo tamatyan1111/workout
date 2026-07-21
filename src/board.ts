@@ -42,8 +42,8 @@ function renderTable(rows: BoardRow[]): string {
           <th colspan="3">目標</th>
         </tr>
         <tr>
-          <th>重量</th><th>回数</th><th>セット</th>
-          <th>重量</th><th>回数</th><th>セット</th>
+          <th>重量(kg)</th><th>回数</th><th>セット</th>
+          <th>重量(kg)</th><th>回数</th><th>セット</th>
         </tr>
       </thead>
       <tbody>
@@ -65,14 +65,14 @@ function renderRowGroup(r: BoardRow): string {
   const currentSets = splitLines(r['現在セット']);
   const lineCount = Math.max(currentReps.length, 1);
 
-  const targetWeight = valueOrDash(r['目標重量(kg)']);
+  const targetWeight = formatWeight(r['目標重量(kg)']);
   const targetReps = valueOrDash(r['目標回数']);
   const targetSets = valueOrDash(r['目標セット']);
 
   const lines = Array.from({ length: lineCount }, (_, i) => ({
-    weight: currentWeight[i] !== undefined ? `${currentWeight[i]}kg` : '-',
-    reps: currentReps[i] !== undefined ? `${currentReps[i]}回` : '-',
-    sets: currentSets[i] !== undefined ? `${currentSets[i]}セット` : '-',
+    weight: currentWeight[i] !== undefined ? formatWeight(currentWeight[i]) : '-',
+    reps: currentReps[i] !== undefined ? String(currentReps[i]) : '-',
+    sets: currentSets[i] !== undefined ? String(currentSets[i]) : '-',
   }));
 
   return lines
@@ -102,6 +102,14 @@ function renderRowGroup(r: BoardRow): string {
 
 function valueOrDash(v: unknown): string {
   return v === undefined || v === null || v === '' ? '-' : String(v);
+}
+
+// 重量は小数点1桁で表記を統一する(design.md §2.1)。"-"(重量なし種目)はそのまま表示する。
+function formatWeight(v: unknown): string {
+  if (v === undefined || v === null || v === '') return '-';
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return n.toFixed(1);
 }
 
 function escapeHtml(str: string): string {
