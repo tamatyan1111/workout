@@ -1,5 +1,5 @@
 import './style.css';
-import { getBoard } from './api';
+import { getBoard, getLogs } from './api';
 import { renderBoard } from './board';
 import { renderGraph } from './graph';
 
@@ -35,14 +35,15 @@ tabButtons.forEach((btn) => {
   });
 });
 
-// 管理表データはタブ間で共有し、二重にAPIを呼ばない
-getBoard()
-  .then((rows) => {
-    renderBoard(panels.board, rows);
-    renderGraph(panels.graph, rows);
+// 管理表・記録ログ(全件)をページ読み込み時に1回だけ並列取得し、タブ間で共有する。
+// グラフタブの種目・期間切り替えはAPIを呼び直さず、取得済みデータをブラウザ側でフィルタするだけにする。
+Promise.all([getBoard(), getLogs()])
+  .then(([board, logs]) => {
+    renderBoard(panels.board, board);
+    renderGraph(panels.graph, board, logs);
   })
   .catch((err) => {
-    const message = `<p class="error">管理表の取得に失敗しました: ${String(err)}</p>`;
+    const message = `<p class="error">データの取得に失敗しました: ${String(err)}</p>`;
     panels.board.innerHTML = message;
     panels.graph.innerHTML = message;
   });

@@ -1,13 +1,13 @@
 import { Chart, registerables } from 'chart.js';
-import { getLogs } from './api';
 import type { BoardRow, LogRow } from './types';
 
 Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
 
-// board は呼び出し元(main.ts)で取得済みのものを受け取る(管理表タブと二重取得しない)
-export async function renderGraph(container: HTMLElement, board: BoardRow[]): Promise<void> {
+// board・allLogs は呼び出し元(main.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
+// 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
+export function renderGraph(container: HTMLElement, board: BoardRow[], allLogs: LogRow[]): void {
   const exercises = board.filter((r) => r['分類'] !== 'Rest');
 
   if (exercises.length === 0) {
@@ -43,19 +43,19 @@ export async function renderGraph(container: HTMLElement, board: BoardRow[]): Pr
   let volumeChart: Chart | null = null;
   let currentPeriod: Period = '30d';
 
-  async function update(): Promise<void> {
+  function update(): void {
     const exercise = select.value;
     if (!exercise) return;
     statusEl.textContent = '';
 
     const { from, to } = periodRange(currentPeriod);
-    let logs: LogRow[] = [];
-    try {
-      logs = await getLogs(exercise, from, to);
-    } catch {
-      statusEl.textContent = 'データの取得に失敗しました';
-      return;
-    }
+    const logs = allLogs.filter((l) => {
+      if (l['種目名'] !== exercise) return false;
+      const date = String(l['日付']).slice(0, 10);
+      if (from && date < from) return false;
+      if (to && date > to) return false;
+      return true;
+    });
     if (logs.length === 0) {
       statusEl.textContent = '記録なし';
     }
@@ -110,7 +110,7 @@ export async function renderGraph(container: HTMLElement, board: BoardRow[]): Pr
     });
   });
 
-  await update();
+  update();
 }
 
 function periodRange(period: Period): { from?: string; to?: string } {

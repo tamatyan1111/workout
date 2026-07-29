@@ -22,6 +22,8 @@ export function getBoard(): Promise<BoardRow[]> {
   return callApi<BoardRow[]>('getBoard');
 }
 
-export function getLogs(exercise: string, from?: string, to?: string): Promise<LogRow[]> {
-  return callApi<LogRow[]>('getLogs', { exercise, from: from ?? '', to: to ?? '' });
+// exercise を省略すると記録ログ全件を取得する(ページ読み込み時に一度だけ全件先読みし、
+// グラフタブの種目・期間切り替えはブラウザ側でのフィルタで済ませるため。design.md §3参照)
+export function getLogs(exercise?: string, from?: string, to?: string): Promise<LogRow[]> {
+  return callApi<LogRow[]>('getLogs', { exercise: exercise ?? '', from: from ?? '', to: to ?? '' });
 }
