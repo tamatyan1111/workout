@@ -1,10 +1,10 @@
 import type { ApiResponse, Exercise, LogRow } from './types';
 
-// design.md §5 手順5で発行される、公開読み取りAPI(XServer)のURL
-export const API_BASE_URL = 'https://workout.tamachan-blog.com/api-public';
+// 公開サイト自体もworkout.tamachan-blog.com直下でホストするため、同一オリジンの相対パスで呼び出せる
+export const API_BASE_URL = '/api-public';
 
 async function callApi<T>(path: string, params: Record<string, string> = {}): Promise<T> {
-  const url = new URL(`${API_BASE_URL}/${path}`);
+  const url = new URL(`${API_BASE_URL}/${path}`, window.location.href);
   Object.entries(params).forEach(([key, value]) => {
     if (value) url.searchParams.set(key, value);
   });
