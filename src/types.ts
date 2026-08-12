@@ -1,29 +1,34 @@
-// design.md §2.1「管理表(マスタ)シート」に対応
-// 現在系3列は改行区切りで複数行になり得る(ドロップセット等、design.md §2.4)
-export interface BoardRow {
-  'サイクル': number;
-  '分類': string;
-  '種目名': string;
-  '現在重量(kg)': number | string;
-  '現在回数': number | string;
-  '現在セット': number | string;
-  '目標重量(kg)': number | string;
-  '目標回数': number | string;
-  '目標セット': number | string;
+// design.md §2.6「API仕様」に対応
+
+export interface SetGroup {
+  weight: number | null;
+  reps: number;
+  sets: number;
 }
 
-// design.md §2.2「記録ログシート」に対応
+// design.md §2.2「exercises テーブル」+ 2.5「現在値」に対応
+export interface Exercise {
+  id: number;
+  cycle: { id: number; label: string };
+  is_discontinued: boolean;
+  name: string;
+  is_weight_based: boolean;
+  target: { weight: number | null; reps: number | null; sets: number | null };
+  current: SetGroup[];
+}
+
+// design.md §2.3「logs テーブル」に対応
 export interface LogRow {
-  '記録ID': string;
-  '日付': string;
-  '種目名': string;
-  'セット番号': number;
-  '重量(kg)': number | string;
-  '回数': number;
+  id: number;
+  exercise_id: number;
+  logged_date: string;
+  set_number: number;
+  weight: number | null;
+  reps: number;
 }
 
 export interface ApiResponse<T> {
-  success: boolean;
+  ok: boolean;
   data?: T;
   error?: string;
 }

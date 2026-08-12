@@ -1,4 +1,4 @@
-import type { BoardRow } from './types';
+import type { Exercise } from './types';
 
 const CYCLE_LABELS: Record<number, string> = {
   1: 'サイクル1: Push',
@@ -7,27 +7,28 @@ const CYCLE_LABELS: Record<number, string> = {
   4: 'サイクル4: Rest',
 };
 
-// board は呼び出し元(main.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)
-export function renderBoard(container: HTMLElement, rows: BoardRow[]): void {
-  container.innerHTML = renderCycles(rows);
+// exercises は呼び出し元(main.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)
+export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {
+  container.innerHTML = renderCycles(exercises);
 }
 
-function renderCycles(rows: BoardRow[]): string {
+function renderCycles(exercises: Exercise[]): string {
+  const active = exercises.filter((e) => !e.is_discontinued);
   return [1, 2, 3, 4]
     .map((cycle) => {
-      const cycleRows = rows.filter((r) => Number(r['サイクル']) === cycle);
-      if (cycleRows.length === 0) return '';
+      const cycleExercises = active.filter((e) => e.cycle.id === cycle);
+      if (cycleExercises.length === 0) return '';
       return `
         <section class="cycle-block">
           <h2>${CYCLE_LABELS[cycle] ?? `サイクル${cycle}`}</h2>
-          ${renderTable(cycleRows)}
+          ${renderTable(cycleExercises)}
         </section>
       `;
     })
     .join('');
 }
 
-function renderTable(rows: BoardRow[]): string {
+function renderTable(exercises: Exercise[]): string {
   return `
     <table class="board-table">
       <colgroup>
@@ -47,38 +48,31 @@ function renderTable(rows: BoardRow[]): string {
         </tr>
       </thead>
       <tbody>
-        ${rows.map((r) => renderRowGroup(r)).join('')}
+        ${exercises.map((e) => renderRowGroup(e)).join('')}
       </tbody>
     </table>
   `;
 }
 
-// セルの中身を改行で分割する。design.md §2.4: 現在系3列はドロップセット等で複数行になり得る。
-function splitLines(v: unknown): string[] {
-  const s = v === undefined || v === null ? '' : String(v);
-  return s === '' ? [] : s.split('\n');
-}
+function renderRowGroup(e: Exercise): string {
+  const lineCount = Math.max(e.current.length, 1);
 
-function renderRowGroup(r: BoardRow): string {
-  const currentWeight = splitLines(r['現在重量(kg)']);
-  const currentReps = splitLines(r['現在回数']);
-  const currentSets = splitLines(r['現在セット']);
-  const lineCount = Math.max(currentReps.length, 1);
+  const targetWeight = formatWeight(e.target.weight);
+  const targetReps = valueOrDash(e.target.reps);
+  const targetSets = valueOrDash(e.target.sets);
 
-  const targetWeight = formatWeight(r['目標重量(kg)']);
-  const targetReps = valueOrDash(r['目標回数']);
-  const targetSets = valueOrDash(r['目標セット']);
-
-  const lines = Array.from({ length: lineCount }, (_, i) => ({
-    weight: currentWeight[i] !== undefined ? formatWeight(currentWeight[i]) : '-',
-    reps: currentReps[i] !== undefined ? String(currentReps[i]) : '-',
-    sets: currentSets[i] !== undefined ? String(currentSets[i]) : '-',
-  }));
+  const lines = Array.from({ length: lineCount }, (_, i) => {
+    const group = e.current[i];
+    return {
+      weight: group ? formatWeight(group.weight) : '-',
+      reps: group ? String(group.reps) : '-',
+      sets: group ? String(group.sets) : '-',
+    };
+  });
 
   return lines
     .map((line, i) => {
-      const nameCell =
-        i === 0 ? `<td rowspan="${lineCount}">${escapeHtml(String(r['種目名']))}</td>` : '';
+      const nameCell = i === 0 ? `<td rowspan="${lineCount}">${escapeHtml(e.name)}</td>` : '';
       const targetCells =
         i === 0
           ? `
@@ -100,16 +94,14 @@ function renderRowGroup(r: BoardRow): string {
     .join('');
 }
 
-function valueOrDash(v: unknown): string {
-  return v === undefined || v === null || v === '' ? '-' : String(v);
+function valueOrDash(v: number | null): string {
+  return v === null ? '-' : String(v);
 }
 
-// 重量は小数点1桁で表記を統一する(design.md §2.1)。"-"(重量なし種目)はそのまま表示する。
-function formatWeight(v: unknown): string {
-  if (v === undefined || v === null || v === '') return '-';
-  const n = Number(v);
-  if (Number.isNaN(n)) return String(v);
-  return n.toFixed(1);
+// 重量は小数点1桁で表記を統一する(design.md §3)。重量なし種目はダッシュ表示。
+function formatWeight(v: number | null): string {
+  if (v === null) return '-';
+  return v.toFixed(1);
 }
 
 function escapeHtml(str: string): string {

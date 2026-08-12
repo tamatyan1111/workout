@@ -1,25 +1,47 @@
 import { Chart, registerables } from 'chart.js';
-import type { BoardRow, LogRow } from './types';
+import type { Exercise, LogRow } from './types';
 
 Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
 
-// board・allLogs は呼び出し元(main.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
-// 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
-export function renderGraph(container: HTMLElement, board: BoardRow[], allLogs: LogRow[]): void {
-  const exercises = board.filter((r) => r['分類'] !== 'Rest');
+const CYCLE_LABELS: Record<number, string> = {
+  1: 'サイクル1: Push',
+  2: 'サイクル2: Pull',
+  3: 'サイクル3: Legs',
+};
 
-  if (exercises.length === 0) {
+// exercises・allLogs は呼び出し元(main.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
+// 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
+export function renderGraph(container: HTMLElement, exercises: Exercise[], allLogs: LogRow[]): void {
+  const selectable = exercises.filter((e) => e.cycle.label !== 'Rest');
+
+  if (selectable.length === 0) {
     container.innerHTML = '<p>種目が登録されていません</p>';
     return;
   }
 
+  // 廃止済みでも元のサイクルのグループ内に表示し、名前に(廃止)を付けて区別する
+  const groups = [1, 2, 3]
+    .map((cycle) => ({ label: CYCLE_LABELS[cycle], rows: selectable.filter((e) => e.cycle.id === cycle) }))
+    .filter((g) => g.rows.length > 0);
+
   container.innerHTML = `
     <div class="graph-controls">
       <select id="exercise-select">
-        ${exercises
-          .map((e) => `<option value="${escapeHtml(String(e['種目名']))}">${escapeHtml(String(e['種目名']))}</option>`)
+        ${groups
+          .map(
+            (g) => `
+          <optgroup label="${escapeHtml(g.label)}">
+            ${g.rows
+              .map(
+                (e) =>
+                  `<option value="${e.id}">${escapeHtml(e.name)}${e.is_discontinued ? '(廃止)' : ''}</option>`
+              )
+              .join('')}
+          </optgroup>
+        `
+          )
           .join('')}
       </select>
       <div class="period-toggle" role="group">
@@ -44,16 +66,16 @@ export function renderGraph(container: HTMLElement, board: BoardRow[], allLogs: 
   let currentPeriod: Period = '30d';
 
   function update(): void {
-    const exercise = select.value;
+    const exerciseId = Number(select.value);
+    const exercise = selectable.find((e) => e.id === exerciseId);
     if (!exercise) return;
     statusEl.textContent = '';
 
     const { from, to } = periodRange(currentPeriod);
     const logs = allLogs.filter((l) => {
-      if (l['種目名'] !== exercise) return false;
-      const date = String(l['日付']).slice(0, 10);
-      if (from && date < from) return false;
-      if (to && date > to) return false;
+      if (l.exercise_id !== exerciseId) return false;
+      if (from && l.logged_date < from) return false;
+      if (to && l.logged_date > to) return false;
       return true;
     });
     if (logs.length === 0) {
@@ -62,9 +84,9 @@ export function renderGraph(container: HTMLElement, board: BoardRow[], allLogs: 
 
     const byDate = groupByDate(logs);
     const labels = Object.keys(byDate).sort();
-    const weightData = labels.map((d) => Math.max(...byDate[d].map((l) => Number(l['重量(kg)']) || 0)));
+    const weightData = labels.map((d) => Math.max(...byDate[d].map((l) => l.weight ?? 0)));
     const volumeData = labels.map((d) =>
-      byDate[d].reduce((sum, l) => sum + (Number(l['重量(kg)']) || 0) * (Number(l['回数']) || 0), 0)
+      byDate[d].reduce((sum, l) => sum + (l.weight ?? 0) * l.reps, 0)
     );
 
     weightChart?.destroy();
@@ -74,7 +96,7 @@ export function renderGraph(container: HTMLElement, board: BoardRow[], allLogs: 
       options: {
         responsive: true,
         plugins: {
-          title: { display: true, text: `${exercise} - 重量推移(その日の最大重量)` },
+          title: { display: true, text: `${exercise.name} - 重量推移(その日の最大重量)` },
         },
         scales: {
           x: { title: { display: true, text: '日付' } },
@@ -90,7 +112,7 @@ export function renderGraph(container: HTMLElement, board: BoardRow[], allLogs: 
       options: {
         responsive: true,
         plugins: {
-          title: { display: true, text: `${exercise} - 総作業量推移(重量×回数の合計)` },
+          title: { display: true, text: `${exercise.name} - 総作業量推移(重量×回数の合計)` },
         },
         scales: {
           x: { title: { display: true, text: '日付' } },
@@ -129,7 +151,7 @@ function formatDate(d: Date): string {
 function groupByDate(logs: LogRow[]): Record<string, LogRow[]> {
   const map: Record<string, LogRow[]> = {};
   logs.forEach((l) => {
-    const date = String(l['日付']).slice(0, 10);
+    const date = l.logged_date.slice(0, 10);
     if (!map[date]) map[date] = [];
     map[date].push(l);
   });

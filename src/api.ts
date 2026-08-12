@@ -1,29 +1,30 @@
-import type { ApiResponse, BoardRow, LogRow } from './types';
+import type { ApiResponse, Exercise, LogRow } from './types';
 
-// design.md §5 手順4で発行されるProject A(公開読み取り用)のURLに置き換える
-export const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbwIgSClDFkwIpUItYSoT_eZaY08zPGNDdUPjA_76wN3Ehl1PmoAif46F9Flg0qbOWWc/exec';
+// design.md §5 手順5で発行される、公開読み取りAPI(XServer)のURL
+export const API_BASE_URL = 'https://workout.tamachan-blog.com/api-public';
 
-async function callApi<T>(action: string, params: Record<string, string> = {}): Promise<T> {
-  const url = new URL(API_BASE_URL);
-  url.searchParams.set('action', action);
+async function callApi<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`${API_BASE_URL}/${path}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value) url.searchParams.set(key, value);
   });
 
   const res = await fetch(url.toString());
   const body = (await res.json()) as ApiResponse<T>;
-  if (!body.success || body.data === undefined) {
+  if (!body.ok || body.data === undefined) {
     throw new Error(body.error ?? '通信に失敗しました');
   }
   return body.data;
 }
 
-export function getBoard(): Promise<BoardRow[]> {
-  return callApi<BoardRow[]>('getBoard');
+export function getBoard(): Promise<Exercise[]> {
+  return callApi<{ exercises: Exercise[] }>('get_board.php').then((d) => d.exercises);
 }
 
-// exercise を省略すると記録ログ全件を取得する(ページ読み込み時に一度だけ全件先読みし、
-// グラフタブの種目・期間切り替えはブラウザ側でのフィルタで済ませるため。design.md §3参照)
-export function getLogs(exercise?: string, from?: string, to?: string): Promise<LogRow[]> {
-  return callApi<LogRow[]>('getLogs', { exercise: exercise ?? '', from: from ?? '', to: to ?? '' });
+export function getLogs(exerciseId?: number, from?: string, to?: string): Promise<LogRow[]> {
+  return callApi<{ logs: LogRow[] }>('get_logs.php', {
+    exercise_id: exerciseId ? String(exerciseId) : '',
+    date_from: from ?? '',
+    date_to: to ?? '',
+  }).then((d) => d.logs);
 }
