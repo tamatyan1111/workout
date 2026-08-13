@@ -18,69 +18,132 @@ timestamp: 2026-07-20T00:00:00Z
 
 これを受けて、データストアをユーザーが既に契約しているXServer(スタンダードプラン)のMySQL/MariaDB 10.5へ移行する。最大の狙いは、**「現在値」を書き込み時にキャッシュ・再計算する方式を廃止し、読み取り時にSQLで都度計算する方式に変える**こと。これにより「再計算し忘れ」「再計算が誤った列に書き込まれる」というバグのクラスを構造的に無くす。
 
+## 0.1 マルチユーザー化への転換(2026-08時点)
+
+当初は自分専用ツール(秘密パスによる書き込み保護、誰でも見られる公開閲覧サイト付き)として構築したが、将来的に無料で一般公開し、複数のユーザーが使える製品に育てる方針に転換した([requirements.md](requirements.md) §0)。これに伴う主な設計変更:
+
+- 秘密パスによる書き込み保護 → 通常のログイン認証(セッションCookie、Google OAuth / メールアドレス・パスワード)に置き換え
+- 「誰でも見られる公開サイト」+「秘密パスの入力ページ」という2アプリ構成 → ログイン必須の単一ダッシュボードアプリに統合
+- `cycles`(サイクル)は全ユーザー共通の固定4行 → ユーザーごとに自由に作成・編集できるテーブルに変更
+- 新規テーブル: `users`・`body_weight_logs`・`password_reset_tokens`
+- 旧アーキテクチャ(公開サイト/秘密パス方式)の詳細は [architecture.md](architecture.md) の「過去のアーキテクチャからの変更」に記録する
+
 ## 1. アーキテクチャ
 
 ```
-[閲覧者] --誰でも--> [XServer: 公開サイト(静的HTML)] --GET(同一オリジン)--> [公開読み取りAPI(PHP)] --PDO--> [MySQL/MariaDB]
-
-[記録者] --秘密パス--> [XServer: 入力ページ(静的HTML) + 書込API(PHP)] --同一オリジンPOST--> [同じMySQL]
+[ユーザー] --ログイン(メール/パスワード or Google)--> [XServer: ダッシュボード(静的HTML、SPA)]
+                                                              │ 同一オリジン・セッションCookie付きfetch
+                                                              ▼
+                                                    [認証必須API(PHP)] --PDO--> [MySQL/MariaDB]
 ```
 
-**「1アプリ=1サブドメイン」の方針**により、公開サイト・公開読み取りAPI・入力ページ・書込APIをすべて**同じ1つのサブドメイン**(`workout.tamachan-blog.com`)配下に集約する。当初は公開サイトをGitHub Pagesで別ホストする設計だったが、ドメイン・リポジトリ命名がバラバラになる問題があったため、XServer側に統合した(旧構成はarchitecture.md参照)。
+- ダッシュボードアプリ(静的HTML)は、ログイン画面・サインアップ画面・オンボーディング・管理表タブ・グラフタブ・体重タブ・プロフィール設定を1つのSPAとして提供し、`workout.tamachan-blog.com/`直下にビルド済み成果物をFTPで配置する
+- APIはすべて`workout.<domain>/api/`に集約する。全エンドポイントがログイン必須で、旧来の「公開読み取りAPI」と「秘密パスAPI」の区別は廃止する
+- ドメインは当面`workout.tamachan-blog.com`を継続利用する。フロント・APIとも相対パス・`.env`設定に依存する作りのため、将来独立ドメインへ移行する場合もコードの作り直しは不要(DNS/SSL設定とデプロイ先の変更のみで済む)
+- ソースコード(GitHubリポジトリ)はソース管理としてのみ利用し、GitHub Pages等のホスティング機能は使わない(変更なし)
 
-- **公開サイト**: `workout.tamachan-blog.com/`直下にビルド済み静的HTMLをFTPで配置する。呼び出すのは同一オリジンの**公開読み取りAPI**のみ
-- **入力ページ**: 同じサブドメインの**秘密パス**(推測困難な長いランダム文字列をディレクトリ名に使う)にビルド済みの静的HTMLをFTPで配置する。書き込みAPIも同じ秘密パス配下に置くため、同一オリジンとなりCORS対応が一切不要になる
-- 公開読み取りAPI・書き込みAPIはどちらも同じMySQLデータベースを参照する
-- ソースコード(GitHubリポジトリ)は各パーツごとに分けて管理するが、GitHub Pages等のホスティング機能は使わず、あくまでソース管理としてのみ利用する
+### 1.1 認証方式
 
-### 1.1 サブドメインとパスの使い分け(重要)
+| 方式 | 概要 |
+| :--- | :--- |
+| メール/パスワード | `password_hash()`(bcrypt)でハッシュ化して`users.password_hash`に保存する。ログインは`password_verify()`で照合する |
+| Googleログイン | 標準的なOAuth2 Authorization Codeフローを使う。認可コードをGoogleのトークンエンドポイントに交換し、取得したアクセストークンで`userinfo`エンドポイントからメールアドレス・`sub`(Google側の一意ID)を取得する。**IDトークンのJWT署名検証はサーバー側で自前実装しない**(本番にComposerの`vendor/`をデプロイしない方針のため)。`userinfo`エンドポイントへのHTTPS呼び出し自体がGoogle側で検証済みのデータを返すため、自前でJWT検証を実装する必要がない |
+| セッション | PHPネイティブセッション(`session_start()`)。Cookieには`HttpOnly`・`Secure`・`SameSite=Lax`を設定する |
+| パスワードリセット | `password_reset_tokens`に、ランダムトークンの**ハッシュ値のみ**を保存する(トークン本体はメール本文にのみ含め、DBには残さない)。有効期限を設ける |
+| CSRF対策 | 状態変更系(POST)のAPIは、単純なクロスサイトフォーム送信では付与できないカスタムヘッダー(`X-Requested-With`等)を必須にする。`SameSite=Lax`と合わせて、個人開発の小規模サービスとして現実的な防御レベルとする |
+| メール送信 | XServerの標準プランに含まれるメールアカウント機能を使う(追加契約不要)。パスワードリセットメールの到達率を確保するため、XServerのサーバーパネルでSPF/DKIMを設定する |
+| レート制限 | ログイン試行の総当たり対策として、`users`に失敗回数・直近失敗日時を持たせ、一定回数連続失敗した場合は短時間ロックする程度の簡易実装に留める(小規模サービスのためYAGNI) |
 
-公開読み取りAPI・秘密パスAPIは、**同じ1つのサブドメイン**の下に両方置く。サブドメインを分けない理由:
+### 1.2 データ分離の方針(重要)
 
-無料SSL証明書(Let's Encrypt)は発行時にCT(Certificate Transparency)ログへ公開記録される。もし「入力ページ専用の秘密サブドメイン」を作ってSSLを取得すると、そのサブドメイン名自体が`crt.sh`等で誰でも検索可能になり、「秘密URL」という防御の前提が崩れてしまう。
+`cycles`・`exercises`・`logs`・`body_weight_logs`の**全テーブルに`user_id`を直接持たせる**(`cycles`経由の間接参照だけに頼らない)。各APIエンドポイントは必ずログイン中の`user_id`でWHERE句を絞り込み、リクエストパラメータで送られてきた`user_id`は一切信用しない。
 
-そのため、**サブドメイン名自体は推測されてもよい前提**にし、その配下の秘密性は長いランダムな「パス」(例: `workout.tamachan-blog.com/x7f9k2m4q8w1zabc/`)で確保する。これは今のApps ScriptのexecURLが、長い推測困難なトークンを含んでいるのと同じ考え方。
+理由: `exercises`→`cycles`→`user_id`のようなJOIN経由の間接的な認可チェックだけに頼ると、将来クエリが増えた際にJOINを書き忘れて他人のデータが漏れる事故が起こりうる。テーブルごとに直接絞り込める形にすることで、この種の事故を構造的に防ぐ。
 
-### 1.2 セキュリティ方針
-個人利用の小規模プロジェクトのため、当面は本格的な認証は導入しない。書き込み用のURL(パス)自体が推測困難な長い文字列であることのみを防御手段とする(旧設計からの方針を踏襲)。
+### 1.3 アカウント削除の実装方針(US-16対応)
 
-**将来的な拡張**: 簡易ログイン機能を後日追加する予定。そのため書き込み系のPHPエンドポイントは、各ファイルの先頭に認証チェックの呼び出しを1行差し込むだけで済む構造にしておく(今回は実装しない)。
+`ON DELETE CASCADE`には頼らず、`logs` → `body_weight_logs` → `exercises` → `cycles` → `users`の順に、1つのトランザクション内で明示的に削除する。
+
+理由: 複数のテーブルがそれぞれ`user_id`経由で`users`に`CASCADE`を設定すると、MySQLは各テーブルの削除順序を保証しないため、`exercises.cycle_id → cycles`のような別経路のFK制約(`RESTRICT`)と組み合わさったときに、削除順序次第で外部キー制約違反が起こりうる。アカウント削除は取り消せない重大な操作でもあるため、順序を明示したコードで確実に・監査しやすく実装する。
 
 | 要素 | 使用サービス | 費用 |
 | :--- | :--- | :--- |
-| 公開サイト・API実行環境・データ保存 | XServer(スタンダードプラン、MySQL/MariaDB + PHP) | 既存契約内(追加費用なし) |
+| ダッシュボード・API実行環境・データ保存 | XServer(スタンダードプラン、MySQL/MariaDB + PHP) | 既存契約内(追加費用なし) |
+| メール送信(パスワードリセット等) | XServer標準プラン付属のメールアカウント機能 | 既存契約内(追加費用なし) |
+| Googleログイン | Google Cloud の OAuth 2.0 クライアント(無料枠) | 無料 |
 | ソースコード管理 | GitHub(ホスティングには使わない) | 無料 |
 | フロントエンド技術スタック | Vite + TypeScript(素、フレームワークなし) | 無料 |
 | グラフ描画ライブラリ | Chart.js | 無料 |
 
-**CORS**: 公開サイト・公開読み取りAPI・入力ページ・書込APIはすべて同一オリジン(`workout.tamachan-blog.com`)のため、本番運用上はCORSヘッダー自体が不要。ただしローカル開発時(`npm run dev`の`localhost`)から公開読み取りAPIを呼べるよう、許可オリジンのホワイトリストに`http://localhost:5173`を含めている(`php/private/.env`の`PUBLIC_CORS_ORIGINS`)。
+**CORS**: ダッシュボード・APIは同一オリジン(`workout.tamachan-blog.com`)のため、本番運用上はCORSヘッダー自体が不要。ただしローカル開発時(`npm run dev`の`localhost`)からAPIを呼べるよう、許可オリジンのホワイトリストに`http://localhost:5173`を含めている(`php/private/.env`の`PUBLIC_CORS_ORIGINS`)。
 
 ## 2. データモデル(MySQL/MariaDB)
 
-### 2.1 `cycles` テーブル — サイクルのマスタ
+### 2.1 `users` テーブル — ユーザーアカウント(新規)
+
+```sql
+CREATE TABLE users (
+  id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email          VARCHAR(255) NULL,
+  password_hash  VARCHAR(255) NULL,
+  google_sub     VARCHAR(255) NULL,          -- Googleログイン利用者の一意ID(sub)
+  display_name   VARCHAR(100) NOT NULL,
+  birth_date     DATE NULL,
+  gender         ENUM('male', 'female', 'unspecified') NOT NULL DEFAULT 'unspecified',
+  failed_login_count     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  failed_login_at        DATETIME NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_users_email (email),
+  UNIQUE KEY uq_users_google_sub (google_sub)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- `email`・`password_hash`・`google_sub`はいずれもNULL許容だが、アプリ側で「`email`+`password_hash`の組」または「`google_sub`」のどちらか一方は必ず設定されることを保証する(将来、同一ユーザーに両方を紐づける拡張も可能な形にしておく)
+- `birth_date`・`gender`は任意項目(US-14)。`gender`は将来のカロリー計算機能でBMR計算式の係数として使う可能性があるための保持で、今回は保持のみでスコープ外([requirements.md](requirements.md) §4)
+
+### 2.2 `password_reset_tokens` テーブル — パスワードリセット用トークン(新規)
+
+```sql
+CREATE TABLE password_reset_tokens (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     INT UNSIGNED NOT NULL,
+  token_hash  CHAR(64) NOT NULL,             -- ランダムトークンのSHA-256。トークン本体はDBに残さない
+  expires_at  DATETIME NOT NULL,
+  used_at     DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_token_hash (token_hash),
+  CONSTRAINT fk_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+このテーブルは`users`以外に子テーブルを持たない独立した子テーブルなので、§1.3のような削除順序の懸念がなく`ON DELETE CASCADE`で問題ない。
+
+### 2.3 `cycles` テーブル — サイクル(ユーザーごとに自由に定義)
 
 ```sql
 CREATE TABLE cycles (
-  id    TINYINT UNSIGNED NOT NULL,
-  label VARCHAR(20) NOT NULL,
-  PRIMARY KEY (id)
+  id      INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id INT UNSIGNED NOT NULL,
+  label   VARCHAR(20) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_user_label (user_id, label)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO cycles (id, label) VALUES
-  (1, 'Push'), (2, 'Pull'), (3, 'Legs'), (4, 'Rest');
 ```
 
-4行固定の小さなマスタテーブル。「Push」等の表示ラベルをアプリのコードにハードコードせず、DB側の1箇所に持たせる(ラベルを変えたくなった場合もデータ更新だけで済む)。
+- 旧設計では全ユーザー共通の固定4行(Push/Pull/Legs/Rest)だったが、US-12・US-13対応でユーザーごとに自由に作成・編集できるテーブルに変更する。明示的な並び順の列は持たず、`id`昇順(作成順)をそのまま表示順とする(YAGNI。手動並び替えが欲しくなったら列を足す)
+- 「休憩」を表す特別なサイクル種別は持たない。オンボーディングのテンプレート(§2.7)で「Rest」という名前のサイクルを提示することはできるが、アプリ側では他のサイクルと同じ扱いになる(旧設計にあった「サイクル=Restなら種目名『休憩』の1行のみ表示」という特別扱いは廃止し、種目が0件のサイクルは自然に空の一覧として表示される)
 
-### 2.2 `exercises` テーブル — 種目の基本情報・目標値
+### 2.4 `exercises` テーブル — 種目の基本情報・目標値
 
 ```sql
 CREATE TABLE exercises (
   id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  cycle_id        TINYINT UNSIGNED NOT NULL,       -- 種目は常にいずれかのサイクルに属する(廃止後も元のサイクルを保持する)
-  is_discontinued TINYINT(1) NOT NULL DEFAULT 0,   -- 1 = 現在は行っていない種目
+  user_id         INT UNSIGNED NOT NULL,
+  cycle_id        INT UNSIGNED NOT NULL,           -- 種目は常にいずれかのサイクルに属する(廃止後も元のサイクルを保持する)
+  is_discontinued TINYINT(1) NOT NULL DEFAULT 0,    -- 1 = 現在は行っていない種目
   name            VARCHAR(255) NOT NULL,
-  target_weight   DECIMAL(5,2) NULL,               -- NULLは「目標重量なし」(旧"-")
+  target_weight   DECIMAL(5,2) NULL,                -- NULLは「目標重量なし」(旧"-")
   target_reps     SMALLINT UNSIGNED NULL,
   target_sets     SMALLINT UNSIGNED NULL,
   PRIMARY KEY (id),
@@ -89,17 +152,15 @@ CREATE TABLE exercises (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-- `id`が実PK。旧設計の「サイクル+種目名の複合キー」は`UNIQUE(cycle_id, name)`制約として引き継ぎつつ、日々の照合は`exercise_id`の直接参照に一本化する(名前+サイクルでの検索ロジックは不要になる)
-- **`category`列は持たない**。旧設計では`cycle`(1〜4)と`category`(Push/Pull/Legs/Rest)を両方持っていたが、両者は1対1で決まる(cycle=1は必ずPush、など)ため`category`は`cycle_id`への推移的従属になり第三正規形違反だった。表示ラベルは`cycles`テーブルとのJOINで得る
-- 「廃止」は`cycle_id`とは独立した`is_discontinued`フラグで表現する。`cycle_id`は廃止後も元のサイクルを保持したままにする(例: ダンベルキックバックはPushのまま`is_discontinued=1`)。これにより、入力ページの記録対象・管理表からは除外しつつ、公開サイトのグラフでは引き続き元のサイクルのグループ内で選択・参照できる
-- 現在値(現在重量/現在回数/現在セット)の列は**持たない**。2.4の通り読み取り時に`logs`から都度計算する
-- 目標値(target_weight/target_reps/target_sets)は単一のスカラー値。複数行対応(将来の期間ごとの目標変更など)は今回スコープ外(YAGNI。必要になったら別テーブルで対応する)
+- `user_id`を直接持つ(§1.2の方針)。`cycle_id`も併せて持つため冗長に見えるが、`cycle_id`は「どのサイクルに属するか」という意味情報、`user_id`は「誰のデータか」という認可情報であり、役割が異なる
+- それ以外の設計判断は旧設計から変更なし: `id`が実PK、`category`列は持たない(`cycle_id`への推移的従属になるため)、「廃止」は`is_discontinued`フラグで表現し`cycle_id`は保持したままにする、現在値の列は持たない(2.6の通り読み取り時に算出)、目標値は単一のスカラー値(複数期間対応はスコープ外)
 
-### 2.3 `logs` テーブル — トレーニングごとの実績
+### 2.5 `logs` テーブル — トレーニングごとの実績
 
 ```sql
 CREATE TABLE logs (
   id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id       INT UNSIGNED NOT NULL,
   exercise_id   INT UNSIGNED NOT NULL,
   logged_date   DATE NOT NULL,
   set_number    SMALLINT UNSIGNED NOT NULL,
@@ -113,17 +174,42 @@ CREATE TABLE logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-- `id`はDBの`AUTO_INCREMENT`に一本化。旧設計の「シート内の最大値+1を手動採番」ロジックは廃止
-- `exercise_id`は`exercises.id`への外部キー。旧設計の「種目名+サイクルの組で管理表の行を特定する」照合ロジックはすべて不要になる
-- 列名は`date`ではなく`logged_date`にする(`date`はSQLの型名と衝突する予約語のため、クエリで常にクォートが必要になり煩雑)
-- `weight`は`DECIMAL(5,2)`(浮動小数点にしない)。2.5の現在値グルーピングは`(weight, reps)`の完全一致で行うため、浮動小数点誤差でグループが分裂する事故を避ける
-- `ON DELETE RESTRICT`: ログが1件でも紐づく種目は削除できない。記録がある種目を使わなくなった場合は`is_discontinued`を`1`にする運用とする(物理削除は記録が0件の種目のみ)
+- `user_id`を直接持つ(§1.2の方針)。それ以外は旧設計から変更なし: `id`はDBの`AUTO_INCREMENT`、列名は予約語衝突を避けて`logged_date`、`weight`は`DECIMAL(5,2)`(浮動小数点誤差による現在値グルーピング分裂を避けるため)、`ON DELETE RESTRICT`によりログが紐づく種目は削除不可(物理削除は記録が0件の種目のみ、それ以外は`is_discontinued`で運用)
 
-### 2.4 重量なし種目の扱い(バリデーション)
+### 2.6 `body_weight_logs` テーブル — 体重の推移(新規、US-15対応)
+
+```sql
+CREATE TABLE body_weight_logs (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     INT UNSIGNED NOT NULL,
+  logged_date DATE NOT NULL,
+  weight      DECIMAL(5,2) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_user_date (user_id, logged_date),
+  KEY idx_user_date (user_id, logged_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+1日1件の記録を前提とし、`(user_id, logged_date)`をユニーク制約にする。同じ日に再送信した場合は`add_body_weight`側で既存行をUPSERT(上書き)する(トレーニング記録のような1日複数セットの概念が体重にはないため、種目記録とは異なり単純な時系列として扱う)。
+
+### 2.7 サイクル初期設定テンプレート(US-12対応)
+
+DBテーブルは持たない。フロントエンドの静的な設定値として、以下のようなテンプレートを用意し、オンボーディング画面で選択させる。選択すると、そのユーザーの`cycles`に一括で行を作成する(種目は含まない。作成後にUS-7の操作で追加する)。
+
+```
+- 4分割: Push / Pull / Legs / Rest
+- 3分割: Push / Pull / Legs
+- 2分割: Upper / Lower
+- フルボディ: Full Body
+- (テンプレートを使わず、ゼロから自分でサイクルを作る)
+```
+
+### 2.8 重量なし種目の扱い(バリデーション)
 
 エアロバイク・クランチ等、目標重量が無い種目は、記録の重量欄も空欄で送信可能とする。それ以外の種目は重量を必須項目として扱う。回数は全種目で必須。
 
-ただし目標重量が無いのは「重量を使わない種目」だけでなく「廃止されて目標が無くなった種目」もあり得る(例: ダンベルキックバック、目標重量は無いが実際は7.5kgで記録していた)。これらを区別するため、`is_weight_based`という真偽値を**読み取り時にSQLで判定**して`getBoard`のレスポンスに含める(旧設計の2段階判定をSQLで再現)。
+ただし目標重量が無いのは「重量を使わない種目」だけでなく「廃止されて目標が無くなった種目」もあり得る。これらを区別するため、`is_weight_based`という真偽値を**読み取り時にSQLで判定**して`getBoard`のレスポンスに含める。
 
 ```sql
 (e.target_weight IS NOT NULL
@@ -136,20 +222,21 @@ CREATE TABLE logs (
 
 フロントエンド側はこの`is_weight_based`フラグを信頼するだけでよく、クライアント側で同じ判定ロジックを再実装しない。
 
-### 2.5 「現在値」の自動算出ロジック(US-2対応、読み取り時に計算)
+### 2.9 「現在値」の自動算出ロジック(US-2対応、読み取り時に計算)
 
 種目(`exercise_id`で特定)ごとに、記録の中から**直近の記録日**のデータを対象にする。
 
 その日に行った**(重量, 回数)の組ごとにグルーピング**し、それぞれのグループを「重量・回数・そのセット数」として返す。ドロップセットのように日の中で重量が変わる場合でも、実際に行った組み合わせだけを正確に表現できる(例: 60kg×3回を1セット、50kg×10回を1セット、40kg×12回を3セット、という3グループ)。
 
-`getBoard`用の一括クエリ(全種目分を1回で取得):
+`getBoard`用の一括クエリ(ログイン中のユーザーの全種目分を1回で取得):
 
 ```sql
 SELECT l.exercise_id, l.weight, l.reps, COUNT(*) AS sets
 FROM logs l
 INNER JOIN (
-  SELECT exercise_id, MAX(logged_date) AS max_date FROM logs GROUP BY exercise_id
+  SELECT exercise_id, MAX(logged_date) AS max_date FROM logs WHERE user_id = :user_id GROUP BY exercise_id
 ) latest ON latest.exercise_id = l.exercise_id AND latest.max_date = l.logged_date
+WHERE l.user_id = :user_id
 GROUP BY l.exercise_id, l.weight, l.reps
 ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 ```
@@ -160,9 +247,9 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 
 記録ログへの追記・修正・削除があっても、**書き込み時に何かを再計算・保存する必要はない**。次に読み取られたときに常に最新の実データを反映する。
 
-### 2.6 API仕様
+### 2.10 API仕様
 
-レスポンス形式は英語キー・構造化配列に刷新する(旧: Sheetsの日本語ヘッダー名をそのままJSONキーにしていた)。`cycle`は`cycles`テーブルとJOINしたラベル込みのオブジェクトとして返す(廃止済み種目も元のサイクルのまま。`is_discontinued`で区別する)。
+レスポンス形式は英語キー・構造化配列。`cycle`は`cycles`テーブルとJOINしたラベル込みのオブジェクトとして返す(廃止済み種目も元のサイクルのまま。`is_discontinued`で区別する)。
 
 ```json
 {
@@ -177,96 +264,130 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 }
 ```
 
-`current`配列は2.5のクエリの通り重量の降順で返す(上の例なら60→50→40kgの順)。フロントエンドは並び替えをせず、返ってきた順にそのまま表示してよい。
+`current`配列は2.9のクエリの通り重量の降順で返す(上の例なら60→50→40kgの順)。フロントエンドは並び替えをせず、返ってきた順にそのまま表示してよい。
 
-#### 公開読み取りAPI(`workout.<domain>/api-public/`、誰でも呼び出し可、URLは公開サイトのコードに含めてよい)
-| endpoint | method | 用途 | 主なパラメータ |
-| :--- | :--- | :--- | :--- |
-| `get_board.php` | GET | 種目一覧(現在値・目標値込み) | なし |
-| `get_logs.php` | GET | グラフ用の記録ログを取得 | `exercise_id?`, `date_from?`, `date_to?`(省略時は全件) |
+各PHPファイルは共通のレスポンス形式(`{"ok":true,...}` / `{"ok":false,"error":"..."}`)を返す。PDO+プリペアドステートメントのみを使用し、文字列連結SQLは書かない。DB接続・クエリ・レスポンスヘルパー・認証チェック等の共通ロジックは、全エンドポイントから共有する1箇所に置く(コピペで二重管理にしない)。
 
-#### 秘密パスAPI(`workout.<domain>/<秘密パス>/api/`、URLは記録者だけが知る)
-`<秘密パス>/index.html`: 入力ページ本体(ビルド済み静的HTML、FTPで配置)
-
+#### 認証API(`workout.<domain>/api/auth/`、ログイン不要で呼び出せる)
 | endpoint | method | payload | response |
 | :--- | :--- | :--- | :--- |
-| `get_board.php` | GET | - | 公開APIと同じ |
+| `signup.php` | POST | `{email, password, display_name}` | `{ok:true}`(成功時セッション開始) |
+| `login.php` | POST | `{email, password}` | `{ok:true}`(成功時セッション開始) |
+| `logout.php` | POST | - | `{ok:true}` |
+| `google_start.php` | GET | - | Googleの認可画面へリダイレクト |
+| `google_callback.php` | GET | `code`(クエリ) | 成功時セッション開始しダッシュボードへリダイレクト |
+| `password_reset_request.php` | POST | `{email}` | `{ok:true}`(該当ユーザーが存在してもしなくても同じレスポンスを返し、メール登録の有無を外部に漏らさない) |
+| `password_reset_confirm.php` | POST | `{token, new_password}` | `{ok:true}` または `{ok:false, error:"invalid_or_expired_token"}` |
+
+#### ダッシュボードAPI(`workout.<domain>/api/`、全エンドポイントでログイン必須)
+| endpoint | method | payload | response |
+| :--- | :--- | :--- | :--- |
+| `get_board.php` | GET | - | 種目一覧(現在値・目標値込み) |
+| `get_logs.php` | GET | `exercise_id?`, `date_from?`, `date_to?`(省略時は全件) | グラフ用の記録ログ |
 | `get_recent_logs.php` | GET | `limit?`(既定20) | `{logs: [{id, exercise_id, exercise_name, cycle_id, logged_date, set_number, weight, reps}]}` |
-| `add_log.php` | POST | `{exercise_id, logged_date, sets:[{weight,reps},...]}` | `{ids:[...]}` (setsと同じ順序で採番されたIDを返す) |
+| `add_log.php` | POST | `{exercise_id, logged_date, sets:[{weight,reps},...]}` | `{ids:[...]}` |
 | `edit_log.php` | POST | `{id, logged_date, weight, reps}` | `{ok:true}` |
 | `delete_log.php` | POST | `{id}` | `{ok:true}` |
+| `add_cycle.php` | POST | `{label}` | `{id}` |
+| `edit_cycle.php` | POST | `{id, label}` | `{ok:true}` |
+| `delete_cycle.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_exercises"}` |
 | `add_exercise.php` | POST | `{cycle_id, name, target_weight?, target_reps?, target_sets?}` | `{id}` |
 | `edit_exercise.php` | POST | `{id, target_weight?, target_reps?, target_sets?, discontinued?}` | `{ok:true}` |
-| `delete_exercise.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_logs"}`(記録が紐づく種目は削除不可) |
-
-各PHPファイルは共通のレスポンス形式(`{"ok":true,...}` / `{"ok":false,"error":"..."}`)を返す。PDO+プリペアドステートメントのみを使用し、文字列連結SQLは書かない。DB接続・上記クエリ・レスポンスヘルパー等の共通ロジックは、公開API・秘密パスAPIの両方から共有する1箇所に置く(コピペで二重管理にしない)。
+| `delete_exercise.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_logs"}` |
+| `get_body_weight_logs.php` | GET | `date_from?`, `date_to?` | 体重の記録一覧 |
+| `add_body_weight_log.php` | POST | `{logged_date, weight}` | `{ok:true}`(同日の既存記録があれば上書き) |
+| `delete_body_weight_log.php` | POST | `{id}` | `{ok:true}` |
+| `get_me.php` | GET | - | `{display_name, email, birth_date, gender}` |
+| `update_me.php` | POST | `{display_name?, birth_date?, gender?}` | `{ok:true}` |
+| `export.php` | GET | - | CSV形式のダウンロード(記録・体重記録) |
+| `delete_account.php` | POST | `{}` | `{ok:true}`(成功時セッション破棄、以後そのアカウントの全データは失われる) |
 
 ## 3. 画面構成
 
-公開サイトは **1ページ構成**とし、タブ切り替えで「管理表」と「グラフ」を表示する(ページ遷移なし)。
+ダッシュボードは**1つのSPA**とし、ログイン状態に応じて画面を出し分ける(ページ遷移の少ないシングルページ構成)。
 
 ```
-[ヘッダー: たまちゃんの筋トレ管理]
-[タブ: 管理表 | グラフ]
+未ログイン時:
+[トップページ]
+  - サービス説明・ログイン導線
+  - [Googleでログイン] ボタン
+  - メールアドレス+パスワードでのログイン/新規登録フォーム
+  - 「パスワードを忘れた方」リンク
+
+初回ログイン(サイクルが1件も無いユーザー)時:
+[オンボーディング画面]
+  - サイクルテンプレートの選択(§2.7)、または「ゼロから作る」を選んで手動でサイクル名を入力
+  - 完了すると通常のダッシュボードへ
+
+ログイン後(通常時):
+[ヘッダー: ようこそ、{display_name}さん] [ログアウト]
+[タブ: 管理表 | グラフ | 体重 | 設定]
 
 --- 管理表タブ ---
-サイクルごとに区切って一覧表示
-(サイクル1: Push / サイクル2: Pull / サイクル3: Legs / サイクル4: Rest)
+自分のサイクルごとに区切って一覧表示
 各行: 種目名・現在重量・現在回数・現在セット・目標重量・目標回数・目標セット(現在側はドロップセット等で複数行になり得る、rowspanで表示)
 単位はヘッダー側にのみ表記(重量列ヘッダーを「重量(kg)」とする)。重量は小数点1桁で統一表示する(例: 60.0)
-サイクル4(休憩)は種目名「休憩」の1行のみ表示し、現在・目標等の列は空欄
-廃止済み(`is_discontinued=1`)の種目はこの一覧には表示しない(現役メニューのみを表示する画面のため)
+種目が0件のサイクルはそのサイクル名の見出しのみ表示する(旧設計の「休憩の特別扱い」は廃止、§2.3参照)
+廃止済み(`is_discontinued=1`)の種目はこの一覧には表示しない
 
 --- グラフタブ ---
 [種目選択ドロップダウン] [期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
 グラフ1: 重量推移(折れ線、その日の最大重量)
 グラフ2: 総作業量推移(折れ線、重量×回数の合計)
+
+--- 体重タブ(US-15) ---
+[日付・体重の入力欄]
+[期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
+グラフ: 体重推移(折れ線)
+
+--- 設定タブ ---
+プロフィール編集: 表示名・生年月日・性別(US-14)
+サイクル管理: 追加・名称変更・削除(US-13)
+記録のエクスポート: CSVダウンロードボタン(US-17)
+アカウント削除: 確認ダイアログ付きの退会ボタン(US-16)
 ```
+
 種目選択ドロップダウンは、管理表と同じくサイクルごとに`<optgroup>`でグループ化する。廃止済み種目も元のサイクルのグループ内に含め、種目名の末尾に`(廃止)`と付けて区別する(過去の推移は引き続きグラフで参照できる)。
 
-- 入力用ページ(秘密パス)は上記の公開1ページとは別に独立して用意し、公開ページからはリンクしない
-
-**実装上の注意(パフォーマンス)**: ページ読み込み時に`get_board`・`get_logs`(全件)を並列で1回だけ取得し、管理表タブ・グラフタブの両方で使い回す。グラフタブの種目選択・期間切り替えはAPIを呼び直さず、取得済みの全記録ログをブラウザ側でフィルタするだけで完結させる。
+**実装上の注意(パフォーマンス)**: ダッシュボード表示時に`get_board`・`get_logs`(全件)を並列で1回だけ取得し、管理表タブ・グラフタブの両方で使い回す。グラフタブの種目選択・期間切り替えはAPIを呼び直さず、取得済みの全記録ログをブラウザ側でフィルタするだけで完結させる。
 
 ### 3.1 入力フォームの項目詳細
 - 日付: 今日の日付を自動入力(手動で変更可)
 - セット欄の初期値: 種目を選択すると、その種目の`current`(直近の記録日のセット構成)をそのままセット欄の初期値として展開する(前回と同じ内容なら書き換えずそのまま送信できる)。現在値が無い種目は空欄3セット分を初期値にする
-- 種目: 種目一覧からドロップダウンで選択。「休憩」(サイクルのラベルがRestの種目)はログ対象ではないため選択肢から除外する。種目名はサイクルをまたいで重複し得るため、ドロップダウンはサイクルごとに`<optgroup>`でグループ化して表示する(選択時はexercise_idを送信する)
+- 種目: 種目一覧からドロップダウンで選択(サイクルごとに`<optgroup>`でグループ化、選択時は`exercise_id`を送信)
 - セット: デフォルトで3セット分の入力欄(重量・回数)を表示し、「セットを追加」ボタンで動的に増やせる。1〜2セットだけの入力でも送信できる方法は2通り: 「セットを削除」ボタンで行自体を減らす、または使わない行の重量・回数を両方空欄のまま送信する(重量・回数が両方空欄の行は未使用として無視される。片方だけ空欄の場合は入力不足のエラーになる)
 - 各セット行には「コピー」ボタンを設置し、直前のセット行の重量・回数をそのままコピーできる。1セット目には表示されない
 
 ### 3.2 目標値の編集・種目の追加/削除(US-7対応)
-入力ページに「管理表の編集」セクションを設ける。
+設定タブとは別に、管理表タブに「管理表の編集」セクションを設ける。
 - **目標値の編集**: 既存種目を一覧表示し、目標重量・目標回数・目標セットをその場で書き換えて保存できる(種目名・サイクルは変更不可、現在値はこの画面では編集不可)。対象行は`exercise_id`で特定する
-- **廃止フラグの切り替え**: 各行に「廃止」チェックボックスを設け、目標値と同時に保存できる。ONにすると`cycle_id`はそのまま(元のサイクルに属したまま)で`is_discontinued`だけが立ち、記録フォーム・この一覧の入力対象からは除外される。公開サイトのグラフでは引き続き元のサイクルのグループ内から選択できる(新規追加した種目も含め、いつでもON/OFFを切り替え可能)
-- **種目の追加**: サイクル・種目名・目標重量・目標回数・目標セットを入力して新しい種目を追加できる(`is_discontinued`は常に0で開始)。現在値は記録が無いため空配列になる(記録が蓄積され次第、読み取り時に自動的に現れる)。同名の種目でも異なるサイクルであれば追加できる
-- **種目の削除**: 一覧から種目を選んで削除できる(対象は`exercise_id`で特定)。記録が1件でも紐づく種目は削除できない(DBの外部キー制約でも保護される)。使わなくなった種目は物理削除せず「廃止」フラグをONにする運用とする
+- **廃止フラグの切り替え**: 各行に「廃止」チェックボックスを設け、目標値と同時に保存できる。ONにすると`cycle_id`はそのまま(元のサイクルに属したまま)で`is_discontinued`だけが立ち、記録フォーム・この一覧の入力対象からは除外される。グラフでは引き続き元のサイクルのグループ内から選択できる
+- **種目の追加**: サイクル・種目名・目標重量・目標回数・目標セットを入力して新しい種目を追加できる(`is_discontinued`は常に0で開始)。現在値は記録が無いため空配列になる
+- **種目の削除**: 一覧から種目を選んで削除できる。記録が1件でも紐づく種目は削除できない(DBの外部キー制約でも保護される)。使わなくなった種目は物理削除せず「廃止」フラグをONにする運用とする
 
 ### 3.3 記録の入力・修正・削除(US-5対応)
-「記録を送信」「削除」「まとめて編集の保存」は、いずれもAPI応答を待ってから画面に結果を反映する、通常の同期的なフローとする。
-
-**旧設計からの変更点**: Google Apps Script時代は1回のAPI呼び出しに数百ms〜数秒かかっていたため、応答を待たずに画面を更新する「楽観的更新」(仮IDの発行、裏での送信、後からの静かな差し替えなど)を導入していた。MySQL+PHP(同一/近傍サーバー)への移行後は1回の呼び出しが数十ms程度で済むため、その複雑さに見合うメリットが無くなった。送信中はボタンを一時的に無効化し「送信中...」等の軽い表示を行う程度に留め、仮ID・裏取り・バックグラウンド差し替えの仕組みは持たない。
+「記録を送信」「削除」「まとめて編集の保存」は、いずれもAPI応答を待ってから画面に結果を反映する、通常の同期的なフローとする(MySQL+PHPへの移行後は1回の呼び出しが数十ms程度で済むため、楽観的更新のような複雑さは導入しない)。
 
 - 記録追加: 送信ボタンを押すと送信中表示になり、`add_log`の応答が返ってから「直近の記録」欄とフォームを更新する
 - 記録削除: 「削除」ボタンを押すと即座に`delete_log`を送信し、応答後に一覧から取り除く(確認ダイアログは表示しない)
 - 一覧全体に対して1つだけ「まとめて編集」ボタンを設置する。押すと表示中の全行が同時に入力モード(日付・重量・回数を書き換え可能)に切り替わり、ボタンは「保存」に変わる。再度押すと、編集モードに入った時点の値と比較して実際に変更のあった行だけを送信対象にする(並列送信)。全件の応答が揃ってから一覧を更新する
 
 ## 4. 非機能要件
-- 費用: 追加費用なし(既存のXServer契約の範囲内)
+- 費用: 追加費用なし(既存のXServer契約・Google Cloud無料枠の範囲内)
 - 対応端末: スマートフォン・PCの両方でレイアウトが崩れないこと(レスポンシブ対応)
 - 複数端末からのデータ同期: MySQLを単一の真実源とすることで実現
-- 検索エンジン非公開: 公開サイト・入力ページの両方に`noindex`メタタグを設定し、クロール・インデックスを拒否する(US-9は公開サイトが対象。入力ページは秘密パスの防御をさらに補強する意味も兼ねて同様に設定している)
+- 検索エンジン: ログイン前のトップページはむしろインデックスさせたい(noindexは設定しない)。ログイン後のダッシュボードは認証必須のため、そもそもクロールされない
+- データ分離: §1.2・§1.3の方針により、他のユーザーのデータへのアクセス・削除時の連鎖を確実に防ぐ
 
 ## 5. セットアップ手順(XServer)
 
 1. XServerのサーバーパネルで新しいサブドメイン(`workout.<既存ドメイン>`)を作成し、無料独自SSLを発行する。DNS側は`*.<domain>`のワイルドカードAレコードが既にXServer自体を向いていれば追加設定不要(サブドメイン設定だけで済む)
 2. MySQLデータベース・DBユーザーを新規作成する(データベース名・ユーザー名・パスワードを控える)
-3. phpMyAdminから`sql/schema.sql`を実行し、`cycles`・`exercises`・`logs`テーブルを作成する(`cycles`はスキーマと同時に初期データも投入される)
-4. Google Sheets側データからINSERT文の`.sql`ファイル(`sql/data.sql`)を生成し、phpMyAdminから実行してデータを移行する(生成に使ったワンショットの移行スクリプトは、移行完了後に削除済み)
-5. 公開読み取りAPI(PHP)を`workout.<domain>/api-public/`にFTPでアップロードする。`php/private/.env.example`を`.env`としてコピーし、DB接続情報を設定する
-6. 秘密パス(長いランダム文字列のディレクトリ名)を1つ決め、`workout.<domain>/<秘密パス>/api/`に秘密パスAPI(PHP)をFTPでアップロードする。このパスはリポジトリ・公開コードのどこにも記載しない
-7. `input-page`をビルドし、`dist/`配下一式(`index.html`・`assets/`・`sw.js`・`manifest.webmanifest`等)を`workout.<domain>/<秘密パス>/`にFTPでアップロードする
-8. `public-site`をビルドし、`workout.<domain>/`直下にFTPでアップロードする(同一オリジンになるため、API接続先は相対パスのまま動作する)。表・グラフが表示されることを確認する
-9. 手順6・7のURL(秘密パス)から、記録の追加・修正・削除、目標編集、種目追加・削除が一通り動作することを確認する。書き込み後、公開ページにも反映されることを確認する
+3. phpMyAdminから`sql/schema.sql`を実行し、`users`・`password_reset_tokens`・`cycles`・`exercises`・`logs`・`body_weight_logs`テーブルを作成する
+4. XServerのメール機能でパスワードリセット送信用のメールアカウント(例: `noreply@workout.<domain>`)を作成し、SPF/DKIMを設定する
+5. Google Cloud ConsoleでOAuth 2.0クライアントID(ウェブアプリケーション種別)を作成し、リダイレクトURIに`https://workout.<domain>/api/auth/google_callback.php`を登録する。クライアントID・シークレットは`php/private/.env`に設定する
+6. API(PHP)を`workout.<domain>/api/`にFTPでアップロードする。`php/private/.env.example`を`.env`としてコピーし、DB接続情報・Google OAuthクライアント情報・メール送信設定を入力する
+7. ダッシュボードアプリをビルドし、`dist/`配下一式(`index.html`・`assets/`・`sw.js`・`manifest.webmanifest`等)を`workout.<domain>/`直下にFTPでアップロードする
+8. 開発者自身のGoogleアカウントまたはメールアドレスで最初のアカウントを作成し、オンボーディングでサイクルを設定した後、既存の `筋トレ管理表.md` の内容を初期データとして入力する(US-8)
+9. サインアップ・ログイン(Google/メール両方)・パスワードリセット・記録の追加/修正/削除・目標編集・種目/サイクルの追加・削除・体重記録・プロフィール編集・CSVエクスポート・アカウント削除が一通り動作することを確認する
 10. 新旧システムの表示を突き合わせて問題なければ、旧Google Apps Script・スプレッドシートは読み取り専用のフォールバックとしてしばらく残し、確認期間後に廃止する
-11. GitHub Pagesで公開サイトを一時的にホストしていた場合は無効化する(リポジトリはソース管理としてのみ継続利用)
