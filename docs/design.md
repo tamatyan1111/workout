@@ -383,12 +383,16 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 ## 5. セットアップ手順(XServer)
 
 1. サブドメイン`workout.tamachan-blog.com`は初回のGoogle Sheets→XServer移行時に作成済み(SSLも発行済み)。新規作成は不要。今回はこの既存サブドメインの上に新システムをデプロイし、稼働中の旧(自分専用)版を置き換える
-2. MySQLデータベース・DBユーザーを新規作成する(データベース名・ユーザー名・パスワードを控える)
-3. phpMyAdminから`sql/schema.sql`を実行し、`users`・`password_reset_tokens`・`cycles`・`exercises`・`logs`・`body_weight_logs`テーブルを作成する
+2. MySQLデータベースも既存のものをそのまま使う(新規作成しない)。ただし旧スキーマ(`cycles`・`exercises`・`logs`、いずれも`user_id`列なし)がそのまま残っているため、phpMyAdminで次を実行し、旧テーブルを退避する(InnoDBの`RENAME TABLE`は外部キー制約もそのまま追従する):
+   ```sql
+   RENAME TABLE cycles TO old_cycles, exercises TO old_exercises, logs TO old_logs;
+   ```
+3. phpMyAdminから`sql/schema.sql`を実行し、`users`・`password_reset_tokens`・`cycles`・`exercises`・`logs`・`body_weight_logs`テーブルを作成する(手順2でリネーム済みのため名前は衝突しない)
 4. XServerのメール機能でパスワードリセット送信用のメールアカウント(例: `noreply@workout.<domain>`)を作成し、SPF/DKIMを設定する
 5. Google Cloud ConsoleでOAuth 2.0クライアントID(ウェブアプリケーション種別)を作成し、リダイレクトURIに`https://workout.<domain>/api/auth/google_callback.php`を登録する。クライアントID・シークレットは`php/private/.env`に設定する
 6. API(PHP)を`workout.<domain>/api/`にFTPでアップロードする。`php/private/.env.example`を`.env`としてコピーし、DB接続情報・Google OAuthクライアント情報・メール送信設定を入力する
 7. ダッシュボードアプリをビルドし、`dist/`配下一式(`index.html`・`assets/`・`sw.js`・`manifest.webmanifest`等)を`workout.<domain>/`直下にFTPでアップロードする
-8. 開発者自身のGoogleアカウントまたはメールアドレスで最初のアカウントを作成し、オンボーディングでサイクルを設定した後、既存の `筋トレ管理表.md` の内容を初期データとして入力する(US-8)
-9. サインアップ・ログイン(Google/メール両方)・パスワードリセット・記録の追加/修正/削除・目標編集・種目/サイクルの追加・削除・体重記録・プロフィール編集・CSVエクスポート・アカウント削除が一通り動作することを確認する
-10. 新旧システムの表示を突き合わせて問題なければ、旧Google Apps Script・スプレッドシートは読み取り専用のフォールバックとしてしばらく残し、確認期間後に廃止する
+8. 開発者自身のアカウントをサインアップする(Googleまたはメール/パスワード)。オンボーディング画面が出た状態のまま先に進まない(サイクルを作成すると、次の移行手順のUNIQUE制約に抵触するため)
+9. `sql/migrate_to_multiuser.sql`のコメントに従って`user_id`を書き換えたうえでphpMyAdminで実行し、手順2で退避した旧データ(サイクル・種目・記録)を自分のアカウントに移行する。件数確認後、問題なければ`old_cycles`・`old_exercises`・`old_logs`を削除する
+10. サインアップ・ログイン(Google/メール両方)・パスワードリセット・記録の追加/修正/削除・目標編集・種目/サイクルの追加・削除・体重記録・プロフィール編集・CSVエクスポート・アカウント削除が一通り動作することを確認する
+11. 新システムの表示を旧システムの記録と突き合わせて問題なければ、さらに前のGoogle Apps Script・スプレッドシートは読み取り専用のフォールバックとしてしばらく残し、確認期間後に廃止する
