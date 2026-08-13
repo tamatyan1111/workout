@@ -1,11 +1,5 @@
 import type { Exercise } from './types';
-
-const CYCLE_LABELS: Record<number, string> = {
-  1: 'サイクル1: Push',
-  2: 'サイクル2: Pull',
-  3: 'サイクル3: Legs',
-  4: 'サイクル4: Rest',
-};
+import { CYCLE_LABELS, escapeHtml } from './utils';
 
 // exercises は呼び出し元(main.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)
 export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {
@@ -102,15 +96,4 @@ function valueOrDash(v: number | null): string {
 function formatWeight(v: number | null): string {
   if (v === null) return '-';
   return v.toFixed(1);
-}
-
-function escapeHtml(str: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return str.replace(/[&<>"']/g, (c) => map[c]);
 }

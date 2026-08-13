@@ -1,15 +1,10 @@
 import { Chart, registerables } from 'chart.js';
 import type { Exercise, LogRow } from './types';
+import { CYCLE_LABELS, escapeHtml } from './utils';
 
 Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
-
-const CYCLE_LABELS: Record<number, string> = {
-  1: 'サイクル1: Push',
-  2: 'サイクル2: Pull',
-  3: 'サイクル3: Legs',
-};
 
 // exercises・allLogs は呼び出し元(main.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
 // 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
@@ -156,15 +151,4 @@ function groupByDate(logs: LogRow[]): Record<string, LogRow[]> {
     map[date].push(l);
   });
   return map;
-}
-
-function escapeHtml(str: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return str.replace(/[&<>"']/g, (c) => map[c]);
 }
