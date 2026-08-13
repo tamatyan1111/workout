@@ -133,6 +133,7 @@ timestamp: 2026-07-20T00:00:00Z
   - 体重記録もあわせてダウンロードできる
 
 ## 7. 未決定
-- 利用規約・プライバシーポリシーの正式な文面(下書きは開発者側で用意し、公開前に確認する)
+- 利用規約・プライバシーポリシーは [legal/terms.md](../legal/terms.md)・[legal/privacy.md](../legal/privacy.md)(公開用HTMLは`apps/dashboard/public/terms.html`・`privacy.html`)に下書き済み。運営者名・連絡先メールアドレスのプレースホルダーを埋めた上で内容の最終確認が必要
+- サインアップ画面の同意チェックボックス・Googleログインの同意注記・フッターからのリンク表示は実装済み(同意記録のDB保存は行わない方針、§1.1参照)
 - ブランディング(ドメイン名・プロダクト名)は当面 `workout.tamachan-blog.com` を継続。将来独立ドメインへ移行する場合も、設計上コードの作り直しは不要([design.md](design.md) §1)
 - その他の設計上の未確定事項は [design.md](design.md) §5 を参照

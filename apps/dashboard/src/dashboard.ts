@@ -37,6 +37,10 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       <section id="tab-body-weight" class="tab-panel" hidden></section>
       <section id="tab-settings" class="tab-panel" hidden></section>
     </main>
+    <footer class="app-footer">
+      <a href="/terms.html" target="_blank" rel="noopener">利用規約</a> ・
+      <a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
+    </footer>
   `;
 
   const tabButtons = container.querySelectorAll<HTMLButtonElement>('.tab-button');

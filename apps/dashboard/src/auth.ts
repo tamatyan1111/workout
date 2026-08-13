@@ -14,12 +14,19 @@ export function renderAuthScreen(container: HTMLElement, onAuthenticated: () => 
         <h1>たまちゃんの筋トレ管理</h1>
         <p class="auth-lead">筋トレの記録・進捗をどこからでも管理できます。</p>
         <a class="google-btn" href="${googleLoginUrl}">Googleでログイン</a>
+        <p class="auth-legal-notice">
+          続けると、<a href="/terms.html" target="_blank" rel="noopener">利用規約</a>および<a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したものとみなします。
+        </p>
         <p class="auth-or">または</p>
         <div class="auth-tabs" role="group">
           <button type="button" class="auth-tab ${mode === 'login' ? 'active' : ''}" data-mode="login">ログイン</button>
           <button type="button" class="auth-tab ${mode === 'signup' ? 'active' : ''}" data-mode="signup">新規登録</button>
         </div>
         ${mode === 'forgot' ? renderForgotForm() : renderCredentialsForm(mode)}
+        <footer class="auth-footer">
+          <a href="/terms.html" target="_blank" rel="noopener">利用規約</a> ・
+          <a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
+        </footer>
       </div>
     `;
 
@@ -43,6 +50,16 @@ export function renderAuthScreen(container: HTMLElement, onAuthenticated: () => 
         ${currentMode === 'signup' ? '<label>表示名 <input type="text" id="display-name" required /></label>' : ''}
         <label>メールアドレス <input type="email" id="email" required /></label>
         <label>パスワード <input type="password" id="password" minlength="8" required /></label>
+        ${
+          currentMode === 'signup'
+            ? `
+          <label class="checkbox-label">
+            <input type="checkbox" id="agree-terms" required />
+            <a href="/terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意する
+          </label>
+        `
+            : ''
+        }
         <button type="submit">${currentMode === 'signup' ? '登録する' : 'ログイン'}</button>
         ${currentMode === 'login' ? '<button type="button" id="forgot-link" class="link-button">パスワードを忘れた方</button>' : ''}
         <p id="auth-status"></p>
