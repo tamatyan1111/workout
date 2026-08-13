@@ -10,13 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # package-lock.jsonはコミットしていない(Windowsで生成したlockfileだとLinux用の
+      # ネイティブバイナリ(rolldown等)を解決できない既知のnpmの問題があるため)。
+      # そのためnpmの依存関係キャッシュは使わない。
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      # package-lock.json はWindows上で生成しているため、npm ciだとLinux用の
-      # ネイティブバイナリ(rolldown等)を解決できない既知のnpmの問題がある。
-      # npm install ならプラットフォームに応じて正しく解決される。
       - run: npm install
       - run: npm run lint
       - run: npm run typecheck
