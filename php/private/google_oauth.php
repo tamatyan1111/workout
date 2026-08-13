@@ -5,6 +5,15 @@
 // HTTPS呼び出しでメールアドレス・subを取得する(Google側で検証済みのデータが返るため、
 // 自前でJWT署名を検証する必要がない)。
 
+// google_callback.php(ブラウザナビゲーションで到達するエンドポイント)からの
+// 失敗時共通リダイレクト処理。PSR-1(ファイルは宣言のみ、または副作用のみ)を守るため、
+// 副作用を持つエンドポイント側にローカル関数を定義せずここに置く。
+function redirect_with_google_error(string $baseUrl): void
+{
+    header('Location: ' . $baseUrl . '/?error=google_auth_failed');
+    exit;
+}
+
 function google_auth_url(array $config, string $state): string
 {
     $params = [

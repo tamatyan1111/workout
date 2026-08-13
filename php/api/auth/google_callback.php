@@ -8,12 +8,6 @@ require_once __DIR__ . '/../../private/bootstrap.php';
 
 $config = get_config();
 
-function redirect_with_google_error(string $baseUrl): void
-{
-    header('Location: ' . $baseUrl . '/?error=google_auth_failed');
-    exit;
-}
-
 start_session();
 $expectedState = $_SESSION['google_oauth_state'] ?? null;
 unset($_SESSION['google_oauth_state']);
