@@ -1,27 +1,26 @@
 import { Chart, registerables } from 'chart.js';
 import type { Exercise, LogRow } from './types';
-import { CYCLE_LABELS, escapeHtml } from 'shared';
+import { escapeHtml } from 'shared';
 
 Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
 
-// exercises・allLogs は呼び出し元(main.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
+// exercises・allLogs は呼び出し元(dashboard.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
 // 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
 export function renderGraph(container: HTMLElement, exercises: Exercise[], allLogs: LogRow[]): void {
-  const selectable = exercises.filter((e) => e.cycle.label !== 'Rest');
-
-  if (selectable.length === 0) {
+  if (exercises.length === 0) {
     container.innerHTML = '<p>種目が登録されていません</p>';
     return;
   }
 
   // 廃止済みでも元のサイクルのグループ内に表示し、名前に(廃止)を付けて区別する
-  const groups = [1, 2, 3]
-    .map((cycle) => ({
-      label: `サイクル${cycle}: ${CYCLE_LABELS[cycle]}`,
-      rows: selectable.filter((e) => e.cycle.id === cycle),
-    }))
+  const cycleIds = [...new Set(exercises.map((e) => e.cycle.id))].sort((a, b) => a - b);
+  const groups = cycleIds
+    .map((cycleId) => {
+      const rows = exercises.filter((e) => e.cycle.id === cycleId);
+      return { label: rows[0].cycle.label, rows };
+    })
     .filter((g) => g.rows.length > 0);
 
   container.innerHTML = `
@@ -65,7 +64,7 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
 
   function update(): void {
     const exerciseId = Number(select.value);
-    const exercise = selectable.find((e) => e.id === exerciseId);
+    const exercise = exercises.find((e) => e.id === exerciseId);
     if (!exercise) return;
     statusEl.textContent = '';
 

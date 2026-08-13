@@ -1,20 +1,28 @@
 import type { Exercise } from './types';
-import { CYCLE_LABELS, escapeHtml } from 'shared';
+import { escapeHtml } from 'shared';
 
-// exercises は呼び出し元(main.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)
+// exercises は呼び出し元(dashboard.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)。
+// design.md §2.3: サイクルはユーザーごとに自由なため、[1,2,3,4]のような固定反復はせず、
+// 実際に種目が属しているサイクルをid昇順(作成順)でグルーピングして表示する。
 export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {
   container.innerHTML = renderCycles(exercises);
 }
 
 function renderCycles(exercises: Exercise[]): string {
   const active = exercises.filter((e) => !e.is_discontinued);
-  return [1, 2, 3, 4]
-    .map((cycle) => {
-      const cycleExercises = active.filter((e) => e.cycle.id === cycle);
-      if (cycleExercises.length === 0) return '';
+  const cycleIds = [...new Set(active.map((e) => e.cycle.id))].sort((a, b) => a - b);
+
+  if (cycleIds.length === 0) {
+    return '<p>まだ種目が登録されていません。「管理表の編集」から追加してください。</p>';
+  }
+
+  return cycleIds
+    .map((cycleId) => {
+      const cycleExercises = active.filter((e) => e.cycle.id === cycleId);
+      const label = cycleExercises[0].cycle.label;
       return `
         <section class="cycle-block">
-          <h2>サイクル${cycle}: ${CYCLE_LABELS[cycle] ?? cycle}</h2>
+          <h2>${escapeHtml(label)}</h2>
           ${renderTable(cycleExercises)}
         </section>
       `;

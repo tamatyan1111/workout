@@ -38,15 +38,15 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
 }
 
 describe('renderBoard', () => {
-  it('groups exercises under their cycle heading', () => {
+  it('groups exercises under their cycle heading, using the label from the API response', () => {
     const container = document.createElement('div');
     renderBoard(container, [
       makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス' }),
       makeExercise({ id: 2, cycle: { id: 3, label: 'Legs' }, name: 'スクワット' }),
     ]);
 
-    expect(container.textContent).toContain('サイクル1: Push');
-    expect(container.textContent).toContain('サイクル3: Legs');
+    expect(container.textContent).toContain('Push');
+    expect(container.textContent).toContain('Legs');
     expect(container.textContent).toContain('ベンチプレス');
     expect(container.textContent).toContain('スクワット');
   });
@@ -71,5 +71,12 @@ describe('renderBoard', () => {
 
     const rows = container.querySelectorAll('tbody tr');
     expect(rows).toHaveLength(2);
+  });
+
+  it('shows a message when there are no exercises', () => {
+    const container = document.createElement('div');
+    renderBoard(container, []);
+
+    expect(container.textContent).toContain('まだ種目が登録されていません');
   });
 });

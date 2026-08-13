@@ -1,0 +1,344 @@
+:root {
+  --text: #1f2937;
+  --bg: #ffffff;
+  --border: #e5e7eb;
+  --accent: #3b82f6;
+  --header-bg: #f3f4f6;
+  --danger: #dc2626;
+  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e5e7eb;
+    --bg: #111827;
+    --border: #374151;
+    --header-bg: #1f2937;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.site-header {
+  padding: 1rem;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+}
+
+.welcome {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.tab-button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+main {
+  padding: 1rem;
+}
+
+section {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+section h2,
+section h3 {
+  font-size: 1rem;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+form input,
+form select {
+  width: 100%;
+  padding: 0.4rem;
+  font-size: 1rem;
+  margin-top: 0.2rem;
+}
+
+.set-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.set-row span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.set-row input {
+  flex: 1;
+}
+
+.set-row button {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.remove-set {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.remove-set:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.copy-above-placeholder {
+  visibility: hidden;
+}
+
+button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin: 0.2rem 0.3rem 0.2rem 0;
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.link-button {
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  font-size: 0.85rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.3rem;
+  text-align: center;
+}
+
+td input {
+  width: 4.5rem;
+  padding: 0.2rem;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.cycle-block {
+  margin-bottom: 1.5rem;
+}
+
+.cycle-block h2 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.board-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 0.85rem;
+}
+
+.board-table .col-name {
+  width: 22%;
+}
+
+.board-table .col-value {
+  width: 13%;
+}
+
+.board-table td:first-child {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.graph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.graph-controls select {
+  padding: 0.4rem;
+  font-size: 1rem;
+  width: auto;
+}
+
+.period-toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.period-toggle button {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.period-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+/* 未ログイン画面(ログイン・サインアップ・パスワードリセット) */
+.auth-screen {
+  max-width: 360px;
+  margin: 3rem auto;
+  padding: 1rem;
+  text-align: center;
+}
+
+.auth-lead {
+  font-size: 0.9rem;
+}
+
+.google-btn {
+  display: block;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.auth-or {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.auth-tabs .auth-tab {
+  flex: 1;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.auth-tabs .auth-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.auth-screen form {
+  text-align: left;
+}
+
+/* オンボーディング */
+.onboarding-screen {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.template-card span {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 480px) {
+  .board-table {
+    font-size: 0.75rem;
+  }
+}

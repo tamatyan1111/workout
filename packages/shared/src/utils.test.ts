@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CYCLE_LABELS, escapeHtml } from './utils';
+import { escapeHtml } from './utils';
 
 describe('escapeHtml', () => {
   it('escapes the 5 HTML-significant characters', () => {
@@ -12,16 +12,5 @@ describe('escapeHtml', () => {
 
   it('handles an empty string', () => {
     expect(escapeHtml('')).toBe('');
-  });
-});
-
-describe('CYCLE_LABELS', () => {
-  it('has an entry for each of the 4 cycles matching the cycles table', () => {
-    expect(CYCLE_LABELS).toEqual({
-      1: 'Push',
-      2: 'Pull',
-      3: 'Legs',
-      4: 'Rest',
-    });
   });
 });

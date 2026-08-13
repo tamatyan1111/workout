@@ -35,7 +35,7 @@ describe('buildSetsFromCurrent', () => {
     expect(buildSetsFromCurrent(makeExercise({ current: [] }))).toEqual(emptySets());
   });
 
-  // design.md §2.5: 現在値のグループをそのままセット欄に展開する(ドロップセット対応)
+  // design.md §2.9: 現在値のグループをそのままセット欄に展開する(ドロップセット対応)
   it('expands each current-value group into its own sets', () => {
     const exercise = makeExercise({
       current: [
@@ -57,14 +57,13 @@ describe('buildSetsFromCurrent', () => {
 });
 
 describe('renderRecordForm', () => {
-  it('excludes discontinued exercises and Rest from the exercise dropdown', () => {
+  it('excludes only discontinued exercises from the dropdown', () => {
     const container = document.createElement('div');
     renderRecordForm(
       container,
       [
         makeExercise({ id: 1, name: 'ベンチプレス' }),
         makeExercise({ id: 2, name: '廃止種目', is_discontinued: true }),
-        makeExercise({ id: 3, name: '休憩', cycle: { id: 4, label: 'Rest' } }),
       ],
       () => {}
     );
@@ -72,7 +71,20 @@ describe('renderRecordForm', () => {
     const options = Array.from(container.querySelectorAll('option')).map((o) => o.textContent);
     expect(options).toContain('ベンチプレス');
     expect(options).not.toContain('廃止種目');
-    expect(options).not.toContain('休憩');
+  });
+
+  // design.md §2.3: サイクルの特別扱い(旧"Rest")は廃止したため、それらしい名前のサイクルでも
+  // 種目が実在すれば通常通り選択肢に出ることを確認する(回帰テスト)
+  it('does not special-case a cycle labeled "Rest"', () => {
+    const container = document.createElement('div');
+    renderRecordForm(
+      container,
+      [makeExercise({ id: 1, name: '腹筋ローラー', cycle: { id: 4, label: 'Rest' } })],
+      () => {}
+    );
+
+    const options = Array.from(container.querySelectorAll('option')).map((o) => o.textContent);
+    expect(options).toContain('腹筋ローラー');
   });
 
   it('shows 3 blank set rows by default when there is no current value', () => {
@@ -88,5 +100,13 @@ describe('renderRecordForm', () => {
 
     expect(container.querySelector('input[data-field="weight"]')).toBeNull();
     expect(container.querySelector('input[data-field="reps"]')).not.toBeNull();
+  });
+
+  it('shows a message instead of a form when there are no selectable exercises', () => {
+    const container = document.createElement('div');
+    renderRecordForm(container, [], () => {});
+
+    expect(container.querySelector('form')).toBeNull();
+    expect(container.textContent).toContain('種目が登録されていません');
   });
 });

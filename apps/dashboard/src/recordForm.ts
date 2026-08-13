@@ -1,18 +1,13 @@
 import { addLog } from './api';
+import { todayStr } from './date';
 import type { Exercise, SetInput } from './types';
-import { CYCLE_LABELS, escapeHtml } from 'shared';
-
-function todayStr(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+import { escapeHtml } from 'shared';
 
 export function emptySets(count = 3): SetInput[] {
   return Array.from({ length: count }, () => ({ weight: '', reps: '' }));
 }
 
-// design.md §2.5「現在値」をそのままセット欄の初期値として展開する
+// design.md §2.9「現在値」をそのままセット欄の初期値として展開する
 export function buildSetsFromCurrent(exercise: Exercise | undefined): SetInput[] {
   if (!exercise || exercise.current.length === 0) return emptySets();
 
@@ -28,22 +23,20 @@ export function buildSetsFromCurrent(exercise: Exercise | undefined): SetInput[]
   return result;
 }
 
-// 種目ドロップダウンの一番上(サイクル1→2→3の順で最初に出る種目)を返す
-function firstExercise(exercises: Exercise[]): Exercise | undefined {
-  for (const cycle of [1, 2, 3]) {
-    const found = exercises.find((e) => e.cycle.id === cycle);
-    if (found) return found;
-  }
-  return exercises[0];
-}
-
-// exercises は呼び出し元(main.ts)で取得済みのものを受け取る(ページ内で二重に取得しない)
+// exercises は呼び出し元(dashboard.ts)で取得済みのものを受け取る(ページ内で二重に取得しない)
 // onSaved: 送信・削除が完了した後、一覧を再取得して更新するためのコールバック
 export function renderRecordForm(container: HTMLElement, exercises: Exercise[], onSaved: () => void): void {
-  // Rest(休憩)と廃止(過去に記録はあるが現在は行っていない種目)は入力対象から除外する
-  const selectable = exercises.filter((e) => !e.is_discontinued && e.cycle.label !== 'Rest');
+  // design.md §2.3: サイクルの特別扱いは廃止したため、除外するのは廃止済み種目のみ
+  const selectable = exercises.filter((e) => !e.is_discontinued);
+  // get_boardはcycle_id昇順(作成順)で返るため、先頭が「最初のサイクルの最初の種目」になる
+  const firstExercise = (): Exercise | undefined => selectable[0];
 
-  let sets: SetInput[] = buildSetsFromCurrent(firstExercise(selectable));
+  let sets: SetInput[] = buildSetsFromCurrent(firstExercise());
+
+  if (selectable.length === 0) {
+    container.innerHTML = '<p>まだ種目が登録されていません。「管理表の編集」から追加してください。</p>';
+    return;
+  }
 
   function currentExercise(): Exercise | undefined {
     const select = container.querySelector<HTMLSelectElement>('#record-exercise');
@@ -51,7 +44,7 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
     // sets の初期値と同じ「先頭の種目」にフォールバックする(これが無いと初回だけ
     // weightless の判定が誤って false になり、重量なし種目でも重量欄が出てしまう)
     if (!select || !select.value) {
-      return firstExercise(selectable);
+      return firstExercise();
     }
     const id = Number(select.value);
     return selectable.find((e) => e.id === id);
@@ -62,17 +55,18 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
     const previousDate = container.querySelector<HTMLInputElement>('#record-date')?.value;
     const exercise = currentExercise();
     const weightless = exercise ? !exercise.is_weight_based : false;
+    const cycleIds = [...new Set(selectable.map((e) => e.cycle.id))].sort((a, b) => a - b);
+
     container.innerHTML = `
       <form id="record-form">
         <label>日付 <input type="date" id="record-date" value="${previousDate || todayStr()}" required /></label>
         <label>種目
           <select id="record-exercise" required>
-            ${[1, 2, 3]
-              .map((cycle) => {
-                const rows = selectable.filter((e) => e.cycle.id === cycle);
-                if (rows.length === 0) return '';
+            ${cycleIds
+              .map((cycleId) => {
+                const rows = selectable.filter((e) => e.cycle.id === cycleId);
                 return `
-                  <optgroup label="${escapeHtml(`サイクル${cycle}: ${CYCLE_LABELS[cycle] ?? cycle}`)}">
+                  <optgroup label="${escapeHtml(rows[0].cycle.label)}">
                     ${rows.map((e) => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('')}
                   </optgroup>
                 `;
@@ -173,7 +167,7 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
         draw();
         onSaved();
       } catch (err) {
-        statusEl.textContent = `送信に失敗しました: ${String(err)}`;
+        statusEl.textContent = `送信に失敗しました: ${String(err instanceof Error ? err.message : err)}`;
         submitBtn.disabled = false;
       }
     });

@@ -1,0 +1,44 @@
+import './style.css';
+import { getCycles, getMe, UnauthorizedError } from './api';
+import { renderAuthScreen, renderPasswordResetConfirm } from './auth';
+import { renderOnboarding } from './onboarding';
+import { renderDashboard } from './dashboard';
+
+const app = document.querySelector<HTMLDivElement>('#app')!;
+
+// design.md §3: パスワードリセットのリンク(/reset-password?token=...)は、通常の
+// ログイン/ダッシュボード分岐より先に判定する(未ログイン状態でも到達できる必要があるため)
+function handleResetPasswordRoute(): boolean {
+  if (window.location.pathname !== '/reset-password') return false;
+  const token = new URLSearchParams(window.location.search).get('token');
+  if (!token) return false;
+
+  renderPasswordResetConfirm(app, token, () => {
+    window.location.href = '/';
+  });
+  return true;
+}
+
+// design.md §3: 未ログイン → ログイン/サインアップ画面、ログイン済みでサイクル未設定 →
+// オンボーディング、それ以外 → 通常のダッシュボード、の3状態を出し分ける
+async function boot(): Promise<void> {
+  if (handleResetPasswordRoute()) return;
+
+  try {
+    const profile = await getMe();
+    const cycles = await getCycles();
+    if (cycles.length === 0) {
+      renderOnboarding(app, () => void boot());
+      return;
+    }
+    renderDashboard(app, profile.display_name, () => void boot());
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      renderAuthScreen(app, () => void boot());
+      return;
+    }
+    app.innerHTML = `<p class="error">読み込みに失敗しました: ${String(err instanceof Error ? err.message : err)}</p>`;
+  }
+}
+
+void boot();

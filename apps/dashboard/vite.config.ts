@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// workout.tamachan-blog.com のドキュメントルート直下に配置するため、base はルート
+// workout.tamachan-blog.com のドキュメントルート直下に配置するため、base はルート(design.md §1・§5)
 export default defineConfig({
   base: '/',
   plugins: [
@@ -12,7 +12,7 @@ export default defineConfig({
       manifest: {
         name: 'たまちゃんの筋トレ管理',
         short_name: '筋トレ管理',
-        description: '筋トレの管理表・進捗グラフを公開するサイト',
+        description: '筋トレの記録入力・管理表・進捗グラフのダッシュボード',
         theme_color: '#3b82f6',
         background_color: '#ffffff',
         display: 'standalone',
@@ -24,8 +24,6 @@ export default defineConfig({
           { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      // noindex方針(design.md US-9)と同じ理由でsitemap的な露出は不要なため、
-      // 開発中(npm run dev)はService Workerを有効にしない
       devOptions: { enabled: false },
     }),
   ],

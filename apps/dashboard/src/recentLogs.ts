@@ -2,6 +2,10 @@ import { deleteLog, editLog, getRecentLogs } from './api';
 import type { RecentLog } from './types';
 import { escapeHtml } from 'shared';
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 // design.md §3.3: MySQL移行後はAPI応答が高速なため、楽観的更新(仮ID・裏取り等)は行わず、
 // 応答を待ってから画面を更新するシンプルな同期フローにする。
 // 1行ずつ編集/保存すると件数が多いときに時間がかかるため、「まとめて編集」ボタン1つで
@@ -12,7 +16,7 @@ export async function renderRecentLogs(container: HTMLElement): Promise<void> {
   try {
     logs = await getRecentLogs(20);
   } catch (err) {
-    container.innerHTML = `<p class="error">直近の記録の取得に失敗しました: ${escapeHtml(String(err))}</p>`;
+    container.innerHTML = `<p class="error">直近の記録の取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
     return;
   }
 
@@ -47,7 +51,7 @@ export async function renderRecentLogs(container: HTMLElement): Promise<void> {
         await deleteLog(l.id);
         await renderRecentLogs(container);
       } catch (err) {
-        alert(`削除に失敗しました: ${String(err)}`);
+        alert(`削除に失敗しました: ${errorMessage(err)}`);
         btn.disabled = false;
       }
     });
