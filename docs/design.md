@@ -382,7 +382,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 
 ## 5. セットアップ手順(XServer)
 
-1. XServerのサーバーパネルで新しいサブドメイン(`workout.<既存ドメイン>`)を作成し、無料独自SSLを発行する。DNS側は`*.<domain>`のワイルドカードAレコードが既にXServer自体を向いていれば追加設定不要(サブドメイン設定だけで済む)
+1. サブドメイン`workout.tamachan-blog.com`は初回のGoogle Sheets→XServer移行時に作成済み(SSLも発行済み)。新規作成は不要。今回はこの既存サブドメインの上に新システムをデプロイし、稼働中の旧(自分専用)版を置き換える
 2. MySQLデータベース・DBユーザーを新規作成する(データベース名・ユーザー名・パスワードを控える)
 3. phpMyAdminから`sql/schema.sql`を実行し、`users`・`password_reset_tokens`・`cycles`・`exercises`・`logs`・`body_weight_logs`テーブルを作成する
 4. XServerのメール機能でパスワードリセット送信用のメールアカウント(例: `noreply@workout.<domain>`)を作成し、SPF/DKIMを設定する
