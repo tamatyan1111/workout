@@ -265,7 +265,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 4. Google Sheets側データからINSERT文の`.sql`ファイル(`sql/data.sql`)を生成し、phpMyAdminから実行してデータを移行する(生成に使ったワンショットの移行スクリプトは、移行完了後に削除済み)
 5. 公開読み取りAPI(PHP)を`workout.<domain>/api-public/`にFTPでアップロードする。`php/private/.env.example`を`.env`としてコピーし、DB接続情報を設定する
 6. 秘密パス(長いランダム文字列のディレクトリ名)を1つ決め、`workout.<domain>/<秘密パス>/api/`に秘密パスAPI(PHP)をFTPでアップロードする。このパスはリポジトリ・公開コードのどこにも記載しない
-7. `input-page`をビルドし、`workout.<domain>/<秘密パス>/`に`index.html`としてFTPでアップロードする
+7. `input-page`をビルドし、`dist/`配下一式(`index.html`・`assets/`・`sw.js`・`manifest.webmanifest`等)を`workout.<domain>/<秘密パス>/`にFTPでアップロードする
 8. `public-site`をビルドし、`workout.<domain>/`直下にFTPでアップロードする(同一オリジンになるため、API接続先は相対パスのまま動作する)。表・グラフが表示されることを確認する
 9. 手順6・7のURL(秘密パス)から、記録の追加・修正・削除、目標編集、種目追加・削除が一通り動作することを確認する。書き込み後、公開ページにも反映されることを確認する
 10. 新旧システムの表示を突き合わせて問題なければ、旧Google Apps Script・スプレッドシートは読み取り専用のフォールバックとしてしばらく残し、確認期間後に廃止する
