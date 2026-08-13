@@ -1,5 +1,6 @@
 <?php
 // design.md §2.6「公開読み取りAPI」対応。グラフ用の記録ログを取得する。
+
 require_once __DIR__ . '/../private/bootstrap.php';
 
 $config = get_config();

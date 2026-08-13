@@ -1,5 +1,6 @@
 <?php
 // design.md §2.6「公開読み取りAPI」対応。誰でも呼び出し可。
+
 require_once __DIR__ . '/../private/bootstrap.php';
 
 $config = get_config();

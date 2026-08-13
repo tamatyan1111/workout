@@ -1,6 +1,7 @@
 <?php
 // design.md §2.6「秘密パスAPI」対応。目標値・廃止フラグの編集。design.md §3.2の通り、
 // 種目名・サイクルはここでは変更できない。
+
 require_once __DIR__ . '/../../private/bootstrap.php';
 // require_once __DIR__ . '/../../private/auth.php'; require_auth(); // FUTURE
 

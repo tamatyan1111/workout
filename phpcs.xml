@@ -1,10 +1,23 @@
 <?xml version="1.0"?>
 <ruleset name="workout">
-    <description>PSR-12ベースのコーディング規約。</description>
+    <description>PSR-12ベースのコーディング規約。小規模な手続き型コードベースの実態に合わない一部sniffは除外している。</description>
     <arg name="colors"/>
     <arg value="p"/>
 
-    <rule ref="PSR12"/>
+    <rule ref="PSR12">
+        <!-- このプロジェクトはフレームワーク無しの小規模な手続き型コードで、意図的に名前空間を使わない -->
+        <exclude name="PSR1.Classes.ClassDeclaration.MissingNamespace"/>
+        <!-- ファイル先頭のコメントは直後のrequire_once等の説明として書いており、
+             厳密なファイルヘッダーブロックの空行規約は適用しない -->
+        <exclude name="PSR12.Files.FileHeader.SpacingAfterBlock"/>
+    </rule>
+
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="150"/>
+            <property name="absoluteLineLimit" value="0"/>
+        </properties>
+    </rule>
 
     <file>php/private</file>
     <file>php/api-public</file>

@@ -1,5 +1,6 @@
 <?php
 // design.md §2.6「秘密パスAPI」対応。種目追加。design.md §3.2参照。
+
 require_once __DIR__ . '/../../private/bootstrap.php';
 // require_once __DIR__ . '/../../private/auth.php'; require_auth(); // FUTURE
 
