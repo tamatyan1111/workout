@@ -1,18 +1,25 @@
 {
-  "name": "public-site",
+  "name": "workout",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "description": "たまちゃんの筋トレ管理 — 記録・進捗公開サイト",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
-    "typescript": "~6.0.2",
-    "vite": "^8.1.1"
-  },
-  "dependencies": {
-    "chart.js": "^4.5.1"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.67.0"
   }
 }

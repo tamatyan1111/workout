@@ -1,0 +1,8 @@
+parameters:
+    level: 3
+    paths:
+        - php/private
+        - php/api-public
+        - php/secret-api
+    excludePaths:
+        - php/tests/*

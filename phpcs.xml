@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<ruleset name="workout">
+    <description>PSR-12ベースのコーディング規約。</description>
+    <arg name="colors"/>
+    <arg value="p"/>
+
+    <rule ref="PSR12"/>
+
+    <file>php/private</file>
+    <file>php/api-public</file>
+    <file>php/secret-api</file>
+</ruleset>

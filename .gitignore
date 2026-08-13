@@ -1,24 +1,37 @@
-# Logs
-logs
-*.log
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# PHP / Composer
+vendor/
+composer.phar
 
-# Editor directories and files
+# 秘密情報(gitignore対象。php/private/.env.example をコピーして作る)
+php/private/.env
+.env
+.env.*
+!.env.example
+
+# 実データ(個人のトレーニング記録。公開リポジトリには含めない)
+sql/data.sql
+
+# Editor / OS
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Test / coverage output
+coverage/
+.phpunit.cache/

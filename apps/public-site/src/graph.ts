@@ -1,6 +1,6 @@
 import { Chart, registerables } from 'chart.js';
 import type { Exercise, LogRow } from './types';
-import { CYCLE_LABELS, escapeHtml } from './utils';
+import { CYCLE_LABELS, escapeHtml } from 'shared';
 
 Chart.register(...registerables);
 
@@ -18,7 +18,10 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
 
   // 廃止済みでも元のサイクルのグループ内に表示し、名前に(廃止)を付けて区別する
   const groups = [1, 2, 3]
-    .map((cycle) => ({ label: CYCLE_LABELS[cycle], rows: selectable.filter((e) => e.cycle.id === cycle) }))
+    .map((cycle) => ({
+      label: `サイクル${cycle}: ${CYCLE_LABELS[cycle]}`,
+      rows: selectable.filter((e) => e.cycle.id === cycle),
+    }))
     .filter((g) => g.rows.length > 0);
 
   container.innerHTML = `
@@ -80,9 +83,7 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
     const byDate = groupByDate(logs);
     const labels = Object.keys(byDate).sort();
     const weightData = labels.map((d) => Math.max(...byDate[d].map((l) => l.weight ?? 0)));
-    const volumeData = labels.map((d) =>
-      byDate[d].reduce((sum, l) => sum + (l.weight ?? 0) * l.reps, 0)
-    );
+    const volumeData = labels.map((d) => byDate[d].reduce((sum, l) => sum + (l.weight ?? 0) * l.reps, 0));
 
     weightChart?.destroy();
     weightChart = buildLineChart(weightCanvas, labels, weightData, {
@@ -136,7 +137,7 @@ function buildLineChart(
   });
 }
 
-function periodRange(period: Period): { from?: string; to?: string } {
+export function periodRange(period: Period): { from?: string; to?: string } {
   if (period === 'all') return {};
   const now = new Date();
   const from = new Date(now);
@@ -149,7 +150,7 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function groupByDate(logs: LogRow[]): Record<string, LogRow[]> {
+export function groupByDate(logs: LogRow[]): Record<string, LogRow[]> {
   const map: Record<string, LogRow[]> = {};
   logs.forEach((l) => {
     const date = l.logged_date.slice(0, 10);

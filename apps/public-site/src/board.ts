@@ -1,5 +1,5 @@
 import type { Exercise } from './types';
-import { CYCLE_LABELS, escapeHtml } from './utils';
+import { CYCLE_LABELS, escapeHtml } from 'shared';
 
 // exercises は呼び出し元(main.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)
 export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {
@@ -14,7 +14,7 @@ function renderCycles(exercises: Exercise[]): string {
       if (cycleExercises.length === 0) return '';
       return `
         <section class="cycle-block">
-          <h2>${CYCLE_LABELS[cycle] ?? `サイクル${cycle}`}</h2>
+          <h2>サイクル${cycle}: ${CYCLE_LABELS[cycle] ?? cycle}</h2>
           ${renderTable(cycleExercises)}
         </section>
       `;
@@ -88,12 +88,12 @@ function renderRowGroup(e: Exercise): string {
     .join('');
 }
 
-function valueOrDash(v: number | null): string {
+export function valueOrDash(v: number | null): string {
   return v === null ? '-' : String(v);
 }
 
 // 重量は小数点1桁で表記を統一する(design.md §3)。重量なし種目はダッシュ表示。
-function formatWeight(v: number | null): string {
+export function formatWeight(v: number | null): string {
   if (v === null) return '-';
   return v.toFixed(1);
 }

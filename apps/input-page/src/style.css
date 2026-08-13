@@ -1,0 +1,144 @@
+:root {
+  --text: #1f2937;
+  --bg: #ffffff;
+  --border: #e5e7eb;
+  --accent: #3b82f6;
+  --header-bg: #f3f4f6;
+  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e5e7eb;
+    --bg: #111827;
+    --border: #374151;
+    --header-bg: #1f2937;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+}
+
+#app {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.site-header {
+  padding: 1rem;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+main {
+  padding: 1rem;
+}
+
+section {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+section h2 {
+  font-size: 1rem;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+form input,
+form select {
+  width: 100%;
+  padding: 0.4rem;
+  font-size: 1rem;
+  margin-top: 0.2rem;
+}
+
+.set-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.set-row span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.set-row input {
+  flex: 1;
+}
+
+.set-row button {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.remove-set {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.remove-set:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.copy-above-placeholder {
+  visibility: hidden;
+}
+
+button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin: 0.2rem 0.3rem 0.2rem 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.3rem;
+  text-align: center;
+}
+
+td input {
+  width: 4.5rem;
+  padding: 0.2rem;
+}
+
+.error {
+  color: #dc2626;
+}

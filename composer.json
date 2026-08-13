@@ -1,0 +1,29 @@
+{
+    "name": "tamatyan1111/workout",
+    "description": "たまちゃんの筋トレ管理 — PHPバックエンド(公開読み取りAPI・秘密パスAPI)",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "phpstan/phpstan": "^1.11",
+        "squizlabs/php_codesniffer": "^3.10"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "php/tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite Unit",
+        "test:integration": "phpunit --testsuite Integration",
+        "lint": "phpcs",
+        "stan": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
