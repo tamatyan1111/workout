@@ -20,7 +20,10 @@ try {
     }
 
     $stmt = $pdo->prepare(
-        'UPDATE exercises SET target_weight = :target_weight, target_reps = :target_reps, target_sets = :target_sets, is_discontinued = :is_discontinued WHERE id = :id'
+        'UPDATE exercises
+         SET target_weight = :target_weight, target_reps = :target_reps,
+             target_sets = :target_sets, is_discontinued = :is_discontinued
+         WHERE id = :id'
     );
     $stmt->execute([
         'target_weight' => $targetWeight,

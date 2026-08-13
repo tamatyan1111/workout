@@ -22,7 +22,8 @@ try {
     }
 
     $stmt = $pdo->prepare(
-        'INSERT INTO exercises (cycle_id, name, target_weight, target_reps, target_sets) VALUES (:cycle_id, :name, :target_weight, :target_reps, :target_sets)'
+        'INSERT INTO exercises (cycle_id, name, target_weight, target_reps, target_sets)
+         VALUES (:cycle_id, :name, :target_weight, :target_reps, :target_sets)'
     );
     $stmt->execute([
         'cycle_id' => $cycleId,

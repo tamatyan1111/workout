@@ -6,6 +6,10 @@ dist-ssr/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# package-lock.json はコミットしない: Windowsで生成したlockfileだと、rolldown等の
+# プラットフォーム別ネイティブバイナリがCI(Linux)側で解決できない既知のnpmの問題があるため
+# (npm/cli#4828)。npm installで都度解決する
+package-lock.json
 
 # PHP / Composer
 vendor/
