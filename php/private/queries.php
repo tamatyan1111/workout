@@ -212,17 +212,19 @@ function fetch_board(PDO $pdo, int $userId): array
     $exercises = $exercisesStmt->fetchAll();
 
     // design.md §2.9: 直近の記録日の(重量,回数)グループを、ログイン中のユーザーの全種目分まとめて取得する
+    // PDO::ATTR_EMULATE_PREPARES=falseのネイティブプリペアドステートメントは同名プレースホルダーの
+    // 再利用をサポートしないため、同じ値でも:user_id1/:user_id2のように名前を分ける
     $currentStmt = $pdo->prepare(
         "SELECT l.exercise_id, l.weight, l.reps, COUNT(*) AS sets
         FROM logs l
         INNER JOIN (
-            SELECT exercise_id, MAX(logged_date) AS max_date FROM logs WHERE user_id = :user_id GROUP BY exercise_id
+            SELECT exercise_id, MAX(logged_date) AS max_date FROM logs WHERE user_id = :user_id1 GROUP BY exercise_id
         ) latest ON latest.exercise_id = l.exercise_id AND latest.max_date = l.logged_date
-        WHERE l.user_id = :user_id
+        WHERE l.user_id = :user_id2
         GROUP BY l.exercise_id, l.weight, l.reps
         ORDER BY l.exercise_id, l.weight DESC, l.reps DESC"
     );
-    $currentStmt->execute(['user_id' => $userId]);
+    $currentStmt->execute(['user_id1' => $userId, 'user_id2' => $userId]);
 
     $currentByExercise = [];
     foreach ($currentStmt->fetchAll() as $row) {
