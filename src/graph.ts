@@ -85,35 +85,19 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
     );
 
     weightChart?.destroy();
-    weightChart = new Chart(weightCanvas, {
-      type: 'line',
-      data: { labels, datasets: [{ label: '重量(kg)', data: weightData, borderColor: '#3b82f6' }] },
-      options: {
-        responsive: true,
-        plugins: {
-          title: { display: true, text: `${exercise.name} - 重量推移(その日の最大重量)` },
-        },
-        scales: {
-          x: { title: { display: true, text: '日付' } },
-          y: { title: { display: true, text: '重量(kg)' }, beginAtZero: true },
-        },
-      },
+    weightChart = buildLineChart(weightCanvas, labels, weightData, {
+      datasetLabel: '重量(kg)',
+      color: '#3b82f6',
+      title: `${exercise.name} - 重量推移(その日の最大重量)`,
+      yLabel: '重量(kg)',
     });
 
     volumeChart?.destroy();
-    volumeChart = new Chart(volumeCanvas, {
-      type: 'line',
-      data: { labels, datasets: [{ label: '総作業量(kg)', data: volumeData, borderColor: '#22c55e' }] },
-      options: {
-        responsive: true,
-        plugins: {
-          title: { display: true, text: `${exercise.name} - 総作業量推移(重量×回数の合計)` },
-        },
-        scales: {
-          x: { title: { display: true, text: '日付' } },
-          y: { title: { display: true, text: '総作業量(kg)' }, beginAtZero: true },
-        },
-      },
+    volumeChart = buildLineChart(volumeCanvas, labels, volumeData, {
+      datasetLabel: '総作業量(kg)',
+      color: '#22c55e',
+      title: `${exercise.name} - 総作業量推移(重量×回数の合計)`,
+      yLabel: '総作業量(kg)',
     });
   }
 
@@ -128,6 +112,28 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
   });
 
   update();
+}
+
+function buildLineChart(
+  canvas: HTMLCanvasElement,
+  labels: string[],
+  data: number[],
+  opts: { datasetLabel: string; color: string; title: string; yLabel: string }
+): Chart {
+  return new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [{ label: opts.datasetLabel, data, borderColor: opts.color }] },
+    options: {
+      responsive: true,
+      plugins: {
+        title: { display: true, text: opts.title },
+      },
+      scales: {
+        x: { title: { display: true, text: '日付' } },
+        y: { title: { display: true, text: opts.yLabel }, beginAtZero: true },
+      },
+    },
+  });
 }
 
 function periodRange(period: Period): { from?: string; to?: string } {
