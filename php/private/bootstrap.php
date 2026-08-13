@@ -8,3 +8,6 @@ require_once __DIR__ . '/respond.php';
 require_once __DIR__ . '/queries.php';
 require_once __DIR__ . '/validation_exception.php';
 require_once __DIR__ . '/validate.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/google_oauth.php';
+require_once __DIR__ . '/mailer.php';

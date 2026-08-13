@@ -20,6 +20,5 @@
     </rule>
 
     <file>php/private</file>
-    <file>php/api-public</file>
-    <file>php/secret-api</file>
+    <file>php/api</file>
 </ruleset>

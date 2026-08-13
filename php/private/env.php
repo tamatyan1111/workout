@@ -43,6 +43,11 @@ function get_config(): array
                 'trim',
                 explode(',', $get('PUBLIC_CORS_ORIGINS'))
             ))),
+            'app_base_url' => rtrim($get('APP_BASE_URL', 'http://localhost:5173'), '/'),
+            'google_client_id' => $get('GOOGLE_CLIENT_ID'),
+            'google_client_secret' => $get('GOOGLE_CLIENT_SECRET'),
+            'google_redirect_uri' => $get('GOOGLE_REDIRECT_URI'),
+            'mail_from' => $get('MAIL_FROM', 'noreply@example.com'),
         ];
     }
     return $config;

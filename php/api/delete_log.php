@@ -1,15 +1,17 @@
 <?php
-// design.md §2.6「秘密パスAPI」対応。記録削除。
+require_once __DIR__ . '/../private/bootstrap.php';
 
-require_once __DIR__ . '/../../private/bootstrap.php';
-// require_once __DIR__ . '/../../private/auth.php'; require_auth(); // FUTURE
+$config = get_config();
+send_cors_headers($config);
+require_csrf_header();
 
 try {
+    $userId = require_login();
     $body = read_json_body();
     $id = require_int($body, 'id');
 
     $pdo = get_pdo();
-    $log = find_log($pdo, $id);
+    $log = find_log($pdo, $userId, $id);
     if (!$log) {
         json_error('記録が見つかりません', 404);
     }

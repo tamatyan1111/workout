@@ -1,12 +1,14 @@
 <?php
-// design.md §2.6「秘密パスAPI」対応。記録追加。
+require_once __DIR__ . '/../private/bootstrap.php';
 
-require_once __DIR__ . '/../../private/bootstrap.php';
-// require_once __DIR__ . '/../../private/auth.php'; require_auth(); // FUTURE: ログイン機能を追加したらここで有効化
+$config = get_config();
+send_cors_headers($config);
+require_csrf_header();
 
 $pdo = null;
 
 try {
+    $userId = require_login();
     $body = read_json_body();
     $exerciseId = require_int($body, 'exercise_id');
     $loggedDate = require_date($body, 'logged_date');
@@ -16,7 +18,7 @@ try {
     }
 
     $pdo = get_pdo();
-    $exercise = find_exercise($pdo, $exerciseId);
+    $exercise = find_exercise($pdo, $userId, $exerciseId);
     if (!$exercise) {
         json_error('種目が見つかりません', 404);
     }
@@ -46,11 +48,13 @@ try {
 
     $pdo->beginTransaction();
     $stmt = $pdo->prepare(
-        'INSERT INTO logs (exercise_id, logged_date, set_number, weight, reps) VALUES (:exercise_id, :logged_date, :set_number, :weight, :reps)'
+        'INSERT INTO logs (user_id, exercise_id, logged_date, set_number, weight, reps)
+         VALUES (:user_id, :exercise_id, :logged_date, :set_number, :weight, :reps)'
     );
     $ids = [];
     foreach ($parsedSets as $i => $set) {
         $stmt->execute([
+            'user_id' => $userId,
             'exercise_id' => $exerciseId,
             'logged_date' => $loggedDate,
             'set_number' => $i + 1,
@@ -61,7 +65,7 @@ try {
     }
     $pdo->commit();
 
-    // design.md §2.6: setsと同じ順序で採番されたIDを返す
+    // design.md §2.10: setsと同じ順序で採番されたIDを返す
     json_ok(['ids' => $ids]);
 } catch (ValidationException $e) {
     if ($pdo !== null && $pdo->inTransaction()) {

@@ -1,11 +1,14 @@
 <?php
-// design.md §2.6「秘密パスAPI」対応。目標値・廃止フラグの編集。design.md §3.2の通り、
-// 種目名・サイクルはここでは変更できない。
+// design.md §3.2参照。目標値・廃止フラグの編集。種目名・サイクルはここでは変更できない。
 
-require_once __DIR__ . '/../../private/bootstrap.php';
-// require_once __DIR__ . '/../../private/auth.php'; require_auth(); // FUTURE
+require_once __DIR__ . '/../private/bootstrap.php';
+
+$config = get_config();
+send_cors_headers($config);
+require_csrf_header();
 
 try {
+    $userId = require_login();
     $body = read_json_body();
     $id = require_int($body, 'id');
     $targetWeight = optional_number($body, 'target_weight');
@@ -14,7 +17,7 @@ try {
     $discontinued = optional_bool($body, 'discontinued');
 
     $pdo = get_pdo();
-    $exercise = find_exercise($pdo, $id);
+    $exercise = find_exercise($pdo, $userId, $id);
     if (!$exercise) {
         json_error('種目が見つかりません', 404);
     }

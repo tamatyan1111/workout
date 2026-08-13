@@ -58,16 +58,53 @@ function require_date(array $data, string $key): string
     return $value;
 }
 
-function require_cycle_id(array $data, string $key): int
-{
-    $value = require_field($data, $key);
-    if (!is_numeric($value) || (int) $value < 1 || (int) $value > 4) {
-        throw new ValidationException("{$key}は1〜4で指定してください");
-    }
-    return (int) $value;
-}
-
 function optional_bool(array $data, string $key): bool
 {
     return array_key_exists($key, $data) ? (bool) $data[$key] : false;
+}
+
+function require_email(array $data, string $key): string
+{
+    $value = require_field($data, $key);
+    if (!is_string($value) || !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+        throw new ValidationException("{$key}は正しいメールアドレス形式で指定してください");
+    }
+    return $value;
+}
+
+// design.md では強度要件を細かく規定していないため、最低限の長さのみチェックする(YAGNI)
+function require_password(array $data, string $key): string
+{
+    $value = require_field($data, $key);
+    if (!is_string($value) || mb_strlen($value) < 8) {
+        throw new ValidationException("{$key}は8文字以上で指定してください");
+    }
+    return $value;
+}
+
+function optional_date(array $data, string $key): ?string
+{
+    $value = optional_field($data, $key);
+    if ($value === null) {
+        return null;
+    }
+    $d = DateTime::createFromFormat('Y-m-d', $value);
+    $errors = DateTime::getLastErrors();
+    if (!$d || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        throw new ValidationException("{$key}はYYYY-MM-DD形式で指定してください");
+    }
+    return $value;
+}
+
+// design.md §2.1: gender は 'male' | 'female' | 'unspecified'。未指定時は'unspecified'として扱う
+function optional_gender(array $data, string $key): string
+{
+    $value = optional_field($data, $key);
+    if ($value === null) {
+        return 'unspecified';
+    }
+    if (!in_array($value, ['male', 'female', 'unspecified'], true)) {
+        throw new ValidationException("{$key}の値が不正です");
+    }
+    return $value;
 }

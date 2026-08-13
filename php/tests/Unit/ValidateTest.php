@@ -89,24 +89,6 @@ final class ValidateTest extends TestCase
         require_date([], 'logged_date');
     }
 
-    public function testRequireCycleIdAcceptsRange(): void
-    {
-        $this->assertSame(1, require_cycle_id(['cycle_id' => '1'], 'cycle_id'));
-        $this->assertSame(4, require_cycle_id(['cycle_id' => '4'], 'cycle_id'));
-    }
-
-    public function testRequireCycleIdRejectsOutOfRange(): void
-    {
-        $this->expectException(ValidationException::class);
-        require_cycle_id(['cycle_id' => '5'], 'cycle_id');
-    }
-
-    public function testRequireCycleIdRejectsZero(): void
-    {
-        $this->expectException(ValidationException::class);
-        require_cycle_id(['cycle_id' => '0'], 'cycle_id');
-    }
-
     public function testOptionalBoolDefaultsFalse(): void
     {
         $this->assertFalse(optional_bool([], 'discontinued'));
@@ -115,5 +97,60 @@ final class ValidateTest extends TestCase
     public function testOptionalBoolReadsTruthyValue(): void
     {
         $this->assertTrue(optional_bool(['discontinued' => true], 'discontinued'));
+    }
+
+    public function testRequireEmailAcceptsValidFormat(): void
+    {
+        $this->assertSame('a@example.com', require_email(['email' => 'a@example.com'], 'email'));
+    }
+
+    public function testRequireEmailRejectsInvalidFormat(): void
+    {
+        $this->expectException(ValidationException::class);
+        require_email(['email' => 'not-an-email'], 'email');
+    }
+
+    public function testRequirePasswordAcceptsEightCharacters(): void
+    {
+        $this->assertSame('abcdefgh', require_password(['password' => 'abcdefgh'], 'password'));
+    }
+
+    public function testRequirePasswordRejectsTooShort(): void
+    {
+        $this->expectException(ValidationException::class);
+        require_password(['password' => 'short'], 'password');
+    }
+
+    public function testOptionalDateReturnsNullWhenMissing(): void
+    {
+        $this->assertNull(optional_date([], 'birth_date'));
+    }
+
+    public function testOptionalDateAcceptsValidFormat(): void
+    {
+        $this->assertSame('1990-01-01', optional_date(['birth_date' => '1990-01-01'], 'birth_date'));
+    }
+
+    public function testOptionalDateRejectsWrongFormat(): void
+    {
+        $this->expectException(ValidationException::class);
+        optional_date(['birth_date' => '1990/01/01'], 'birth_date');
+    }
+
+    public function testOptionalGenderDefaultsUnspecified(): void
+    {
+        $this->assertSame('unspecified', optional_gender([], 'gender'));
+    }
+
+    public function testOptionalGenderAcceptsKnownValues(): void
+    {
+        $this->assertSame('male', optional_gender(['gender' => 'male'], 'gender'));
+        $this->assertSame('female', optional_gender(['gender' => 'female'], 'gender'));
+    }
+
+    public function testOptionalGenderRejectsUnknownValue(): void
+    {
+        $this->expectException(ValidationException::class);
+        optional_gender(['gender' => 'other'], 'gender');
     }
 }

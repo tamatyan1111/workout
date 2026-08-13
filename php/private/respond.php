@@ -1,14 +1,24 @@
 <?php
-// 全エンドポイント共通のレスポンス形式。design.md §2.6参照。
+// 全エンドポイント共通のレスポンス形式。design.md §2.10参照。
 
-// リクエスト元のOriginが許可リストに含まれる場合だけAccess-Control-Allow-Originを返す
+// リクエスト元のOriginが許可リストに含まれる場合だけAccess-Control-Allow-Originを返す。
+// 本番はダッシュボードとAPIが同一オリジンのため、このヘッダー自体は主にローカル開発用(design.md §1)。
+// セッションCookieを使う認証系エンドポイントのためAllow-Credentialsも返す(originを特定済みの場合のみ安全)。
 function send_cors_headers(array $config): void
 {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
     if (in_array($origin, $config['public_cors_origins'], true)) {
         header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
     }
-    header('Access-Control-Allow-Methods: GET, OPTIONS');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-Requested-With');
+
+    // ブラウザのプリフライト(OPTIONS)リクエストはボディ無しで即座に返す
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+        http_response_code(204);
+        exit;
+    }
 }
 
 function send_json_headers(): void

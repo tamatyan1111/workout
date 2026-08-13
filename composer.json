@@ -1,6 +1,6 @@
 {
     "name": "tamatyan1111/workout",
-    "description": "たまちゃんの筋トレ管理 — PHPバックエンド(公開読み取りAPI・秘密パスAPI)",
+    "description": "たまちゃんの筋トレ管理 — PHPバックエンド(認証・ダッシュボードAPI)",
     "type": "project",
     "license": "MIT",
     "require": {

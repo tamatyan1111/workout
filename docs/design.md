@@ -283,6 +283,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | endpoint | method | payload | response |
 | :--- | :--- | :--- | :--- |
 | `get_board.php` | GET | - | 種目一覧(現在値・目標値込み) |
+| `get_cycles.php` | GET | - | 自分のサイクル一覧(`get_board`は種目が1件も無いサイクルを返さないため、サイクル管理・種目追加フォーム用に別途用意) |
 | `get_logs.php` | GET | `exercise_id?`, `date_from?`, `date_to?`(省略時は全件) | グラフ用の記録ログ |
 | `get_recent_logs.php` | GET | `limit?`(既定20) | `{logs: [{id, exercise_id, exercise_name, cycle_id, logged_date, set_number, weight, reps}]}` |
 | `add_log.php` | POST | `{exercise_id, logged_date, sets:[{weight,reps},...]}` | `{ids:[...]}` |

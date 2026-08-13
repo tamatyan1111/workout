@@ -16,8 +16,7 @@
     <source>
         <include>
             <directory>php/private</directory>
-            <directory>php/api-public</directory>
-            <directory>php/secret-api</directory>
+            <directory>php/api</directory>
         </include>
     </source>
 </phpunit>
