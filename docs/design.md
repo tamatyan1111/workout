@@ -56,7 +56,7 @@ timestamp: 2026-07-20T00:00:00Z
 
 ### 1.2 データ分離の方針(重要)
 
-`cycles`・`exercises`・`logs`・`body_weight_logs`の**全テーブルに`user_id`を直接持たせる**(`cycles`経由の間接参照だけに頼らない)。各APIエンドポイントは必ずログイン中の`user_id`でWHERE句を絞り込み、リクエストパラメータで送られてきた`user_id`は一切信用しない。
+`cycles`・`exercises`・`logs`・`body_weight_logs`(および2026-08追加の`nutrition_goals`・`custom_foods`・`recipes`・`recipe_items`・`meals`・`meal_items`)の**全テーブルに`user_id`を直接持たせる**(`cycles`経由の間接参照だけに頼らない)。各APIエンドポイントは必ずログイン中の`user_id`でWHERE句を絞り込み、リクエストパラメータで送られてきた`user_id`は一切信用しない。全ユーザー共通マスタの`foods`のみ`user_id`を持たない(§2.12)。
 
 理由: `exercises`→`cycles`→`user_id`のようなJOIN経由の間接的な認可チェックだけに頼ると、将来クエリが増えた際にJOINを書き忘れて他人のデータが漏れる事故が起こりうる。テーブルごとに直接絞り込める形にすることで、この種の事故を構造的に防ぐ。
 
@@ -90,6 +90,8 @@ CREATE TABLE users (
   display_name   VARCHAR(100) NOT NULL,
   birth_date     DATE NULL,
   gender         ENUM('male', 'female', 'unspecified') NOT NULL DEFAULT 'unspecified',
+  height_cm      SMALLINT UNSIGNED NULL,     -- BMI・TDEE計算用(2026-08、食事機能対応で追加予定)
+  activity_level ENUM('sedentary', 'light', 'moderate', 'active') NULL,  -- TDEE計算の活動係数(同上)
   failed_login_count     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   failed_login_at        DATETIME NULL,
   created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -102,6 +104,8 @@ CREATE TABLE users (
 - `email`・`password_hash`・`google_sub`はいずれもNULL許容だが、アプリ側で「`email`+`password_hash`の組」または「`google_sub`」のどちらか一方は必ず設定されることを保証する
 - **Googleログインとメール/パスワードアカウントの統合**: `email`には`UNIQUE`制約があるため、既にメール/パスワードで登録済みのメールアドレスと同じGoogleアカウントでログインしようとすると、素朴に新規ユーザーを作成しようとして制約違反になる(実際に本番で発生した不具合)。`google_callback.php`では、`google_sub`で見つからない場合、Google側で`email_verified`が真のメールアドレスに限り、既存のメール/パスワードアカウントを検索して`google_sub`を後付けで紐づける(`link_google_to_user`)。これにより、同じメールアドレスであれば「メール/パスワードでもGoogleでも同じアカウントに入れる」という直感的な挙動になる
 - `birth_date`・`gender`は任意項目(US-14)。`gender`は将来のカロリー計算機能でBMR計算式の係数として使う可能性があるための保持で、今回は保持のみでスコープ外([requirements.md](requirements.md) §4)
+- `height_cm`・`activity_level`は2026-08の食事記録機能検討([requirements.md](requirements.md) §7)に伴う追加列。`birth_date`・`gender`と同様に任意項目とし、未入力でも他機能(管理表・グラフ・体重記録)には影響しない。TDEE計算(§2.17)に使うが、未入力の場合はTDEE・目標カロリーの自動算出ができない旨をダッシュボードに表示する。`activity_level`の係数(Harris-Benedict/Mifflin-St Jeorで一般的なPAL値)は次の通り: `sedentary`=デスクワーク中心・ほぼ運動しない(×1.2)、`light`=軽い運動習慣・週1〜3日(×1.375)、`moderate`=立ち仕事や中程度の運動・週3〜5日(×1.55)、`active`=激しい運動習慣・週6〜7日(×1.725)
+- 本番DBには既に`users`テーブルが存在するため、実装時はこの2列を追加する`ALTER TABLE`スクリプトが必要(`sql/migrate_to_multiuser.sql`と同様の追加マイグレーションとして、実装時に作成する)
 
 ### 2.2 `password_reset_tokens` テーブル — パスワードリセット用トークン(新規)
 
@@ -303,10 +307,204 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `get_body_weight_logs.php` | GET | `date_from?`, `date_to?` | 体重の記録一覧 |
 | `add_body_weight_log.php` | POST | `{logged_date, weight}` | `{ok:true}`(同日の既存記録があれば上書き) |
 | `delete_body_weight_log.php` | POST | `{id}` | `{ok:true}` |
-| `get_me.php` | GET | - | `{display_name, email, birth_date, gender}` |
-| `update_me.php` | POST | `{display_name?, birth_date?, gender?}` | `{ok:true}` |
+| `get_me.php` | GET | - | `{display_name, email, birth_date, gender, height_cm, activity_level}` |
+| `update_me.php` | POST | `{display_name?, birth_date?, gender?, height_cm?, activity_level?}` | `{ok:true}` |
 | `export.php` | GET | - | CSV形式のダウンロード(記録・体重記録) |
 | `delete_account.php` | POST | `{}` | `{ok:true}`(成功時セッション破棄、以後そのアカウントの全データは失われる) |
+
+#### 食事API(`workout.<domain>/api/`、全エンドポイントでログイン必須。§2.11〜2.17対応、新規)
+| endpoint | method | payload | response |
+| :--- | :--- | :--- | :--- |
+| `get_nutrition_summary.php` | GET | - | BMI・TDEE・目標カロリー・目標PFCグラム数・達成日超過バナー・進捗マイルストーン(§2.16・2.17の計算結果一式) |
+| `get_nutrition_goal.php` | GET | - | 最新の`nutrition_goals`1件(`null`の場合は未設定) |
+| `add_nutrition_goal.php` | POST | `{target_weight, target_date, pfc_mode, custom_protein_g?, custom_fat_g?, custom_carb_g?}` | `{id}`(新規行を`INSERT`。`start_weight`はサーバー側で直近体重から自動設定) |
+| `search_foods.php` | GET | `q?`, `food_group_code?`, `kcal_min?`, `kcal_max?` | `foods`・`custom_foods`を横断した検索結果一覧 |
+| `add_custom_food.php` | POST | `{name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g}` | `{id}` |
+| `edit_custom_food.php` | POST | `{id, name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g}`(`edit_exercise.php`等と同じく部分更新ではなく全項目を送る) | `{ok:true}` |
+| `delete_custom_food.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_recipes"}` |
+| `get_recipes.php` | GET | - | 自分のレシピ一覧(構成食材込み) |
+| `add_recipe.php` | POST | `{name, items:[{master_food_id\|custom_food_id, quantity_g},...]}` | `{id}` |
+| `edit_recipe.php` | POST | `{id, name, items:[...]}`(itemsは丸ごと置き換え) | `{ok:true}` |
+| `delete_recipe.php` | POST | `{id}` | `{ok:true}` |
+| `get_meals.php` | GET | `date_from?`, `date_to?` | 食事ログ一覧(`meal_items`込み、`recipe_batch_id`でグループ化可能な形) |
+| `add_meal.php` | POST | `{logged_date, meal_type, items:[{master_food_id\|custom_food_id, quantity_g},...]}` または `{logged_date, meal_type, recipe_id}` | `{id, item_ids:[...]}`(レシピ指定時はサーバー側で`recipe_items`を展開し`meal_items`をスナップショット保存) |
+| `add_meal_item.php` | POST | `{meal_id, master_food_id\|custom_food_id, quantity_g}` \| `{meal_id, recipe_id}` | `{ids:[...]}`(既存の食事ログへの追加。カートへの追加操作に対応) |
+| `delete_meal_item.php` | POST | `{id}` | `{ok:true}`(単品削除) |
+| `delete_meal_item_group.php` | POST | `{recipe_batch_id}` | `{ok:true}`(同じ`recipe_batch_id`を持つ行をまとめて削除) |
+| `delete_meal.php` | POST | `{id}` | `{ok:true}`(食事ログ全体を削除、`meal_items`も`CASCADE`で削除) |
+
+### 2.11 `nutrition_goals` テーブル — 体重目標・カロリー目標・PFC配分方式(新規、§7対応)
+
+```sql
+CREATE TABLE nutrition_goals (
+  id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id             INT UNSIGNED NOT NULL,
+  start_weight        DECIMAL(5,2) NOT NULL,   -- 設定時点の直近体重のスナップショット(進捗率計算の起点)
+  target_weight       DECIMAL(5,2) NOT NULL,
+  target_date         DATE NOT NULL,
+  pfc_mode            ENUM('standard', 'bulk', 'cut', 'custom') NOT NULL DEFAULT 'standard',
+  custom_protein_g    DECIMAL(6,1) NULL,       -- pfc_mode='custom' のときのみ使用
+  custom_fat_g        DECIMAL(6,1) NULL,
+  custom_carb_g       DECIMAL(6,1) NULL,
+  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_nutrition_goals_user_id_created_at (user_id, created_at),
+  CONSTRAINT fk_nutrition_goals_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- 「目標を設定する」操作は常に新しい行を`INSERT`する(体重記録の`current`と同じ考え方で、そのユーザーの**最新の1行**が「現在の目標」になる。`is_active`のようなフラグ列は持たない)。目標を見直す・達成日を過ぎて再設定する場合も、新しい行を追加するだけでよく、履歴としてそのまま残る
+- `start_weight`は、目標を新規作成する瞬間の`body_weight_logs`の最新値をコピーして保存する(進捗率マイルストーンの計算で「どこから始めたか」の基準点が必要なため。後から`body_weight_logs`側が編集されても目標の起点がぶれないよう、あえてスナップショットにする)
+- `pfc_mode`が`standard`/`bulk`/`cut`のとき、具体的な配分(P15%/F25%/C60%、体重×1.8g/kg、体重×2.0g/kg等)はアプリ側の固定定数として扱い、DBには持たせない([requirements.md](requirements.md) §7参照)。`custom`のときのみ、ユーザーが直接入力したグラム数を`custom_protein_g`等に保存する
+
+### 2.12 `foods` テーブル — 食品標準成分表マスタ(新規、全ユーザー共通)
+
+```sql
+CREATE TABLE foods (
+  id                    INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  food_number           VARCHAR(10) NOT NULL,    -- 食品標準成分表の食品番号(5桁)
+  food_group_code       CHAR(2) NOT NULL,        -- 食品群番号
+  food_group_name       VARCHAR(50) NOT NULL,    -- 食品群名(例: 穀類、野菜類)。非正規化だが全18群固定で変動しないため許容
+  name                  VARCHAR(255) NOT NULL,
+  kcal_per_100g         DECIMAL(6,1) NOT NULL,
+  protein_g_per_100g    DECIMAL(6,2) NULL,     -- 「-」(未測定)の食品が実データに数件あるためNULL許容
+  fat_g_per_100g        DECIMAL(6,2) NULL,
+  carb_g_per_100g       DECIMAL(6,2) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_foods_food_number (food_number),
+  KEY idx_foods_food_group_code (food_group_code),
+  FULLTEXT KEY ftx_foods_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- 文部科学省「日本食品標準成分表(八訂)増補2023年」の「第2章(データ)」Excel(`表全体`シート)からバッチ取り込みで作成する。取り込みスクリプトは`sql/import/generate_foods_sql.js`(Node.js、リポジトリに保存。次回以降の改訂版データにも再利用する)。ユーザーからのAPI経由での追加・編集・削除は行わない(読み取り専用マスタ)
+- 実データには微量を示す「Tr」(trace)表記と、未測定を示す「-」表記が数十件ある。取り込みスクリプトは「Tr」を`0`、「-」を`NULL`として変換する(カッコ書きの数値、例:「(11.3)」は「他の成分から計算した値」を示す確定値なのでカッコを外してそのまま数値として扱う)
+- 食品名検索は`FULLTEXT`インデックスを使う(日本語の分かち書きが必要なため、MySQL/MariaDBの`ngram`パーサーを`ft_min_word_len`等と合わせて設定する。詳細は実装時に検証する)
+- 出典表記([requirements.md](requirements.md) §7の利用条件)は、この`foods`データを使う検索画面・食品詳細に必ず添える
+
+### 2.13 `custom_foods` テーブル — ユーザー独自食材(新規)
+
+```sql
+CREATE TABLE custom_foods (
+  id                    INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id               INT UNSIGNED NOT NULL,
+  name                  VARCHAR(255) NOT NULL,
+  kcal_per_100g         DECIMAL(6,1) NOT NULL,
+  protein_g_per_100g    DECIMAL(6,2) NOT NULL,
+  fat_g_per_100g        DECIMAL(6,2) NOT NULL,
+  carb_g_per_100g       DECIMAL(6,2) NOT NULL,
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_custom_foods_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- `foods`と項目構成を揃え、食品検索・食事ログ入力の双方から同じ形で扱えるようにする(§7「独自食品追加は食材単位のみ」の通り、`food_group_code`は持たせない)
+
+### 2.14 `recipes` / `recipe_items` テーブル — レシピ(料理)テンプレート(新規)
+
+```sql
+CREATE TABLE recipes (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     INT UNSIGNED NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_recipes_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE recipe_items (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  recipe_id       INT UNSIGNED NOT NULL,
+  user_id         INT UNSIGNED NOT NULL,
+  master_food_id  INT UNSIGNED NULL,
+  custom_food_id  INT UNSIGNED NULL,
+  quantity_g      DECIMAL(7,1) NOT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_recipe_items_recipe_id FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_recipe_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_recipe_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id),
+  CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id),
+  CONSTRAINT chk_recipe_items_food_ref CHECK ((master_food_id IS NULL) <> (custom_food_id IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- `recipe_items`は`master_food_id`・`custom_food_id`のどちらか一方だけを設定する(`CHECK`制約で強制。ポリモーフィックな1列参照ではなく2列のFKに分けることで、DBレベルの参照整合性を維持する)
+- `recipe_items`はテンプレートなので、食材の栄養値は**スナップショットせず**常に`foods`/`custom_foods`を都度JOINして最新値を参照する(レシピ編集はテンプレートの更新であり、過去ログとは無関係なため。過去ログ側の不変性は§2.15の`meal_items`側で担保する)
+- レシピは`user_id`に閉じたテンプレートで、他ユーザーとの共有機能は今回のスコープ外([requirements.md](requirements.md) §7)。`recipe_items`は`recipes`削除時に`CASCADE`で削除される(レシピの構成要素はレシピと運命を共にする子データのため、§1.3のアカウント削除順序の懸念とは別枠)
+
+### 2.15 `meals` / `meal_items` テーブル — 食事ログ(新規)
+
+```sql
+CREATE TABLE meals (
+  id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id      INT UNSIGNED NOT NULL,
+  logged_date  DATE NOT NULL,
+  meal_type    ENUM('breakfast', 'lunch', 'dinner', 'snack') NOT NULL,
+  photo_path   VARCHAR(255) NULL,   -- 添付メモ写真(自動計算には使わない)
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_meals_user_id_logged_date (user_id, logged_date),
+  CONSTRAINT fk_meals_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE meal_items (
+  id                          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  meal_id                     INT UNSIGNED NOT NULL,
+  user_id                     INT UNSIGNED NOT NULL,
+  master_food_id              INT UNSIGNED NULL,
+  custom_food_id              INT UNSIGNED NULL,
+  food_name_snapshot          VARCHAR(255) NOT NULL,
+  kcal_per_100g_snapshot      DECIMAL(6,1) NOT NULL,
+  protein_g_per_100g_snapshot DECIMAL(6,2) NOT NULL,
+  fat_g_per_100g_snapshot     DECIMAL(6,2) NOT NULL,
+  carb_g_per_100g_snapshot    DECIMAL(6,2) NOT NULL,
+  quantity_g                  DECIMAL(7,1) NOT NULL,
+  recipe_batch_id             CHAR(36) NULL,       -- 同じレシピ展開でまとめて追加された行の目印(UUID)
+  recipe_name_snapshot        VARCHAR(255) NULL,
+  created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_meal_items_meal_id (meal_id),
+  KEY idx_meal_items_recipe_batch_id (recipe_batch_id),
+  CONSTRAINT fk_meal_items_meal_id FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
+  CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
+  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
+  CONSTRAINT chk_meal_items_food_ref CHECK ((master_food_id IS NULL) <> (custom_food_id IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- `meal_items`は`recipe_items`と違い、追加した**瞬間の栄養値をスナップショットする**(`*_snapshot`列)。理由は§2.14と対称: ログは「その時食べたものの記録」という不変の事実であるべきで、後から`foods`のマスタ改訂や`custom_foods`の編集があっても、過去のログの計算結果が遡って変わってはならない(§2.9で確立した「記録は記録として固定する」方針と同じ考え方)
+- `master_food_id`・`custom_food_id`は表示・再検索の手がかりとして残すのみで、栄養計算には使わない(計算は常に`*_snapshot`列を使う)。そのため参照先が削除されても`SET NULL`で構わない(`exercises`/`logs`のような`RESTRICT`は不要)
+- レシピをカートに追加した瞬間、`recipe_items`をJOINして展開し、`meal_items`に食材ごとの行としてスナップショット付きで`INSERT`する。同じ操作で追加された行には共通の`recipe_batch_id`(UUID)を振り、`recipe_name_snapshot`にレシピ名を記録する。これにより、カート画面・保存後の編集画面の両方で「同じ`recipe_batch_id`を持つ行をまとめて1回の操作で削除する」UIが実現できる(個別行だけを`recipe_batch_id`を残したまま削除することも可能)
+- 直接食材を追加した行は`recipe_batch_id`・`recipe_name_snapshot`とも`NULL`のままになる
+- `meals`→`meal_items`は`ON DELETE CASCADE`とする(`meal_items`は`meals`に完全に従属する明細行であり、§1.3のアカウント削除順序の懸念とは別の、単純な親子関係のため)
+- `photo_path`列はスキーマ・API仕様として用意済みだが、実際のファイルアップロード処理(multipart/form-data受信・保存先ディレクトリ・サイズ/形式バリデーション)はPHP API実装の初回スコープには含めず、フォローアップとして別途実装する。それまでは常に`NULL`(添付なし)としてINSERTする
+
+### 2.16 BMI・TDEE・目標カロリー・PFCグラム数の算出ロジック(読み取り時に計算、§7対応)
+
+§2.9と同じ方針で、これらの数値はどこにもキャッシュせず、表示のたびに`users`(身長・活動レベル・生年月日・性別)・`body_weight_logs`(直近の体重)・`nutrition_goals`(最新の目標)から都度計算する。
+
+1. **年齢**: `birth_date`から計算(誕生日を迎えていなければ1歳引く)
+2. **BMI**: 直近の`body_weight_logs.weight`(kg) ÷ (`height_cm` ÷ 100)²。判定ラベルは[requirements.md](requirements.md) §7の日本肥満学会基準表に従う
+3. **TDEE**(Mifflin-St Jeor式):
+   - 男性: `10 × 体重kg + 6.25 × height_cm − 5 × 年齢 + 5`
+   - 女性: `10 × 体重kg + 6.25 × height_cm − 5 × 年齢 − 161`
+   - 「回答しない」の場合は男女式の平均、または活動係数と同様にプロフィール未入力時のエラーメッセージに倣い「性別が必要」として計算不可扱いにする(実装時に決定)
+   - 上記に`activity_level`の係数(§2.11直前の`users`節参照)を掛けて1日の推定消費カロリーとする
+4. **目標カロリー**: `TDEE + (nutrition_goals.target_weight − 直近体重) × 7200 ÷ (target_date − 今日の日数)`。増量方向ならプラス、減量方向ならマイナスになる。`target_date`を過ぎている場合は§2.17のバナー表示に切り替え、この計算自体は行わない(残り日数が0または負になるため)
+5. **PFCグラム数**(`pfc_mode`ごとに分岐):
+   - `standard`: タンパク質 = 目標カロリー×15%÷4、脂質 = 目標カロリー×25%÷9、炭水化物 = 目標カロリー×60%÷4
+   - `bulk`: タンパク質 = 直近体重×1.8(g)。脂質 = 目標カロリー×25%÷9。炭水化物 = (目標カロリー − タンパク質のkcal − 脂質のkcal)÷4
+   - `cut`: タンパク質 = 直近体重×2.0(g)。脂質・炭水化物は`bulk`と同じ式
+   - `custom`: `nutrition_goals.custom_protein_g`・`custom_fat_g`・`custom_carb_g`をそのまま使う
+   - `bulk`/`cut`で目標カロリーが低すぎる等の理由で炭水化物が負の値になるケースは、0にクランプした上で「カロリー設定を見直してください」という警告を表示する(実装時に詳細UIを詰める)
+
+### 2.17 目標達成日超過・進捗マイルストーンの判定(読み取り時に計算、§7対応)
+
+- **達成日超過バナー**: 今日の日付が`nutrition_goals.target_date`より後、かつ直近体重が`target_weight`から一定の許容誤差(例: ±0.5kg、実装時に調整)を超えて離れている場合、ダッシュボードに「目標達成日を過ぎています。目標を見直しましょう」を表示する
+- **進捗率**: `(start_weight − 直近体重) ÷ (start_weight − target_weight) × 100`(増量目標の場合は分子・分母とも符号が反転するだけで同じ式が使える)
+- **マイルストーン表示**: 進捗率が25%/50%/75%/100%の各閾値を初めて超えたタイミングで、ダッシュボードにお祝いメッセージ・バッジを表示する。「初めて超えたタイミングか」の判定は、キャッシュ列を持たずに毎回`body_weight_logs`の履歴から再計算する(過去のどの記録日時点でも進捗率を計算できるため、「今日時点で初めて閾値を超えたか」を都度判定できる。§2.9と同じ「書き込み時に何も再計算・保存しない」方針を踏襲)
 
 ## 3. 画面構成
 
@@ -327,7 +525,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 
 ログイン後(通常時):
 [ヘッダー: ようこそ、{display_name}さん] [ログアウト]
-[タブ: 管理表 | グラフ | 体重 | 設定]
+[タブ: 管理表 | グラフ | 体重 | 食事 | 設定]
 
 --- 管理表タブ ---
 自分のサイクルごとに区切って一覧表示
@@ -346,8 +544,19 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 [期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
 グラフ: 体重推移(折れ線)
 
+--- 食事タブ(§7対応、新規) ---
+[達成日超過バナー・マイルストーンお祝い表示(該当時のみ)]
+[現在のBMI(判定ラベル付き)・TDEE・目標カロリー・目標PFCグラム数のサマリー]
+[目標体重・達成日・PFC配分方式(標準/筋トレ向き/減量向き/カスタム)の設定フォーム]
+[食事区分(朝食/昼食/夕食/間食)を選び、食品・レシピを検索してカートに追加 → まとめて保存]
+[期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
+グラフ: 摂取カロリー・PFC実績(折れ線) + 目標ライン
+[直近の食事ログ一覧(食材/レシピ単位、レシピはグループとしてまとめて削除可能)]
+[レシピ管理: 作成・編集・削除]
+[独自食材の登録・編集・削除]
+
 --- 設定タブ ---
-プロフィール編集: 表示名・生年月日・性別(US-14)
+プロフィール編集: 表示名・生年月日・性別・身長・活動レベル(US-14、§7で身長・活動レベルを追加)
 サイクル管理: 追加・名称変更・削除(US-13)
 記録のエクスポート: CSVダウンロードボタン(US-17)
 アカウント削除: 確認ダイアログ付きの退会ボタン(US-16)
@@ -402,3 +611,9 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 10. `sql/migrate_to_multiuser.sql`のコメントに従って`user_id`を書き換えたうえでphpMyAdminで実行し、手順3で退避した旧データ(サイクル・種目・記録)を自分のアカウントに移行する。件数確認後、問題なければ`old_cycles`・`old_exercises`・`old_logs`(と、手順2の`backup_*`テーブル)を削除する
 11. サインアップ・ログイン(Google/メール両方)・パスワードリセット・記録の追加/修正/削除・目標編集・種目/サイクルの追加・削除・体重記録・プロフィール編集・CSVエクスポート・アカウント削除が一通り動作することを確認する
 12. 新システムの表示を旧システムの記録と突き合わせて問題なければ、さらに前のGoogle Apps Script・スプレッドシートは読み取り専用のフォールバックとしてしばらく残し、確認期間後に廃止する
+
+### 5.1 食事記録機能デプロイ時の追加手順(§7・§2.11〜2.17対応、実装時に実施)
+
+1. `sql/migrate_add_meal_tracking.sql`をphpMyAdminのSQLタブで実行する(`users`への`height_cm`・`activity_level`列追加と、新規6テーブル`nutrition_goals`・`foods`・`custom_foods`・`recipes`・`recipe_items`・`meals`・`meal_items`のCREATE TABLEをまとめて含む。既存データへの影響はない)
+2. `sql/foods_seed.sql`(2538件、`sql/import/generate_foods_sql.js`で文部科学省「日本食品標準成分表(八訂)増補2023年」から生成済み)をphpMyAdminのSQLタブで実行し、`foods`マスタを投入する。データ改訂版が出た場合は、新しいExcelを`sql/import/`に置いて同スクリプトを再実行すれば`sql/foods_seed.sql`を再生成できる(`TRUNCATE`込みなので再実行は安全)
+3. 新規に環境構築する場合(本番の追加マイグレーションではなく、初回セットアップの場合)は、上記の代わりに`sql/schema.sql`(食事機能のテーブルを含む最新版)を実行すればよい

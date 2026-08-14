@@ -24,6 +24,13 @@ final class QueriesTest extends TestCase
         self::$pdo->exec('TRUNCATE TABLE exercises');
         self::$pdo->exec('TRUNCATE TABLE cycles');
         self::$pdo->exec('TRUNCATE TABLE password_reset_tokens');
+        self::$pdo->exec('TRUNCATE TABLE meal_items');
+        self::$pdo->exec('TRUNCATE TABLE meals');
+        self::$pdo->exec('TRUNCATE TABLE recipe_items');
+        self::$pdo->exec('TRUNCATE TABLE recipes');
+        self::$pdo->exec('TRUNCATE TABLE custom_foods');
+        self::$pdo->exec('TRUNCATE TABLE nutrition_goals');
+        self::$pdo->exec('TRUNCATE TABLE foods');
         self::$pdo->exec('TRUNCATE TABLE users');
         self::$pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
@@ -43,6 +50,11 @@ final class QueriesTest extends TestCase
                (2, 1, 1, 0, 'エアロバイク', NULL, 20, 1),
                (3, 1, 1, 1, '廃止種目', NULL, NULL, NULL),
                (4, 2, 2, 0, 'ユーザー2の種目', 50, 10, 3)"
+        );
+        // 食事記録機能(design.md §2.11〜2.15)のテスト用マスタデータ
+        self::$pdo->exec(
+            "INSERT INTO foods (id, food_number, food_group_code, food_group_name, name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g)
+             VALUES (1, '01001', '01', '穀類', '白米', 342.0, 6.10, 0.90, 77.60)"
         );
     }
 
@@ -264,6 +276,16 @@ final class QueriesTest extends TestCase
              VALUES (1, 1, '2026-01-01', 1, 60, 10)"
         );
         upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5);
+        create_custom_food(self::$pdo, 1, '自家製プロテインバー', 400, 20, 10, 40);
+        create_recipe(self::$pdo, 1, 'テストレシピ', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0],
+        ]);
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'lunch', null);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0,
+             'food' => ['name' => '白米', 'kcal_per_100g' => 342.0, 'protein_g_per_100g' => 6.1, 'fat_g_per_100g' => 0.9, 'carb_g_per_100g' => 77.6]],
+        ], null, null);
+        create_nutrition_goal(self::$pdo, 1, 65.0, '2026-12-01', 'standard', null, null, null);
 
         delete_user_account(self::$pdo, 1);
 
@@ -271,8 +293,253 @@ final class QueriesTest extends TestCase
         $this->assertCount(0, fetch_cycles(self::$pdo, 1));
         $this->assertCount(0, fetch_board(self::$pdo, 1));
         $this->assertCount(0, fetch_body_weight_logs(self::$pdo, 1, null, null));
+        $this->assertCount(0, fetch_custom_foods(self::$pdo, 1));
+        $this->assertCount(0, fetch_recipes(self::$pdo, 1));
+        $this->assertCount(0, fetch_meals(self::$pdo, 1, null, null));
+        $this->assertNull(fetch_latest_nutrition_goal(self::$pdo, 1));
         // ユーザー2のデータは影響を受けない
         $this->assertNotNull(find_user_by_id(self::$pdo, 2));
+    }
+
+    // ==== 食事記録機能(design.md §2.11〜2.15、§7対応) ====
+
+    public function testFetchLatestTwoBodyWeightsOrdersByDateDescending(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-03', 68.0);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-02', 69.0);
+
+        $weights = fetch_latest_two_body_weights(self::$pdo, 1);
+        $this->assertSame(68.0, $weights['current']);
+        $this->assertSame(69.0, $weights['previous']);
+    }
+
+    public function testCreateNutritionGoalSnapshotsStartWeightFromLatestBodyWeight(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+
+        $id = create_nutrition_goal(self::$pdo, 1, 65.0, '2026-12-01', 'cut', null, null, null);
+        $goal = fetch_latest_nutrition_goal(self::$pdo, 1);
+
+        $this->assertSame($id, $goal['id']);
+        $this->assertSame(70.0, $goal['start_weight']);
+        $this->assertSame(65.0, $goal['target_weight']);
+        $this->assertSame('cut', $goal['pfc_mode']);
+    }
+
+    // design.md §2.11: 目標設定は新しい行をINSERTするだけで、最新の1件が「現在の目標」になる
+    public function testFetchLatestNutritionGoalReturnsMostRecentlyCreated(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        create_nutrition_goal(self::$pdo, 1, 68.0, '2026-10-01', 'standard', null, null, null);
+        create_nutrition_goal(self::$pdo, 1, 65.0, '2026-12-01', 'cut', null, null, null);
+
+        $goal = fetch_latest_nutrition_goal(self::$pdo, 1);
+        $this->assertSame(65.0, $goal['target_weight']);
+    }
+
+    public function testSearchFoodsIncludesMasterFoods(): void
+    {
+        $results = search_foods(self::$pdo, 1, '白米', null, null, null);
+        $this->assertCount(1, $results);
+        $this->assertSame('master', $results[0]['source']);
+    }
+
+    // design.md §1.2: 独自食材は他ユーザーから見えない
+    public function testSearchFoodsIsScopedPerUserForCustomFoods(): void
+    {
+        create_custom_food(self::$pdo, 1, 'ユーザー1の自作スムージー', 200, 10, 5, 30);
+        create_custom_food(self::$pdo, 2, 'ユーザー2の自作スムージー', 200, 10, 5, 30);
+
+        $results = search_foods(self::$pdo, 1, 'スムージー', null, null, null);
+        $this->assertCount(1, $results);
+        $this->assertSame('ユーザー1の自作スムージー', $results[0]['name']);
+    }
+
+    public function testCustomFoodInUseTrueWhenReferencedByRecipe(): void
+    {
+        $customFoodId = create_custom_food(self::$pdo, 1, 'プロテインパウダー', 380, 80, 5, 5);
+        $this->assertFalse(custom_food_in_use(self::$pdo, $customFoodId));
+
+        create_recipe(self::$pdo, 1, 'プロテインシェイク', [
+            ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'quantity_g' => 30.0],
+        ]);
+
+        $this->assertTrue(custom_food_in_use(self::$pdo, $customFoodId));
+    }
+
+    public function testCreateRecipeThenFetchRecipesIncludesItems(): void
+    {
+        $customFoodId = create_custom_food(self::$pdo, 1, '自家製だし', 5, 0.5, 0, 1);
+        create_recipe(self::$pdo, 1, '味噌汁', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 50.0],
+            ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'quantity_g' => 200.0],
+        ]);
+
+        $recipes = fetch_recipes(self::$pdo, 1);
+        $this->assertCount(1, $recipes);
+        $this->assertSame('味噌汁', $recipes[0]['name']);
+        $this->assertCount(2, $recipes[0]['items']);
+    }
+
+    public function testDeleteRecipeCascadesToRecipeItems(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, '削除予定レシピ', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0],
+        ]);
+
+        delete_recipe(self::$pdo, $recipeId);
+
+        $this->assertNull(find_recipe(self::$pdo, 1, $recipeId));
+        $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM recipe_items WHERE recipe_id = :id');
+        $stmt->execute(['id' => $recipeId]);
+        $this->assertSame(0, (int) $stmt->fetchColumn());
+    }
+
+    public function testExpandRecipeItemsResolvesCurrentNutritionValues(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, 'ごはん', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 150.0],
+        ]);
+
+        $items = expand_recipe_items(self::$pdo, 1, $recipeId);
+
+        $this->assertCount(1, $items);
+        $this->assertSame(150.0, $items[0]['quantity_g']);
+        $this->assertSame('白米', $items[0]['food']['name']);
+        $this->assertSame(342.0, $items[0]['food']['kcal_per_100g']);
+    }
+
+    // design.md §2.15: meal_itemsは追加した瞬間の栄養値をスナップショットし、
+    // 後からcustom_foodsの値を編集しても過去のログの計算結果は変わらない
+    public function testInsertMealItemsSnapshotsNutritionAtTimeOfLogging(): void
+    {
+        $customFoodId = create_custom_food(self::$pdo, 1, '自家製プロテインバー', 400, 20, 10, 40);
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'snack', null);
+        $food = resolve_food_source(self::$pdo, 1, null, $customFoodId);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'quantity_g' => 50.0, 'food' => $food],
+        ], null, null);
+
+        // ログ後にカロリーを大きく変更する
+        update_custom_food(self::$pdo, $customFoodId, '自家製プロテインバー', 900, 20, 10, 40);
+
+        $meals = fetch_meals(self::$pdo, 1, null, null);
+        $this->assertSame(400.0, $meals[0]['items'][0]['kcal_per_100g']);
+    }
+
+    public function testExpandRecipeToMealItemsGroupsByRecipeBatchId(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, 'カレーライス', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 200.0],
+        ]);
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'dinner', null);
+        $items = expand_recipe_items(self::$pdo, 1, $recipeId);
+
+        $ids = insert_meal_items(self::$pdo, 1, $mealId, $items, 'batch-uuid-1', 'カレーライス');
+        // レシピ経由ではない単品追加(グループなし)
+        $plainFood = resolve_food_source(self::$pdo, 1, 1, null);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 10.0, 'food' => $plainFood],
+        ], null, null);
+
+        $this->assertCount(1, $ids);
+        $deletedCount = delete_meal_item_group(self::$pdo, 1, 'batch-uuid-1');
+        $this->assertSame(1, $deletedCount);
+
+        $remaining = fetch_meals(self::$pdo, 1, null, null)[0]['items'];
+        $this->assertCount(1, $remaining);
+        $this->assertNull($remaining[0]['recipe_batch_id']);
+    }
+
+    // design.md §1.2: 他ユーザーのrecipe_batch_idを指定しても何も削除されない
+    public function testDeleteMealItemGroupIsScopedPerUser(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'dinner', null);
+        $food = resolve_food_source(self::$pdo, 1, 1, null);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0, 'food' => $food],
+        ], 'shared-batch-id', 'テスト');
+
+        $deletedCount = delete_meal_item_group(self::$pdo, 2, 'shared-batch-id');
+
+        $this->assertSame(0, $deletedCount);
+        $this->assertCount(1, fetch_meals(self::$pdo, 1, null, null)[0]['items']);
+    }
+
+    public function testDeleteMealCascadesToMealItems(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
+        $food = resolve_food_source(self::$pdo, 1, 1, null);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0, 'food' => $food],
+        ], null, null);
+
+        delete_meal(self::$pdo, $mealId);
+
+        $this->assertNull(find_meal(self::$pdo, 1, $mealId));
+        $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM meal_items WHERE meal_id = :id');
+        $stmt->execute(['id' => $mealId]);
+        $this->assertSame(0, (int) $stmt->fetchColumn());
+    }
+
+    // design.md §2.16: 身長・体重・生年月日・性別・活動レベルが揃うとBMI・TDEEが計算される
+    public function testBuildNutritionSummaryComputesBmiAndTdeeWhenProfileComplete(): void
+    {
+        self::$pdo->exec(
+            "UPDATE users SET height_cm = 175, activity_level = 'sedentary', birth_date = '1996-01-01', gender = 'male' WHERE id = 1"
+        );
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertEqualsWithDelta(22.9, $summary['bmi'], 0.1);
+        $this->assertSame('普通体重', $summary['bmi_category']);
+        $this->assertNotNull($summary['tdee']);
+        $this->assertNull($summary['goal']);
+    }
+
+    public function testBuildNutritionSummaryOmitsBmiWithoutHeight(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertNull($summary['bmi']);
+        $this->assertNull($summary['tdee']);
+    }
+
+    public function testBuildNutritionSummaryIncludesGoalProgress(): void
+    {
+        self::$pdo->exec(
+            "UPDATE users SET height_cm = 175, activity_level = 'sedentary', birth_date = '1996-01-01', gender = 'male' WHERE id = 1"
+        );
+        upsert_body_weight_log(self::$pdo, 1, '2026-07-01', 80.0);
+        create_nutrition_goal(self::$pdo, 1, 70.0, '2026-12-01', 'standard', null, null, null);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-14', 75.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertNotNull($summary['goal']);
+        $this->assertEqualsWithDelta(50.0, $summary['goal']['progress_percent'], 0.1);
+        $this->assertFalse($summary['goal']['overdue']);
+        $this->assertNotNull($summary['goal']['target_calories']);
+        $this->assertNotNull($summary['goal']['pfc']);
+    }
+
+    public function testBuildNutritionSummaryFlagsOverdueGoal(): void
+    {
+        self::$pdo->exec(
+            "UPDATE users SET height_cm = 175, activity_level = 'sedentary', birth_date = '1996-01-01', gender = 'male' WHERE id = 1"
+        );
+        upsert_body_weight_log(self::$pdo, 1, '2026-01-01', 80.0);
+        create_nutrition_goal(self::$pdo, 1, 70.0, '2026-02-01', 'standard', null, null, null);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-14', 78.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertTrue($summary['goal']['overdue']);
+        $this->assertNull($summary['goal']['target_calories']);
     }
 
     // ==== パスワードリセット ====

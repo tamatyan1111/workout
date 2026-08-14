@@ -108,3 +108,42 @@ function optional_gender(array $data, string $key): string
     }
     return $value;
 }
+
+function require_enum(array $data, string $key, array $allowed): string
+{
+    $value = require_field($data, $key);
+    if (!in_array($value, $allowed, true)) {
+        throw new ValidationException("{$key}の値が不正です");
+    }
+    return $value;
+}
+
+function optional_enum(array $data, string $key, array $allowed): ?string
+{
+    $value = optional_field($data, $key);
+    if ($value === null) {
+        return null;
+    }
+    if (!in_array($value, $allowed, true)) {
+        throw new ValidationException("{$key}の値が不正です");
+    }
+    return $value;
+}
+
+function require_positive_number(array $data, string $key): float
+{
+    $value = optional_number($data, $key);
+    if ($value === null || $value <= 0) {
+        throw new ValidationException("{$key}は正の数値で指定してください");
+    }
+    return $value;
+}
+
+function require_non_negative_number(array $data, string $key): float
+{
+    $value = optional_number($data, $key);
+    if ($value === null || $value < 0) {
+        throw new ValidationException("{$key}は0以上の数値で指定してください");
+    }
+    return $value;
+}

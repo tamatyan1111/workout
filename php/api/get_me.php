@@ -17,6 +17,8 @@ try {
         'email' => $user['email'],
         'birth_date' => $user['birth_date'],
         'gender' => $user['gender'],
+        'height_cm' => $user['height_cm'] !== null ? (int) $user['height_cm'] : null,
+        'activity_level' => $user['activity_level'],
     ]);
 } catch (Throwable $e) {
     handle_unexpected_error($e);

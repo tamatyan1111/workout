@@ -12,6 +12,8 @@ CREATE TABLE users (
   display_name        VARCHAR(100) NOT NULL,
   birth_date          DATE NULL,
   gender              ENUM('male', 'female', 'unspecified') NOT NULL DEFAULT 'unspecified',
+  height_cm           SMALLINT UNSIGNED NULL,     -- BMI・TDEE計算用(食事記録機能)
+  activity_level      ENUM('sedentary', 'light', 'moderate', 'active') NULL,  -- TDEE計算の活動係数
   failed_login_count  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   failed_login_at     DATETIME NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -81,4 +83,112 @@ CREATE TABLE body_weight_logs (
   UNIQUE KEY uq_body_weight_logs_user_id_logged_date (user_id, logged_date),
   KEY idx_body_weight_logs_user_id_logged_date (user_id, logged_date),
   CONSTRAINT fk_body_weight_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 以下、食事記録機能(design.md §2.11〜2.15)対応
+
+CREATE TABLE nutrition_goals (
+  id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id             INT UNSIGNED NOT NULL,
+  start_weight        DECIMAL(5,2) NOT NULL,   -- 設定時点の直近体重のスナップショット(進捗率計算の起点)
+  target_weight       DECIMAL(5,2) NOT NULL,
+  target_date         DATE NOT NULL,
+  pfc_mode            ENUM('standard', 'bulk', 'cut', 'custom') NOT NULL DEFAULT 'standard',
+  custom_protein_g    DECIMAL(6,1) NULL,       -- pfc_mode='custom' のときのみ使用
+  custom_fat_g        DECIMAL(6,1) NULL,
+  custom_carb_g       DECIMAL(6,1) NULL,
+  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_nutrition_goals_user_id_created_at (user_id, created_at),
+  CONSTRAINT fk_nutrition_goals_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE foods (
+  id                    INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  food_number           VARCHAR(10) NOT NULL,    -- 食品標準成分表の食品番号(5桁)
+  food_group_code       CHAR(2) NOT NULL,        -- 食品群番号
+  food_group_name       VARCHAR(50) NOT NULL,    -- 食品群名(例: 穀類、野菜類)。非正規化だが全18群固定で変動しないため許容
+  name                  VARCHAR(255) NOT NULL,
+  kcal_per_100g         DECIMAL(6,1) NOT NULL,
+  protein_g_per_100g    DECIMAL(6,2) NULL,       -- 「-」(未測定)の食品が実データに数件あるためNULL許容
+  fat_g_per_100g        DECIMAL(6,2) NULL,
+  carb_g_per_100g       DECIMAL(6,2) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_foods_food_number (food_number),
+  KEY idx_foods_food_group_code (food_group_code),
+  FULLTEXT KEY ftx_foods_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE custom_foods (
+  id                    INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id               INT UNSIGNED NOT NULL,
+  name                  VARCHAR(255) NOT NULL,
+  kcal_per_100g         DECIMAL(6,1) NOT NULL,
+  protein_g_per_100g    DECIMAL(6,2) NOT NULL,
+  fat_g_per_100g        DECIMAL(6,2) NOT NULL,
+  carb_g_per_100g       DECIMAL(6,2) NOT NULL,
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_custom_foods_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE recipes (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     INT UNSIGNED NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_recipes_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE recipe_items (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  recipe_id       INT UNSIGNED NOT NULL,
+  user_id         INT UNSIGNED NOT NULL,
+  master_food_id  INT UNSIGNED NULL,
+  custom_food_id  INT UNSIGNED NULL,
+  quantity_g      DECIMAL(7,1) NOT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_recipe_items_recipe_id FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_recipe_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_recipe_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id),
+  CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id),
+  CONSTRAINT chk_recipe_items_food_ref CHECK ((master_food_id IS NULL) <> (custom_food_id IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE meals (
+  id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id      INT UNSIGNED NOT NULL,
+  logged_date  DATE NOT NULL,
+  meal_type    ENUM('breakfast', 'lunch', 'dinner', 'snack') NOT NULL,
+  photo_path   VARCHAR(255) NULL,   -- 添付メモ写真(自動計算には使わない)
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_meals_user_id_logged_date (user_id, logged_date),
+  CONSTRAINT fk_meals_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE meal_items (
+  id                          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  meal_id                     INT UNSIGNED NOT NULL,
+  user_id                     INT UNSIGNED NOT NULL,
+  master_food_id              INT UNSIGNED NULL,
+  custom_food_id              INT UNSIGNED NULL,
+  food_name_snapshot          VARCHAR(255) NOT NULL,
+  kcal_per_100g_snapshot      DECIMAL(6,1) NOT NULL,
+  protein_g_per_100g_snapshot DECIMAL(6,2) NOT NULL,
+  fat_g_per_100g_snapshot     DECIMAL(6,2) NOT NULL,
+  carb_g_per_100g_snapshot    DECIMAL(6,2) NOT NULL,
+  quantity_g                  DECIMAL(7,1) NOT NULL,
+  recipe_batch_id             CHAR(36) NULL,       -- 同じレシピ展開でまとめて追加された行の目印(UUID)
+  recipe_name_snapshot        VARCHAR(255) NULL,
+  created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_meal_items_meal_id (meal_id),
+  KEY idx_meal_items_recipe_batch_id (recipe_batch_id),
+  CONSTRAINT fk_meal_items_meal_id FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
+  CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
+  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
+  CONSTRAINT chk_meal_items_food_ref CHECK ((master_food_id IS NULL) <> (custom_food_id IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

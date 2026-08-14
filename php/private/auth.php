@@ -74,3 +74,13 @@ function hash_token(string $token): string
 {
     return hash('sha256', $token);
 }
+
+// design.md §2.15: 食事ログでレシピ展開したmeal_itemsをまとめて識別するための目印(UUID v4)。
+// RFC4122準拠の厳密さは求められない用途のため簡易実装。
+function generate_uuid_v4(): string
+{
+    $data = random_bytes(16);
+    $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+    $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+}

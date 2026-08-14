@@ -11,9 +11,11 @@ try {
     $displayName = require_field($body, 'display_name');
     $birthDate = optional_date($body, 'birth_date');
     $gender = optional_gender($body, 'gender');
+    $heightCm = optional_int($body, 'height_cm');
+    $activityLevel = optional_enum($body, 'activity_level', ['sedentary', 'light', 'moderate', 'active']);
 
     $pdo = get_pdo();
-    update_user_profile($pdo, $userId, $displayName, $birthDate, $gender);
+    update_user_profile($pdo, $userId, $displayName, $birthDate, $gender, $heightCm, $activityLevel);
 
     json_ok();
 } catch (ValidationException $e) {
