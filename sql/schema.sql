@@ -1,5 +1,8 @@
 -- design.md §2「データモデル」に対応
 -- XServerのphpMyAdminで、新規作成したデータベースに対して1回だけ実行する。
+--
+-- 制約・インデックス名の命名規則: <種別>_<テーブル名>_<カラム名> (種別は fk/uq/idx)。
+-- 個別に略称を使わず、テーブル名とカラム名から機械的に決まる形に統一している。
 
 CREATE TABLE users (
   id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -24,8 +27,8 @@ CREATE TABLE password_reset_tokens (
   expires_at  DATETIME NOT NULL,
   used_at     DATETIME NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_token_hash (token_hash),
-  CONSTRAINT fk_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  UNIQUE KEY uq_password_reset_tokens_token_hash (token_hash),
+  CONSTRAINT fk_password_reset_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE cycles (
@@ -33,8 +36,8 @@ CREATE TABLE cycles (
   user_id INT UNSIGNED NOT NULL,
   label   VARCHAR(20) NOT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_user_label (user_id, label),
-  CONSTRAINT fk_cycles_user FOREIGN KEY (user_id) REFERENCES users(id)
+  UNIQUE KEY uq_cycles_user_id_label (user_id, label),
+  CONSTRAINT fk_cycles_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE exercises (
@@ -47,9 +50,9 @@ CREATE TABLE exercises (
   target_reps     SMALLINT UNSIGNED NULL,
   target_sets     SMALLINT UNSIGNED NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_cycle_name (cycle_id, name),
-  CONSTRAINT fk_exercises_user FOREIGN KEY (user_id) REFERENCES users(id),
-  CONSTRAINT fk_exercises_cycle FOREIGN KEY (cycle_id) REFERENCES cycles(id)
+  UNIQUE KEY uq_exercises_cycle_id_name (cycle_id, name),
+  CONSTRAINT fk_exercises_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_exercises_cycle_id FOREIGN KEY (cycle_id) REFERENCES cycles(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE logs (
@@ -62,9 +65,9 @@ CREATE TABLE logs (
   reps          SMALLINT UNSIGNED NOT NULL,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_exercise_date (exercise_id, logged_date),
-  CONSTRAINT fk_logs_user FOREIGN KEY (user_id) REFERENCES users(id),
-  CONSTRAINT fk_logs_exercise FOREIGN KEY (exercise_id)
+  KEY idx_logs_exercise_id_logged_date (exercise_id, logged_date),
+  CONSTRAINT fk_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_logs_exercise_id FOREIGN KEY (exercise_id)
     REFERENCES exercises(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -75,7 +78,7 @@ CREATE TABLE body_weight_logs (
   weight      DECIMAL(5,2) NOT NULL,
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_user_date (user_id, logged_date),
-  KEY idx_user_date (user_id, logged_date),
-  CONSTRAINT fk_body_weight_logs_user FOREIGN KEY (user_id) REFERENCES users(id)
+  UNIQUE KEY uq_body_weight_logs_user_id_logged_date (user_id, logged_date),
+  KEY idx_body_weight_logs_user_id_logged_date (user_id, logged_date),
+  CONSTRAINT fk_body_weight_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
