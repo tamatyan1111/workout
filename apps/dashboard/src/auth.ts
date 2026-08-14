@@ -18,10 +18,6 @@ export function renderAuthScreen(container: HTMLElement, onAuthenticated: () => 
           続けると、<a href="/terms.html" target="_blank" rel="noopener">利用規約</a>および<a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したものとみなします。
         </p>
         <p class="auth-or">または</p>
-        <div class="auth-tabs" role="group">
-          <button type="button" class="auth-tab ${mode === 'login' ? 'active' : ''}" data-mode="login">ログイン</button>
-          <button type="button" class="auth-tab ${mode === 'signup' ? 'active' : ''}" data-mode="signup">新規登録</button>
-        </div>
         ${mode === 'forgot' ? renderForgotForm() : renderCredentialsForm(mode)}
         <footer class="auth-footer">
           <a href="/terms.html" target="_blank" rel="noopener">利用規約</a> ・
@@ -29,13 +25,6 @@ export function renderAuthScreen(container: HTMLElement, onAuthenticated: () => 
         </footer>
       </div>
     `;
-
-    container.querySelectorAll<HTMLButtonElement>('.auth-tab').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        mode = btn.dataset.mode as Mode;
-        draw();
-      });
-    });
 
     if (mode === 'forgot') {
       bindForgotForm();
@@ -64,12 +53,23 @@ export function renderAuthScreen(container: HTMLElement, onAuthenticated: () => 
         ${currentMode === 'login' ? '<button type="button" id="forgot-link" class="link-button">パスワードを忘れた方</button>' : ''}
         <p id="auth-status"></p>
       </form>
+      <p class="auth-switch">
+        ${
+          currentMode === 'signup'
+            ? '既にアカウントをお持ちの方は <button type="button" id="switch-mode" class="link-button">ログイン</button>'
+            : 'アカウントをお持ちでない方は <button type="button" id="switch-mode" class="link-button">新規登録</button>'
+        }
+      </p>
     `;
   }
 
   function bindCredentialsForm(currentMode: Mode): void {
     container.querySelector('#forgot-link')?.addEventListener('click', () => {
       mode = 'forgot';
+      draw();
+    });
+    container.querySelector('#switch-mode')?.addEventListener('click', () => {
+      mode = currentMode === 'signup' ? 'login' : 'signup';
       draw();
     });
 

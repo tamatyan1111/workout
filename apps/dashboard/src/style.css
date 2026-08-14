@@ -314,27 +314,13 @@ td input {
   opacity: 0.7;
 }
 
-.auth-tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.auth-tabs .auth-tab {
-  flex: 1;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-
-.auth-tabs .auth-tab.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
 .auth-screen form {
   text-align: left;
+}
+
+.auth-switch {
+  font-size: 0.85rem;
+  margin-top: 1rem;
 }
 
 /* オンボーディング */
