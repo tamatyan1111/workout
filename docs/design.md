@@ -319,6 +319,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `get_nutrition_goal.php` | GET | - | 最新の`nutrition_goals`1件(`null`の場合は未設定) |
 | `add_nutrition_goal.php` | POST | `{target_weight, target_date, pfc_mode, custom_protein_g?, custom_fat_g?, custom_carb_g?}` | `{id}`(新規行を`INSERT`。`start_weight`はサーバー側で直近体重から自動設定) |
 | `search_foods.php` | GET | `q?`, `food_group_code?`, `kcal_min?`, `kcal_max?` | `foods`・`custom_foods`を横断した検索結果一覧 |
+| `get_custom_foods.php` | GET | - | 自分の独自食材一覧(`search_foods.php`と異なり共通マスタを含まない、管理画面用) |
 | `add_custom_food.php` | POST | `{name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g}` | `{id}` |
 | `edit_custom_food.php` | POST | `{id, name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g}`(`edit_exercise.php`等と同じく部分更新ではなく全項目を送る) | `{ok:true}` |
 | `delete_custom_food.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_recipes"}` |

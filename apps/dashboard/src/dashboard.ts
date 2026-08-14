@@ -3,12 +3,13 @@ import { renderBoard } from './board';
 import { renderBoardEdit } from './boardEdit';
 import { renderBodyWeight } from './bodyWeight';
 import { renderGraph } from './graph';
+import { renderNutrition } from './nutrition';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
 import { renderSettings } from './settings';
 import { escapeHtml } from 'shared';
 
-// design.md §3「ログイン後(通常時)」対応。4タブ(管理表・グラフ・体重・設定)のシェル。
+// design.md §3「ログイン後(通常時)」対応。5タブ(管理表・グラフ・体重・食事・設定)のシェル。
 // 管理表タブは記録入力・直近の記録・管理表の表示・管理表の編集(§3.1〜3.2)をまとめて持つ。
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
@@ -19,6 +20,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
         <button type="button" class="tab-button active" data-tab="board">管理表</button>
         <button type="button" class="tab-button" data-tab="graph">グラフ</button>
         <button type="button" class="tab-button" data-tab="body-weight">体重</button>
+        <button type="button" class="tab-button" data-tab="nutrition">食事</button>
         <button type="button" class="tab-button" data-tab="settings">設定</button>
       </nav>
     </header>
@@ -35,6 +37,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       </section>
       <section id="tab-graph" class="tab-panel" hidden><p>読み込み中...</p></section>
       <section id="tab-body-weight" class="tab-panel" hidden></section>
+      <section id="tab-nutrition" class="tab-panel" hidden></section>
       <section id="tab-settings" class="tab-panel" hidden></section>
     </main>
     <footer class="app-footer">
@@ -48,13 +51,16 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     board: container.querySelector<HTMLElement>('#tab-board')!,
     graph: container.querySelector<HTMLElement>('#tab-graph')!,
     'body-weight': container.querySelector<HTMLElement>('#tab-body-weight')!,
+    nutrition: container.querySelector<HTMLElement>('#tab-nutrition')!,
     settings: container.querySelector<HTMLElement>('#tab-settings')!,
   };
   const graphEl = panels.graph;
   const bodyWeightEl = panels['body-weight'];
+  const nutritionEl = panels.nutrition;
   const settingsEl = panels.settings;
 
   let bodyWeightRendered = false;
+  let nutritionRendered = false;
   let settingsRendered = false;
 
   tabButtons.forEach((btn) => {
@@ -71,6 +77,10 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       if (tab === 'body-weight' && !bodyWeightRendered) {
         renderBodyWeight(bodyWeightEl);
         bodyWeightRendered = true;
+      }
+      if (tab === 'nutrition' && !nutritionRendered) {
+        renderNutrition(nutritionEl);
+        nutritionRendered = true;
       }
       if (tab === 'settings' && !settingsRendered) {
         renderSettings(settingsEl, onLoggedOut);

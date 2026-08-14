@@ -25,12 +25,16 @@ export interface Cycle {
 
 export type Gender = 'male' | 'female' | 'unspecified';
 
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active';
+
 // design.md §2.1「users テーブル」のうちプロフィールとして編集可能な項目(get_me/update_meのやり取り)
 export interface Profile {
   display_name: string;
   email: string | null;
   birth_date: string | null;
   gender: Gender;
+  height_cm: number | null;
+  activity_level: ActivityLevel | null;
 }
 
 export interface ApiResponse<T> {

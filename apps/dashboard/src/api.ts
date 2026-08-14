@@ -1,14 +1,25 @@
 import type {
   ApiResponse,
   BodyWeightLog,
+  CartItem,
   Cycle,
+  CustomFood,
   Exercise,
+  FoodRef,
+  FoodSearchResult,
   Gender,
   LogRow,
+  Meal,
+  MealType,
+  NutritionGoal,
+  NutritionSummary,
+  PfcMode,
   Profile,
+  Recipe,
   RecentLog,
   SetInput,
 } from './types';
+import type { ActivityLevel } from 'shared';
 
 // ダッシュボードとAPIは同一オリジン(design.md §1)のため、絶対パスの相対参照で呼び出せる。
 const API_DIR = '/api';
@@ -68,11 +79,19 @@ export const confirmPasswordReset = (token: string, newPassword: string): Promis
 
 export const getMe = (): Promise<Profile> => callGet<Profile>('get_me.php');
 
-export const updateMe = (displayName: string, birthDate: string, gender: Gender): Promise<void> =>
+export const updateMe = (
+  displayName: string,
+  birthDate: string,
+  gender: Gender,
+  heightCm: string,
+  activityLevel: ActivityLevel | ''
+): Promise<void> =>
   callPost('update_me.php', {
     display_name: displayName,
     birth_date: birthDate || undefined,
     gender,
+    height_cm: heightCm || undefined,
+    activity_level: activityLevel || undefined,
   });
 
 export const deleteAccount = (): Promise<void> => callPost('delete_account.php', {});
@@ -185,3 +204,126 @@ export const addBodyWeightLog = (loggedDate: string, weight: string): Promise<vo
   callPost('add_body_weight_log.php', { logged_date: loggedDate, weight });
 
 export const deleteBodyWeightLog = (id: number): Promise<void> => callPost('delete_body_weight_log.php', { id });
+
+// ==== 食事記録機能(design.md §2.11〜2.17、§7対応) ====
+
+// FoodRef(source/id)を、API側が期待するmaster_food_id/custom_food_idの排他ペアに変換する
+function foodRefParams(ref: FoodRef): { master_food_id?: number; custom_food_id?: number } {
+  return ref.source === 'master' ? { master_food_id: ref.id } : { custom_food_id: ref.id };
+}
+
+export const getNutritionSummary = (): Promise<NutritionSummary> => callGet<NutritionSummary>('get_nutrition_summary.php');
+
+export const getNutritionGoal = (): Promise<NutritionGoal | null> =>
+  callGet<{ goal: NutritionGoal | null }>('get_nutrition_goal.php').then((d) => d.goal);
+
+export const addNutritionGoal = (
+  targetWeight: string,
+  targetDate: string,
+  pfcMode: PfcMode,
+  customProteinG: string,
+  customFatG: string,
+  customCarbG: string
+): Promise<{ id: number }> =>
+  callPost('add_nutrition_goal.php', {
+    target_weight: targetWeight,
+    target_date: targetDate,
+    pfc_mode: pfcMode,
+    custom_protein_g: pfcMode === 'custom' ? customProteinG : undefined,
+    custom_fat_g: pfcMode === 'custom' ? customFatG : undefined,
+    custom_carb_g: pfcMode === 'custom' ? customCarbG : undefined,
+  });
+
+export const searchFoods = (q: string, foodGroupCode?: string): Promise<FoodSearchResult[]> =>
+  callGet<{ foods: FoodSearchResult[] }>('search_foods.php', {
+    q,
+    food_group_code: foodGroupCode ?? '',
+  }).then((d) => d.foods);
+
+export const getCustomFoods = (): Promise<CustomFood[]> =>
+  callGet<{ foods: CustomFood[] }>('get_custom_foods.php').then((d) => d.foods);
+
+export const addCustomFood = (
+  name: string,
+  kcal: string,
+  protein: string,
+  fat: string,
+  carb: string
+): Promise<{ id: number }> =>
+  callPost('add_custom_food.php', {
+    name,
+    kcal_per_100g: kcal,
+    protein_g_per_100g: protein,
+    fat_g_per_100g: fat,
+    carb_g_per_100g: carb,
+  });
+
+export const editCustomFood = (
+  id: number,
+  name: string,
+  kcal: string,
+  protein: string,
+  fat: string,
+  carb: string
+): Promise<void> =>
+  callPost('edit_custom_food.php', {
+    id,
+    name,
+    kcal_per_100g: kcal,
+    protein_g_per_100g: protein,
+    fat_g_per_100g: fat,
+    carb_g_per_100g: carb,
+  });
+
+export const deleteCustomFood = (id: number): Promise<void> => callPost('delete_custom_food.php', { id });
+
+export const getRecipes = (): Promise<Recipe[]> => callGet<{ recipes: Recipe[] }>('get_recipes.php').then((d) => d.recipes);
+
+export const addRecipe = (name: string, items: CartItem[]): Promise<{ id: number }> =>
+  callPost('add_recipe.php', {
+    name,
+    items: items.map((i) => ({ ...foodRefParams(i.ref), quantity_g: i.quantityG })),
+  });
+
+export const editRecipe = (id: number, name: string, items: CartItem[]): Promise<void> =>
+  callPost('edit_recipe.php', {
+    id,
+    name,
+    items: items.map((i) => ({ ...foodRefParams(i.ref), quantity_g: i.quantityG })),
+  });
+
+export const deleteRecipe = (id: number): Promise<void> => callPost('delete_recipe.php', { id });
+
+export const getMeals = (from?: string, to?: string): Promise<Meal[]> =>
+  callGet<{ meals: Meal[] }>('get_meals.php', { date_from: from ?? '', date_to: to ?? '' }).then((d) => d.meals);
+
+export const addMeal = (
+  loggedDate: string,
+  mealType: MealType,
+  items: CartItem[]
+): Promise<{ id: number; item_ids: number[] }> =>
+  callPost('add_meal.php', {
+    logged_date: loggedDate,
+    meal_type: mealType,
+    items: items.map((i) => ({ ...foodRefParams(i.ref), quantity_g: i.quantityG })),
+  });
+
+export const addMealFromRecipe = (
+  loggedDate: string,
+  mealType: MealType,
+  recipeId: number
+): Promise<{ id: number; item_ids: number[] }> =>
+  callPost('add_meal.php', { logged_date: loggedDate, meal_type: mealType, recipe_id: recipeId });
+
+export const addMealItem = (mealId: number, item: CartItem): Promise<{ ids: number[] }> =>
+  callPost('add_meal_item.php', { meal_id: mealId, ...foodRefParams(item.ref), quantity_g: item.quantityG });
+
+export const addMealItemFromRecipe = (mealId: number, recipeId: number): Promise<{ ids: number[] }> =>
+  callPost('add_meal_item.php', { meal_id: mealId, recipe_id: recipeId });
+
+export const deleteMealItem = (id: number): Promise<void> => callPost('delete_meal_item.php', { id });
+
+export const deleteMealItemGroup = (recipeBatchId: string): Promise<void> =>
+  callPost('delete_meal_item_group.php', { recipe_batch_id: recipeBatchId });
+
+export const deleteMeal = (id: number): Promise<void> => callPost('delete_meal.php', { id });

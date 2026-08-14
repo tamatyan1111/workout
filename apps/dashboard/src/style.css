@@ -359,3 +359,149 @@ td input {
     font-size: 0.75rem;
   }
 }
+
+/* 食事タブ */
+.field-note {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.banner {
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.banner-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.banner-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.nutrition-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 8rem;
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.stat-sub {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.pfc-table {
+  max-width: 24rem;
+}
+
+.food-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.food-result-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.food-result-name {
+  font-weight: bold;
+}
+
+.food-result-detail {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.food-result-qty {
+  width: 5rem !important;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--header-bg);
+  margin-left: 0.3rem;
+}
+
+.recipe-card,
+.meal-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.recipe-item-list,
+.meal-item-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0;
+  font-size: 0.85rem;
+}
+
+.recipe-item-list li,
+.meal-item-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.15rem 0;
+}
+
+.meal-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.recipe-quick-add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.recipe-quick-add select {
+  width: auto;
+}
+
+.custom-food-table {
+  font-size: 0.85rem;
+}

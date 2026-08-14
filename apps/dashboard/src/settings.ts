@@ -9,8 +9,9 @@ import {
   logout,
   updateMe,
 } from './api';
-import type { Cycle, Gender, Profile } from './types';
+import type { Cycle, Profile } from './types';
 import { escapeHtml } from 'shared';
+import type { ActivityLevel, Gender } from 'shared';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -20,6 +21,14 @@ const GENDER_LABELS: Record<Gender, string> = {
   male: '男性',
   female: '女性',
   unspecified: '回答しない',
+};
+
+// nutrition_calc.php ACTIVITY_LEVEL_FACTORSと対応(design.md §2.11)
+const ACTIVITY_LEVEL_LABELS: Record<ActivityLevel, string> = {
+  sedentary: 'デスクワーク中心・ほぼ運動しない',
+  light: '軽い運動習慣(週1〜3日)',
+  moderate: '立ち仕事や中程度の運動(週3〜5日)',
+  active: '激しい運動習慣(週6〜7日)',
 };
 
 // design.md §3「設定タブ」対応。プロフィール編集(US-14)・サイクル管理(US-13)・
@@ -46,6 +55,20 @@ export function renderSettings(container: HTMLElement, onAccountDeleted: () => v
                 .map(
                   (g) =>
                     `<option value="${g}" ${g === profile.gender ? 'selected' : ''}>${escapeHtml(GENDER_LABELS[g])}</option>`
+                )
+                .join('')}
+            </select>
+          </label>
+          <label>身長(cm)<span class="field-note">BMI・食事機能の目標カロリー計算に使用</span>
+            <input type="number" id="profile-height" min="1" value="${profile.height_cm ?? ''}" />
+          </label>
+          <label>活動レベル<span class="field-note">TDEE(維持カロリー)計算に使用</span>
+            <select id="profile-activity-level">
+              <option value="">未設定</option>
+              ${(Object.keys(ACTIVITY_LEVEL_LABELS) as ActivityLevel[])
+                .map(
+                  (a) =>
+                    `<option value="${a}" ${a === profile.activity_level ? 'selected' : ''}>${escapeHtml(ACTIVITY_LEVEL_LABELS[a])}</option>`
                 )
                 .join('')}
             </select>
@@ -130,9 +153,13 @@ export function renderSettings(container: HTMLElement, onAccountDeleted: () => v
       const displayName = container.querySelector<HTMLInputElement>('#profile-name')!.value;
       const birthDate = container.querySelector<HTMLInputElement>('#profile-birth-date')!.value;
       const gender = container.querySelector<HTMLSelectElement>('#profile-gender')!.value as Gender;
+      const heightCm = container.querySelector<HTMLInputElement>('#profile-height')!.value;
+      const activityLevel = container.querySelector<HTMLSelectElement>('#profile-activity-level')!.value as
+        | ActivityLevel
+        | '';
       statusEl.textContent = '保存中...';
       try {
-        await updateMe(displayName, birthDate, gender);
+        await updateMe(displayName, birthDate, gender, heightCm, activityLevel);
         profile.display_name = displayName;
         statusEl.textContent = '保存しました';
       } catch (err) {
