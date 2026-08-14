@@ -617,13 +617,25 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
 
 // ==== 食品検索(全ユーザー共通マスタ + 独自食材) ====
 
+// クエリを空白(全角スペース含む)で単語分割し、単語ごとのLIKE(AND条件)を追加する。
+// 食品標準成分表の実データは「にわとり　［若どり・主品目］　むね　生」のように単語の間に
+// 別の語が挟まることが多く、素朴に1つのLIKEにまとめると複数語検索がほぼヒットしなくなるため。
+function add_name_search_conditions(string $q, string $paramPrefix, array &$conditions, array &$params): void
+{
+    $words = preg_split('/[\s\x{3000}]+/u', trim($q), -1, PREG_SPLIT_NO_EMPTY);
+    foreach ($words as $i => $word) {
+        $key = "{$paramPrefix}{$i}";
+        $conditions[] = "name LIKE :{$key}";
+        $params[$key] = '%' . $word . '%';
+    }
+}
+
 function search_foods(PDO $pdo, int $userId, ?string $q, ?string $foodGroupCode, ?float $kcalMin, ?float $kcalMax): array
 {
     $conditions = [];
     $params = [];
     if ($q !== null) {
-        $conditions[] = 'name LIKE :q';
-        $params['q'] = '%' . $q . '%';
+        add_name_search_conditions($q, 'q', $conditions, $params);
     }
     if ($foodGroupCode !== null) {
         $conditions[] = 'food_group_code = :food_group_code';
@@ -664,8 +676,7 @@ function search_foods(PDO $pdo, int $userId, ?string $q, ?string $foodGroupCode,
         $customConditions = ['user_id = :user_id'];
         $customParams = ['user_id' => $userId];
         if ($q !== null) {
-            $customConditions[] = 'name LIKE :q';
-            $customParams['q'] = '%' . $q . '%';
+            add_name_search_conditions($q, 'cq', $customConditions, $customParams);
         }
         if ($kcalMin !== null) {
             $customConditions[] = 'kcal_per_100g >= :kcal_min';

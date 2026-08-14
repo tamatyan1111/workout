@@ -51,10 +51,13 @@ final class QueriesTest extends TestCase
                (3, 1, 1, 1, '廃止種目', NULL, NULL, NULL),
                (4, 2, 2, 0, 'ユーザー2の種目', 50, 10, 3)"
         );
-        // 食事記録機能(design.md §2.11〜2.15)のテスト用マスタデータ
+        // 食事記録機能(design.md §2.11〜2.15)のテスト用マスタデータ。
+        // 2件目は実データ(日本食品標準成分表)の命名を再現したもの:単語の間に別の語が挟まる形式
         self::$pdo->exec(
             "INSERT INTO foods (id, food_number, food_group_code, food_group_name, name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g)
-             VALUES (1, '01001', '01', '穀類', '白米', 342.0, 6.10, 0.90, 77.60)"
+             VALUES
+               (1, '01001', '01', '穀類', '白米', 342.0, 6.10, 0.90, 77.60),
+               (2, '11219', '11', '肉類', '＜鳥肉類＞　にわとり　［若どり・主品目］　むね　皮なし　生', 105.0, 23.30, 1.90, 0.10)"
         );
     }
 
@@ -343,6 +346,18 @@ final class QueriesTest extends TestCase
         $results = search_foods(self::$pdo, 1, '白米', null, null, null);
         $this->assertCount(1, $results);
         $this->assertSame('master', $results[0]['source']);
+    }
+
+    // 実データ検証で判明: 食品標準成分表の名称は「にわとり　［若どり・主品目］　むね　生」のように
+    // 単語の間に別の語が挟まるため、単純な1つのLIKEでは複数語検索がヒットしない。単語ごとのAND一致で
+    // ヒットすることを確認する
+    public function testSearchFoodsMatchesAllWordsEvenWhenNotAdjacentInName(): void
+    {
+        $results = search_foods(self::$pdo, 1, 'にわとり むね', null, null, null);
+        $this->assertCount(1, $results);
+        $this->assertStringContainsString('にわとり', $results[0]['name']);
+
+        $this->assertCount(0, search_foods(self::$pdo, 1, 'にわとり もも', null, null, null));
     }
 
     // design.md §1.2: 独自食材は他ユーザーから見えない

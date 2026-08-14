@@ -11,7 +11,7 @@ function errorMessage(err: unknown): string {
 export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem) => void): void {
   container.innerHTML = `
     <form id="food-search-form">
-      <label>食品名で検索 <input type="text" id="food-search-q" placeholder="例: 白米、鶏むね肉" /></label>
+      <label>食品名で検索 <input type="text" id="food-search-q" placeholder="例: 白米、にわとり むね" /></label>
       <button type="submit">検索</button>
     </form>
     <p id="food-search-status"></p>
