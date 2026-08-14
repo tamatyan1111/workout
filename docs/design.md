@@ -113,8 +113,8 @@ CREATE TABLE password_reset_tokens (
   expires_at  DATETIME NOT NULL,
   used_at     DATETIME NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_token_hash (token_hash),
-  CONSTRAINT fk_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  UNIQUE KEY uq_password_reset_tokens_token_hash (token_hash),
+  CONSTRAINT fk_password_reset_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -128,7 +128,8 @@ CREATE TABLE cycles (
   user_id INT UNSIGNED NOT NULL,
   label   VARCHAR(20) NOT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_user_label (user_id, label)
+  UNIQUE KEY uq_cycles_user_id_label (user_id, label),
+  CONSTRAINT fk_cycles_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -148,8 +149,9 @@ CREATE TABLE exercises (
   target_reps     SMALLINT UNSIGNED NULL,
   target_sets     SMALLINT UNSIGNED NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_cycle_name (cycle_id, name),
-  CONSTRAINT fk_exercises_cycle FOREIGN KEY (cycle_id) REFERENCES cycles(id)
+  UNIQUE KEY uq_exercises_cycle_id_name (cycle_id, name),
+  CONSTRAINT fk_exercises_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_exercises_cycle_id FOREIGN KEY (cycle_id) REFERENCES cycles(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -169,8 +171,9 @@ CREATE TABLE logs (
   reps          SMALLINT UNSIGNED NOT NULL,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_exercise_date (exercise_id, logged_date),
-  CONSTRAINT fk_logs_exercise FOREIGN KEY (exercise_id)
+  KEY idx_logs_exercise_id_logged_date (exercise_id, logged_date),
+  CONSTRAINT fk_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_logs_exercise_id FOREIGN KEY (exercise_id)
     REFERENCES exercises(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
@@ -187,8 +190,9 @@ CREATE TABLE body_weight_logs (
   weight      DECIMAL(5,2) NOT NULL,
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_user_date (user_id, logged_date),
-  KEY idx_user_date (user_id, logged_date)
+  UNIQUE KEY uq_body_weight_logs_user_id_logged_date (user_id, logged_date),
+  KEY idx_body_weight_logs_user_id_logged_date (user_id, logged_date),
+  CONSTRAINT fk_body_weight_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -393,7 +397,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 5. XServerのメール機能でパスワードリセット送信用のメールアカウント(例: `noreply@workout.<domain>`)を作成し、SPF/DKIMを設定する
 6. Google Cloud ConsoleでOAuth 2.0クライアントID(ウェブアプリケーション種別)を作成し、リダイレクトURIに`https://workout.<domain>/api/auth/google_callback.php`を登録する。クライアントID・シークレットは`php/private/.env`に設定する
 7. API(PHP)を`workout.<domain>/api/`にFTPでアップロードする。`php/private/.env.example`を`.env`としてコピーし、DB接続情報・Google OAuthクライアント情報・メール送信設定を入力する
-8. ダッシュボードアプリをビルドし、`dist/`配下一式(`index.html`・`assets/`・`sw.js`・`manifest.webmanifest`等)を`workout.<domain>/`直下にFTPでアップロードする
+8. ダッシュボードアプリをビルドし、`dist/`配下一式(`index.html`・`assets/`・`sw.js`・`manifest.webmanifest`・`.htaccess`等)を`workout.<domain>/`直下にFTPでアップロードする。`.htaccess`は`sw.js`等の名前が変わらないファイルにキャッシュさせないための設定で、これが欠けるとデプロイのたびにブラウザ・中間キャッシュが古いService Workerを配信し続ける不具合が起きる(実際に本番で発生。隠しファイルなのでFTPクライアント側で表示設定を確認すること)
 9. 開発者自身のアカウントをサインアップする(Googleまたはメール/パスワード)。オンボーディング画面が出た状態のまま先に進まない(サイクルを作成すると、次の移行手順のUNIQUE制約に抵触するため)
 10. `sql/migrate_to_multiuser.sql`のコメントに従って`user_id`を書き換えたうえでphpMyAdminで実行し、手順3で退避した旧データ(サイクル・種目・記録)を自分のアカウントに移行する。件数確認後、問題なければ`old_cycles`・`old_exercises`・`old_logs`(と、手順2の`backup_*`テーブル)を削除する
 11. サインアップ・ログイン(Google/メール両方)・パスワードリセット・記録の追加/修正/削除・目標編集・種目/サイクルの追加・削除・体重記録・プロフィール編集・CSVエクスポート・アカウント削除が一通り動作することを確認する
