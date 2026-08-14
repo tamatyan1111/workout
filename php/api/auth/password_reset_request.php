@@ -16,7 +16,9 @@ try {
     $user = find_user_by_email($pdo, $email);
     if ($user && $user['password_hash'] !== null) {
         $token = generate_random_token();
-        $expiresAt = (new DateTimeImmutable('+1 hour'))->format('Y-m-d H:i:s');
+        // DB側の比較(queries.php find_valid_reset_token)もUTC_TIMESTAMP()を使うため、
+        // ここも明示的にUTCで計算する(PHPの実行時タイムゾーンに依存させない)
+        $expiresAt = (new DateTimeImmutable('+1 hour', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
         create_password_reset_token($pdo, (int) $user['id'], hash_token($token), $expiresAt);
 
         // design.md §3: ルート直下のクエリパラメータ方式にする(専用パスにすると、Service Worker

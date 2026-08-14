@@ -64,20 +64,24 @@ function link_google_to_user(PDO $pdo, int $userId, string $googleSub): void
 }
 
 // design.md §1.1「レート制限」: 直近15分以内に5回以上失敗していればロック中とみなす
+// PHPの実行時タイムゾーンとDBサーバーのタイムゾーンが食い違うと、PHP側の相対時刻計算とDB側の
+// NOW()が指す実時刻がずれてしまう(実際にローカル環境でこのズレによりパスワードリセットが
+// 常に「期限切れ」判定になる不具合が見つかった)。両者を必ずUTCに揃えることで、サーバーの
+// ロケール設定に依存しないようにする。
 function is_login_locked(array $user): bool
 {
     if ((int) $user['failed_login_count'] < 5 || $user['failed_login_at'] === null) {
         return false;
     }
-    $failedAt = new DateTimeImmutable($user['failed_login_at']);
+    $failedAt = new DateTimeImmutable($user['failed_login_at'], new DateTimeZone('UTC'));
     $unlockAt = $failedAt->modify('+15 minutes');
-    return $unlockAt > new DateTimeImmutable();
+    return $unlockAt > new DateTimeImmutable('now', new DateTimeZone('UTC'));
 }
 
 function record_login_failure(PDO $pdo, int $userId): void
 {
     $stmt = $pdo->prepare(
-        'UPDATE users SET failed_login_count = failed_login_count + 1, failed_login_at = NOW() WHERE id = :id'
+        'UPDATE users SET failed_login_count = failed_login_count + 1, failed_login_at = UTC_TIMESTAMP() WHERE id = :id'
     );
     $stmt->execute(['id' => $userId]);
 }
@@ -159,7 +163,7 @@ function find_valid_reset_token(PDO $pdo, string $tokenHash): ?array
 {
     $stmt = $pdo->prepare(
         'SELECT * FROM password_reset_tokens
-         WHERE token_hash = :token_hash AND used_at IS NULL AND expires_at > NOW()'
+         WHERE token_hash = :token_hash AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()'
     );
     $stmt->execute(['token_hash' => $tokenHash]);
     $row = $stmt->fetch();
@@ -168,7 +172,9 @@ function find_valid_reset_token(PDO $pdo, string $tokenHash): ?array
 
 function mark_reset_token_used(PDO $pdo, int $tokenId): void
 {
-    $stmt = $pdo->prepare('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = :id');
+    // 同じテーブルのexpires_atをUTCで扱っているため(上記find_valid_reset_token参照)、
+    // used_atも一貫してUTCで記録する
+    $stmt = $pdo->prepare('UPDATE password_reset_tokens SET used_at = UTC_TIMESTAMP() WHERE id = :id');
     $stmt->execute(['id' => $tokenId]);
 }
 
