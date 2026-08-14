@@ -42,7 +42,7 @@ function google_exchange_code_for_token(array $config, string $code): string
     return $response['access_token'];
 }
 
-// 戻り値: ['sub' => string, 'email' => string|null]
+// 戻り値: ['sub' => string, 'email' => string|null, 'email_verified' => bool]
 function google_fetch_userinfo(string $accessToken): array
 {
     $response = http_get_json(
@@ -55,6 +55,7 @@ function google_fetch_userinfo(string $accessToken): array
     return [
         'sub' => $response['sub'],
         'email' => isset($response['email']) && is_string($response['email']) ? $response['email'] : null,
+        'email_verified' => ($response['email_verified'] ?? false) === true,
     ];
 }
 

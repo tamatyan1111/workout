@@ -24,8 +24,20 @@ try {
 
     $pdo = get_pdo();
     $user = find_user_by_google_sub($pdo, $userinfo['sub']);
+
+    // design.md §2.1: google_subで見つからない場合、Google側で確認済み(email_verified)の
+    // メールアドレスに限り、既存のメール/パスワードアカウントを検索して紐づける。
+    // 紐づけないと、同じメールアドレスで新規作成しようとしてusers.emailのUNIQUE制約に違反する。
+    $existingByEmail = null;
+    if (!$user && $userinfo['email'] !== null && $userinfo['email_verified']) {
+        $existingByEmail = find_user_by_email($pdo, $userinfo['email']);
+    }
+
     if ($user) {
         $userId = (int) $user['id'];
+    } elseif ($existingByEmail) {
+        $userId = (int) $existingByEmail['id'];
+        link_google_to_user($pdo, $userId, $userinfo['sub']);
     } else {
         $displayName = $userinfo['email'] !== null ? explode('@', $userinfo['email'])[0] : 'ユーザー';
         $userId = create_user_with_google($pdo, $userinfo['sub'], $userinfo['email'], $displayName);

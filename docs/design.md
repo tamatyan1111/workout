@@ -99,7 +99,8 @@ CREATE TABLE users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-- `email`・`password_hash`・`google_sub`はいずれもNULL許容だが、アプリ側で「`email`+`password_hash`の組」または「`google_sub`」のどちらか一方は必ず設定されることを保証する(将来、同一ユーザーに両方を紐づける拡張も可能な形にしておく)
+- `email`・`password_hash`・`google_sub`はいずれもNULL許容だが、アプリ側で「`email`+`password_hash`の組」または「`google_sub`」のどちらか一方は必ず設定されることを保証する
+- **Googleログインとメール/パスワードアカウントの統合**: `email`には`UNIQUE`制約があるため、既にメール/パスワードで登録済みのメールアドレスと同じGoogleアカウントでログインしようとすると、素朴に新規ユーザーを作成しようとして制約違反になる(実際に本番で発生した不具合)。`google_callback.php`では、`google_sub`で見つからない場合、Google側で`email_verified`が真のメールアドレスに限り、既存のメール/パスワードアカウントを検索して`google_sub`を後付けで紐づける(`link_google_to_user`)。これにより、同じメールアドレスであれば「メール/パスワードでもGoogleでも同じアカウントに入れる」という直感的な挙動になる
 - `birth_date`・`gender`は任意項目(US-14)。`gender`は将来のカロリー計算機能でBMR計算式の係数として使う可能性があるための保持で、今回は保持のみでスコープ外([requirements.md](requirements.md) §4)
 
 ### 2.2 `password_reset_tokens` テーブル — パスワードリセット用トークン(新規)

@@ -244,6 +244,18 @@ final class QueriesTest extends TestCase
         $this->assertNotNull(find_user_by_id(self::$pdo, $id));
     }
 
+    // design.md §2.1: 既存のメール/パスワードアカウントにGoogleログインを後付けで紐づけられる
+    // ことを確認する(実際に本番で発生した、email UNIQUE制約違反の再発防止)
+    public function testLinkGoogleToUserSetsGoogleSub(): void
+    {
+        link_google_to_user(self::$pdo, 1, 'google-sub-12345');
+        $user = find_user_by_id(self::$pdo, 1);
+        $this->assertSame('google-sub-12345', $user['google_sub']);
+
+        $viaGoogle = find_user_by_google_sub(self::$pdo, 'google-sub-12345');
+        $this->assertSame(1, (int) $viaGoogle['id']);
+    }
+
     // design.md §1.3: 依存関係の順に削除し、外部キー制約違反を起こさず全データを消せることを確認する
     public function testDeleteUserAccountRemovesAllRelatedData(): void
     {

@@ -54,6 +54,15 @@ function create_user_with_google(PDO $pdo, string $googleSub, ?string $email, st
     return (int) $pdo->lastInsertId();
 }
 
+// design.md §2.1: 同じメールアドレスのメール/パスワードアカウントが既にある場合に、
+// Googleログインをそのアカウントへ紐づける(google_callback.php参照)。
+// email_verifiedがtrueのGoogleアカウントに限って呼び出すこと(呼び出し側の責務)。
+function link_google_to_user(PDO $pdo, int $userId, string $googleSub): void
+{
+    $stmt = $pdo->prepare('UPDATE users SET google_sub = :sub WHERE id = :id');
+    $stmt->execute(['sub' => $googleSub, 'id' => $userId]);
+}
+
 // design.md §1.1「レート制限」: 直近15分以内に5回以上失敗していればロック中とみなす
 function is_login_locked(array $user): bool
 {
