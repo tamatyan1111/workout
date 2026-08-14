@@ -247,7 +247,9 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
                   data: labels.map(() => targetCalories),
                   borderColor: '#f59e0b',
                   borderDash: [6, 4],
-                  pointRadius: 0,
+                  // pointRadius 0だと、記録が1日分しかない(点が1つだけ)ときに線を描く2点目が無く、
+                  // 目標ラインが完全に見えなくなってしまうため、小さな点を常に表示する
+                  pointRadius: 2,
                 },
               ]
             : []),
@@ -272,7 +274,7 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
           { label: '脂質(g)', data: fatData, borderColor: '#ef4444' },
           { label: '炭水化物(g)', data: carbData, borderColor: '#a855f7' },
           ...(targetPfc?.protein_g !== null && targetPfc?.protein_g !== undefined
-            ? [{ label: '目標タンパク質(g)', data: labels.map(() => targetPfc.protein_g), borderColor: '#22c55e', borderDash: [6, 4], pointRadius: 0 }]
+            ? [{ label: '目標タンパク質(g)', data: labels.map(() => targetPfc.protein_g), borderColor: '#22c55e', borderDash: [6, 4], pointRadius: 2 }]
             : []),
         ],
       },
