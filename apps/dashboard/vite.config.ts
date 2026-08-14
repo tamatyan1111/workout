@@ -27,9 +27,12 @@ export default defineConfig({
       devOptions: { enabled: false },
       // Service WorkerのSPAナビゲーションフォールバック(オフライン時に index.html を返す仕組み)が
       // /api/ 配下への通常のページ遷移(CSVエクスポートのダウンロードリンク、Googleログインの
-      // 開始・コールバックURL等)まで横取りしてしまうため、/api/ 配下は除外する。
+      // 開始・コールバックURL等)まで横取りしてしまう事故が起きたため、denylist(除外リスト)
+      // ではなくallowlist(許可リスト)方式にする。SPA内のクライアントサイドルーティングが
+      // 実際に必要なパス(/reset-password)だけを明示的に許可し、それ以外(/api/は当然として、
+      // 今後増える未知のパスも含めて)はデフォルトでフォールバック対象にしない安全側に倒す。
       workbox: {
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackAllowlist: [/^\/reset-password/],
       },
     }),
   ],

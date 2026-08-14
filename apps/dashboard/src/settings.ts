@@ -2,8 +2,8 @@ import {
   addCycle,
   deleteAccount,
   deleteCycle,
+  downloadExport,
   editCycle,
-  exportUrl,
   getCycles,
   getMe,
   logout,
@@ -84,7 +84,8 @@ export function renderSettings(container: HTMLElement, onAccountDeleted: () => v
 
       <section>
         <h3>データのエクスポート</h3>
-        <p><a href="${exportUrl}">記録・体重データをCSVでダウンロード</a></p>
+        <button type="button" id="export-btn">記録・体重データをCSVでダウンロード</button>
+        <p id="export-status"></p>
       </section>
 
       <section>
@@ -96,6 +97,16 @@ export function renderSettings(container: HTMLElement, onAccountDeleted: () => v
 
     bindProfileForm(profile);
     bindCycleManagement(cycles);
+    container.querySelector('#export-btn')!.addEventListener('click', async () => {
+      const statusEl = container.querySelector<HTMLParagraphElement>('#export-status')!;
+      statusEl.textContent = 'ダウンロード中...';
+      try {
+        await downloadExport();
+        statusEl.textContent = '';
+      } catch (err) {
+        statusEl.textContent = `ダウンロードに失敗しました: ${errorMessage(err)}`;
+      }
+    });
     container.querySelector('#logout-btn')!.addEventListener('click', async () => {
       await logout();
       window.location.reload();

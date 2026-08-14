@@ -77,7 +77,29 @@ export const updateMe = (displayName: string, birthDate: string, gender: Gender)
 
 export const deleteAccount = (): Promise<void> => callPost('delete_account.php', {});
 
-export const exportUrl = `${API_DIR}/export.php`;
+// design.md §3「設定タブ」US-17対応。<a href>によるページ遷移だと、Service Workerの
+// SPAナビゲーションフォールバック(§design.md 相当の既知の落とし穴)に巻き込まれて
+// index.htmlが返ってしまうことがあるため、fetch + Blobで明示的にダウンロードさせる
+// (fetchはnavigateモードのリクエストではないため、Service Workerの当該フォールバックの
+// 対象にならず、この問題を構造的に回避できる)。
+export async function downloadExport(): Promise<void> {
+  const res = await fetch(`${API_DIR}/export.php`, { credentials: 'same-origin' });
+  if (!res.ok) {
+    if (res.status === 401) {
+      throw new UnauthorizedError('ログインが必要です');
+    }
+    throw new Error('エクスポートに失敗しました');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'workout_export.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // ==== サイクル ====
 
