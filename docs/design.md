@@ -424,12 +424,11 @@ CREATE TABLE recipe_items (
   CONSTRAINT fk_recipe_items_recipe_id FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
   CONSTRAINT fk_recipe_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_recipe_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id),
-  CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id),
-  CONSTRAINT chk_recipe_items_food_ref CHECK ((master_food_id IS NULL AND custom_food_id IS NOT NULL) OR (master_food_id IS NOT NULL AND custom_food_id IS NULL))
+  CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-- `recipe_items`は`master_food_id`・`custom_food_id`のどちらか一方だけを設定する(`CHECK`制約で強制。ポリモーフィックな1列参照ではなく2列のFKに分けることで、DBレベルの参照整合性を維持する)
+- `recipe_items`は`master_food_id`・`custom_food_id`のどちらか一方だけを設定する。ポリモーフィックな1列参照ではなく2列のFKに分けることで、DBレベルの参照整合性(参照先が実在すること)は維持している。ただし「どちらか一方のみ」という排他性そのものはDBの`CHECK`制約では表現していない(MariaDBは外部キー制約が張られた列をCHECK制約内で参照できないため、`ERROR 1901`になり実装時に判明した)。この排他チェックは`parse_recipe_items()`(`php/private/queries.php`)で行う
 - `recipe_items`はテンプレートなので、食材の栄養値は**スナップショットせず**常に`foods`/`custom_foods`を都度JOINして最新値を参照する(レシピ編集はテンプレートの更新であり、過去ログとは無関係なため。過去ログ側の不変性は§2.15の`meal_items`側で担保する)
 - レシピは`user_id`に閉じたテンプレートで、他ユーザーとの共有機能は今回のスコープ外([requirements.md](requirements.md) §7)。`recipe_items`は`recipes`削除時に`CASCADE`で削除される(レシピの構成要素はレシピと運命を共にする子データのため、§1.3のアカウント削除順序の懸念とは別枠)
 
@@ -469,11 +468,11 @@ CREATE TABLE meal_items (
   CONSTRAINT fk_meal_items_meal_id FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
   CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
-  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
-  CONSTRAINT chk_meal_items_food_ref CHECK ((master_food_id IS NULL AND custom_food_id IS NOT NULL) OR (master_food_id IS NOT NULL AND custom_food_id IS NULL))
+  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
+- `meal_items`も`recipe_items`と同じ理由(MariaDBの制限、上記参照)で、`master_food_id`・`custom_food_id`の排他性はCHECK制約では表現せず、`resolve_items_for_meal()`(`php/private/queries.php`)で担保する
 - `meal_items`は`recipe_items`と違い、追加した**瞬間の栄養値をスナップショットする**(`*_snapshot`列)。理由は§2.14と対称: ログは「その時食べたものの記録」という不変の事実であるべきで、後から`foods`のマスタ改訂や`custom_foods`の編集があっても、過去のログの計算結果が遡って変わってはならない(§2.9で確立した「記録は記録として固定する」方針と同じ考え方)
 - `master_food_id`・`custom_food_id`は表示・再検索の手がかりとして残すのみで、栄養計算には使わない(計算は常に`*_snapshot`列を使う)。そのため参照先が削除されても`SET NULL`で構わない(`exercises`/`logs`のような`RESTRICT`は不要)
 - レシピをカートに追加した瞬間、`recipe_items`をJOINして展開し、`meal_items`に食材ごとの行としてスナップショット付きで`INSERT`する。同じ操作で追加された行には共通の`recipe_batch_id`(UUID)を振り、`recipe_name_snapshot`にレシピ名を記録する。これにより、カート画面・保存後の編集画面の両方で「同じ`recipe_batch_id`を持つ行をまとめて1回の操作で削除する」UIが実現できる(個別行だけを`recipe_batch_id`を残したまま削除することも可能)

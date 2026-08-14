@@ -152,8 +152,10 @@ CREATE TABLE recipe_items (
   CONSTRAINT fk_recipe_items_recipe_id FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
   CONSTRAINT fk_recipe_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_recipe_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id),
-  CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id),
-  CONSTRAINT chk_recipe_items_food_ref CHECK ((master_food_id IS NULL AND custom_food_id IS NOT NULL) OR (master_food_id IS NOT NULL AND custom_food_id IS NULL))
+  CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id)
+  -- master_food_id・custom_food_idのどちらか一方のみ設定する制約はCHECK制約では表現しない。
+  -- MariaDBは外部キー制約が張られた列をCHECK制約内で参照できないため(ERROR 1901)、
+  -- parse_recipe_items()(php/private/queries.php)で担保する
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE meals (
@@ -189,6 +191,7 @@ CREATE TABLE meal_items (
   CONSTRAINT fk_meal_items_meal_id FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
   CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
-  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
-  CONSTRAINT chk_meal_items_food_ref CHECK ((master_food_id IS NULL AND custom_food_id IS NOT NULL) OR (master_food_id IS NOT NULL AND custom_food_id IS NULL))
+  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL
+  -- master_food_id・custom_food_idの排他制約はCHECK制約では表現しない(recipe_itemsと同じ理由、上記参照)。
+  -- resolve_items_for_meal()(php/private/queries.php)で担保する
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
