@@ -29,6 +29,15 @@ export default tseslint.config(
     },
   },
   {
+    // Playwright設定・E2Eテストはブラウザではなくplaywrightのテストランナー(Node.js)上で動く
+    files: ['**/playwright.config.ts', '**/e2e/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
     // sql/import/配下は文科省データ取り込み用のNode.js CLIスクリプト(ブラウザ向けコードではない)
     files: ['sql/import/**/*.js'],
     languageOptions: {
