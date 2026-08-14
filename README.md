@@ -130,6 +130,19 @@ composer run stan      # PHPStan
 
 PHPUnitのIntegrationテストは実際のMySQL/MariaDBが必要(`DB_HOST`等の環境変数、または`php/private/.env`から接続情報を読む)。CIではMariaDBのサービスコンテナに対して実行している(`.github/workflows/ci.yml`)。
 
+### E2Eテスト(Playwright)
+
+サインアップ→オンボーディング→全タブ表示、というゴールデンパスを実際のブラウザで検証する(`apps/dashboard/e2e/`)。ダッシュボードとAPIが同一オリジンである必要があるため、上記の`dev/router.php`と同じ構成で実行する。
+
+```bash
+npm run build --workspace=apps/dashboard
+php -S localhost:8000 -t apps/dashboard/dist dev/router.php &
+npx playwright install --with-deps chromium   # 初回のみ
+npm run e2e --workspace=apps/dashboard
+```
+
+CIでは専用のMariaDBサービスコンテナ+`sql/schema.sql`のみ(架空データ不要、テストがサインアップから作る)に対して同様の構成で実行している。
+
 ## デプロイについて
 
 本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないためCI/CDによる自動デプロイは組んでいない。ビルド成果物(`apps/dashboard/dist`)をFTPで手動アップロードする運用。CI自体は品質ゲート(lint・型チェック・テスト・ビルド確認)として独立して機能する。

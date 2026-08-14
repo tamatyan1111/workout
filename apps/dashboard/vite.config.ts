@@ -38,5 +38,8 @@ export default defineConfig({
   ],
   test: {
     environment: 'jsdom',
+    // e2e/配下はPlaywright Test専用(`npm run e2e`)。Vitestの対象に混ざると
+    // playwright/test由来のtest()がvitestのtest()と衝突して失敗する
+    exclude: ['**/node_modules/**', 'e2e/**'],
   },
 });

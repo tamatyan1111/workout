@@ -40,3 +40,8 @@ Thumbs.db
 coverage/
 .phpunit.cache/
 .phpunit.result.cache
+
+# Playwright(E2E)
+apps/dashboard/test-results/
+apps/dashboard/playwright-report/
+apps/dashboard/playwright/.cache/
