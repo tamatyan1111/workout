@@ -1,0 +1,19 @@
+# Service Worker本体・HTML・マニフェストは、デプロイのたびに同じファイル名のまま
+# 中身だけが変わる。ブラウザやCDN等の中間キャッシュにここを長くキャッシュされると、
+# 新しいバージョンを配信したのに古いバージョンが返り続ける不具合が起きる
+# (実際に発生し、Googleログインの導線が古いService Workerに横取りされる事故につながった)。
+# assets/配下はビルド時にファイル名自体へ内容のハッシュが入るため、長期キャッシュのままでよい。
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|webmanifest)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+  <Files "registerSW.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+  <Files "workbox-9c191d2f.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+</IfModule>
