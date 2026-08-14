@@ -425,7 +425,7 @@ CREATE TABLE recipe_items (
   CONSTRAINT fk_recipe_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_recipe_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id),
   CONSTRAINT fk_recipe_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id),
-  CONSTRAINT chk_recipe_items_food_ref CHECK ((master_food_id IS NULL) <> (custom_food_id IS NULL))
+  CONSTRAINT chk_recipe_items_food_ref CHECK ((master_food_id IS NULL AND custom_food_id IS NOT NULL) OR (master_food_id IS NOT NULL AND custom_food_id IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -470,7 +470,7 @@ CREATE TABLE meal_items (
   CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
   CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
-  CONSTRAINT chk_meal_items_food_ref CHECK ((master_food_id IS NULL) <> (custom_food_id IS NULL))
+  CONSTRAINT chk_meal_items_food_ref CHECK ((master_food_id IS NULL AND custom_food_id IS NOT NULL) OR (master_food_id IS NOT NULL AND custom_food_id IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 

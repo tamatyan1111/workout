@@ -28,5 +28,14 @@ export default tseslint.config(
       },
     },
   },
+  {
+    // sql/import/配下は文科省データ取り込み用のNode.js CLIスクリプト(ブラウザ向けコードではない)
+    files: ['sql/import/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   prettierConfig
 );
