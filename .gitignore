@@ -39,3 +39,4 @@ Thumbs.db
 # Test / coverage output
 coverage/
 .phpunit.cache/
+.phpunit.result.cache

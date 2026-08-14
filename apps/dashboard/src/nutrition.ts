@@ -26,8 +26,21 @@ export function renderNutrition(container: HTMLElement): void {
     renderNutritionSummary(summaryEl, refreshSummary);
   }
 
+  // レシピ・独自食材の作成/編集/削除は、食事ログの「レシピから追加」欄が参照する一覧にも
+  // 影響するため、食事ログごと再描画して最新化する(その代わりカート中身は失われる。
+  // 食事ログ自体の保存/削除(refreshMealLogを介さない)ではカートを保持したいので、
+  // 食事ログ自身のonChangedにはrefreshSummaryだけを渡す)
+  function refreshMealLog(): void {
+    renderMealLog(mealLogEl, refreshSummary);
+  }
+
+  function onFoodDataChanged(): void {
+    refreshSummary();
+    refreshMealLog();
+  }
+
   refreshSummary();
-  renderMealLog(mealLogEl, refreshSummary);
-  renderRecipes(recipesEl, refreshSummary);
-  renderCustomFoods(customFoodsEl, refreshSummary);
+  refreshMealLog();
+  renderRecipes(recipesEl, onFoodDataChanged);
+  renderCustomFoods(customFoodsEl, onFoodDataChanged);
 }

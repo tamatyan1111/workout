@@ -575,17 +575,17 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
 
         $targetCalories = null;
         $pfc = null;
-        if (!$overdue && $tdee !== null) {
+        if ($goal['pfc_mode'] === 'custom') {
+            // カスタムモードはユーザーが直接グラム数を決めるものなので、TDEE(身長・活動レベル)や
+            // 達成日超過の有無に関わらず常に表示する(target_caloriesは表示用にカロリーへ逆算する)
+            $pfc = calculate_pfc_grams('custom', 0, $currentWeight, $goal['custom_protein_g'], $goal['custom_fat_g'], $goal['custom_carb_g']);
+            if ($pfc['protein_g'] !== null && $pfc['fat_g'] !== null && $pfc['carb_g'] !== null) {
+                $targetCalories = $pfc['protein_g'] * 4 + $pfc['fat_g'] * 9 + $pfc['carb_g'] * 4;
+            }
+        } elseif (!$overdue && $tdee !== null) {
             $targetCalories = calculate_target_calories($tdee, $currentWeight, $goal['target_weight'], $daysRemaining);
             if ($targetCalories !== null) {
-                $pfc = calculate_pfc_grams(
-                    $goal['pfc_mode'],
-                    $targetCalories,
-                    $currentWeight,
-                    $goal['custom_protein_g'],
-                    $goal['custom_fat_g'],
-                    $goal['custom_carb_g']
-                );
+                $pfc = calculate_pfc_grams($goal['pfc_mode'], $targetCalories, $currentWeight, null, null, null);
             }
         }
 

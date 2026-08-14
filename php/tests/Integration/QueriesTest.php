@@ -524,6 +524,24 @@ final class QueriesTest extends TestCase
         $this->assertNull($summary['tdee']);
     }
 
+    // 実ブラウザ検証で判明: カスタムPFCモードは身長・活動レベル(TDEE)が未設定でも、
+    // ユーザーが直接指定したグラム数をそのまま表示できるべき(TDEE計算に依存しない)
+    public function testBuildNutritionSummaryCustomPfcWorksWithoutProfile(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 72.0);
+        create_nutrition_goal(self::$pdo, 1, 68.0, '2026-11-01', 'custom', 150.0, 55.0, 200.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertNull($summary['tdee']);
+        $this->assertNotNull($summary['goal']);
+        $this->assertSame(150.0, $summary['goal']['pfc']['protein_g']);
+        $this->assertSame(55.0, $summary['goal']['pfc']['fat_g']);
+        $this->assertSame(200.0, $summary['goal']['pfc']['carb_g']);
+        // 150*4 + 55*9 + 200*4 = 600 + 495 + 800 = 1895
+        $this->assertSame(1895.0, $summary['goal']['target_calories']);
+    }
+
     public function testBuildNutritionSummaryIncludesGoalProgress(): void
     {
         self::$pdo->exec(
