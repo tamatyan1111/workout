@@ -19,7 +19,10 @@ try {
         $expiresAt = (new DateTimeImmutable('+1 hour'))->format('Y-m-d H:i:s');
         create_password_reset_token($pdo, (int) $user['id'], hash_token($token), $expiresAt);
 
-        $resetUrl = $config['app_base_url'] . '/reset-password?token=' . urlencode($token);
+        // design.md §3: ルート直下のクエリパラメータ方式にする(専用パスにすると、Service Worker
+        // のSPAナビゲーションフォールバックを有効にする必要が生じ、/api/配下の通常ページ遷移
+        // まで巻き込む事故につながるため。ルートは常に実ファイルのindex.htmlなので不要)
+        $resetUrl = $config['app_base_url'] . '/?reset_token=' . urlencode($token);
         send_password_reset_email($config, $email, $resetUrl);
     }
 

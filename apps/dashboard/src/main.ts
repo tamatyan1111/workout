@@ -6,11 +6,13 @@ import { renderDashboard } from './dashboard';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
-// design.md §3: パスワードリセットのリンク(/reset-password?token=...)は、通常の
-// ログイン/ダッシュボード分岐より先に判定する(未ログイン状態でも到達できる必要があるため)
+// design.md §3: パスワードリセットのリンク(/?reset_token=...)は、通常の
+// ログイン/ダッシュボード分岐より先に判定する(未ログイン状態でも到達できる必要があるため)。
+// 専用のパス(/reset-password)ではなくルート直下のクエリパラメータにしているのは、
+// ルートは常に実ファイルのindex.htmlであり、Service WorkerのSPAナビゲーション
+// フォールバックを一切必要としないため(design.md §1.1・vite.config.ts参照)。
 function handleResetPasswordRoute(): boolean {
-  if (window.location.pathname !== '/reset-password') return false;
-  const token = new URLSearchParams(window.location.search).get('token');
+  const token = new URLSearchParams(window.location.search).get('reset_token');
   if (!token) return false;
 
   renderPasswordResetConfirm(app, token, () => {
