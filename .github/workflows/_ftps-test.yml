@@ -1,0 +1,26 @@
+name: FTPS connection test (temporary)
+
+# 本番デプロイの自動化を組む前に、FTPS接続情報とパスが正しいかだけを確認する使い捨てのワークフロー。
+# 確認が終わったらこのファイルごと削除する。
+on:
+  workflow_dispatch:
+
+jobs:
+  ftps-test:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create test file
+        run: |
+          mkdir -p test-upload
+          echo "ftps-connection-test $(date -u +%Y-%m-%dT%H:%M:%SZ)" > test-upload/ci-deploy-test.txt
+      - name: Upload test file via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./test-upload/
+          server-dir: ./tamachan-blog.com/public_html/workout/
