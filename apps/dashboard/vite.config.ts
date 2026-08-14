@@ -25,6 +25,12 @@ export default defineConfig({
         ],
       },
       devOptions: { enabled: false },
+      // Service WorkerのSPAナビゲーションフォールバック(オフライン時に index.html を返す仕組み)が
+      // /api/ 配下への通常のページ遷移(CSVエクスポートのダウンロードリンク、Googleログインの
+      // 開始・コールバックURL等)まで横取りしてしまうため、/api/ 配下は除外する。
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//],
+      },
     }),
   ],
   test: {
