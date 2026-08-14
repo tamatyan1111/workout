@@ -90,16 +90,29 @@ npm run dev --workspace=dashboard
 
 ### バックエンド(PHP)
 
+PHP・MySQL/MariaDBのローカル環境自体が無い場合、Windowsなら`winget install --id PHP.PHP.8.2`・`winget install --id MariaDB.Server`で導入できる。`php.ini`で`pdo_mysql`・`mbstring`拡張を有効化すること(既定でコメントアウトされていることが多い)。
+
 ```bash
 composer install
 cp php/private/.env.example php/private/.env   # DB接続情報・Google OAuth・メール送信設定を編集
 ```
 
-ローカルにMySQL/MariaDBを用意し、`sql/schema.sql`・`sql/seed.sql`を流すと架空データで動作確認できる。`sql/seed.sql`は個人情報を含まない架空のトレーニングデータ。食品マスタも試したい場合は`sql/foods_seed.sql`もあわせて流す。
+ローカルのMySQL/MariaDBに`sql/schema.sql`・`sql/seed.sql`を流すと架空データで動作確認できる。`sql/seed.sql`は個人情報を含まない架空のトレーニングデータ。食品マスタも試したい場合は`sql/foods_seed.sql`もあわせて流す(2538件、投入に数秒かかる)。
 
-PHPの`php.ini`で`pdo_mysql`・`mbstring`拡張が有効になっている必要がある(Windows版PHPは既定で無効になっていることが多い)。`extension=pdo_mysql`・`extension=mbstring`の行頭の`;`を外し、`extension_dir`も有効にすること。
+```bash
+mysql -uroot -p workout_dev < sql/schema.sql
+mysql -uroot -p workout_dev < sql/seed.sql
+mysql -uroot -p workout_dev < sql/foods_seed.sql
+```
 
-認証込みでログイン後の画面まで確認したい場合は、`npm run build --workspace=dashboard`でビルドした`apps/dashboard/dist`と`php/api`を同一オリジンから配信する必要がある(上記の通りAPIとダッシュボードが同一オリジン前提のため)。PHP組み込みサーバー(`php -S`)に、`/api/`配下だけ`php/api/`の実ファイルへ振り分けるルータースクリプトを渡して起動するのが簡単。
+認証込みでログイン後の画面まで確認したい場合は、ダッシュボードとAPIを同一オリジンから配信する必要がある(上記の通り同一オリジン前提のため、フロントエンドの`npm run dev`単独では確認できない)。`dev/router.php`を使うと、PHP組み込みサーバー1つでビルド済みダッシュボードとAPIをまとめて配信できる:
+
+```bash
+npm run build --workspace=apps/dashboard
+php -S localhost:8000 -t apps/dashboard/dist dev/router.php
+```
+
+`http://localhost:8000/` にアクセスすると、本番相当の同一オリジン構成でサインアップ・ログイン・記録の追加等まで一通り確認できる。
 
 ## テスト
 
