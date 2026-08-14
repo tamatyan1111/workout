@@ -102,7 +102,11 @@ const header = `-- 自動生成ファイル(sql/import/generate_foods_sql.js)。
 -- 生成日時: ${new Date().toISOString()}
 -- 件数: ${dataRows.length}件
 
+-- foodsはmeal_items/recipe_itemsから外部キー参照されているため、その制約がある限り
+-- (データの有無に関わらず)TRUNCATEはFKエラーになる。一時的にチェックを無効化する。
+SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE foods;
+SET FOREIGN_KEY_CHECKS = 1;
 
 `;
 

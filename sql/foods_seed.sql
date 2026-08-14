@@ -1,10 +1,14 @@
 -- 自動生成ファイル(sql/import/generate_foods_sql.js)。手動編集しない。
 -- 出典: 文部科学省「日本食品標準成分表(八訂)増補2023年」から引用
 -- 生成元: 20260327-mxt_kagsei-mext-000029402_02.xlsx
--- 生成日時: 2026-08-14T09:48:27.706Z
+-- 生成日時: 2026-08-14T12:29:45.674Z
 -- 件数: 2538件
 
+-- foodsはmeal_items/recipe_itemsから外部キー参照されているため、その制約がある限り
+-- (データの有無に関わらず)TRUNCATEはFKエラーになる。一時的にチェックを無効化する。
+SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE foods;
+SET FOREIGN_KEY_CHECKS = 1;
 
 INSERT INTO foods (food_number, food_group_code, food_group_name, name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g) VALUES
 ('01001', '01', '穀類', 'アマランサス　玄穀', 343.0, 12.70, 6.00, 64.90),
