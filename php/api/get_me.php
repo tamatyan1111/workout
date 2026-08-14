@@ -9,7 +9,11 @@ try {
     $pdo = get_pdo();
     $user = find_user_by_id($pdo, $userId);
     if (!$user) {
-        json_error('ユーザーが見つかりません', 404);
+        // セッションのuser_idに対応するユーザーが存在しない(例: 別タブ/別端末でアカウント削除(US-16)
+        // した後、このセッションだけ古いままAPIを呼んだ場合)。フロントエンドは401をUnauthorizedError
+        // として扱いログイン画面に戻すため、404ではなくセッション破棄+401で返す
+        logout_session();
+        json_error('ログインが必要です', 401);
     }
 
     json_ok([
