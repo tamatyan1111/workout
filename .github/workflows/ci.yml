@@ -141,10 +141,16 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # apps/dashboard/**やpackages/shared/**のように丸ごと指定すると、
+          # package.json(devDependencyだけの更新等)まで「デプロイ対象の変更」として
+          # 拾ってしまう。ビルド成果物(dist)に実際に影響するパスだけを列挙する。
           filters: |
             app:
-              - 'apps/dashboard/**'
-              - 'packages/shared/**'
+              - 'apps/dashboard/src/**'
+              - 'apps/dashboard/public/**'
+              - 'apps/dashboard/index.html'
+              - 'apps/dashboard/vite.config.ts'
+              - 'packages/shared/src/**'
               - 'php/api/**'
               - 'php/private/**'
 
