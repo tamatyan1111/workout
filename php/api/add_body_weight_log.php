@@ -15,9 +15,10 @@ try {
     if (!is_numeric($weight)) {
         json_error('体重は数値で指定してください', 400);
     }
+    $bodyFatPercentage = optional_number($body, 'body_fat_percentage');
 
     $pdo = get_pdo();
-    upsert_body_weight_log($pdo, $userId, $loggedDate, (float) $weight);
+    upsert_body_weight_log($pdo, $userId, $loggedDate, (float) $weight, $bodyFatPercentage);
 
     json_ok();
 } catch (ValidationException $e) {

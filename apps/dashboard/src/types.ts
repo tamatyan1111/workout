@@ -27,6 +27,7 @@ export interface BodyWeightLog {
   id: number;
   logged_date: string;
   weight: number;
+  body_fat_percentage: number | null;
 }
 
 export interface SetInput {
@@ -45,6 +46,7 @@ export interface NutritionGoal {
   id: number;
   start_weight: number;
   target_weight: number;
+  target_body_fat_percentage: number | null;
   target_date: string;
   pfc_mode: PfcMode;
   custom_protein_g: number | null;
@@ -70,6 +72,7 @@ export interface GoalSummary {
   progress_percent: number | null;
   newly_reached_milestone: number | null;
   target_bmi: number | null;
+  target_body_fat_percentage: number | null;
 }
 
 // design.md §2.16・2.17「BMI・TDEE・目標カロリー・PFC・進捗マイルストーン」get_nutrition_summaryのレスポンス
@@ -77,6 +80,7 @@ export interface NutritionSummary {
   height_cm: number | null;
   activity_level: string | null;
   current_weight: number | null;
+  current_body_fat_percentage: number | null;
   bmi: number | null;
   bmi_category: string | null;
   bmr: number | null;

@@ -24,6 +24,7 @@ export function renderBodyWeight(container: HTMLElement): void {
       <form id="body-weight-form">
         <label>日付 <input type="date" id="bw-date" value="${todayStr()}" required /></label>
         <label>体重(kg) <input type="number" step="0.1" id="bw-weight" required /></label>
+        <label>体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="bw-body-fat" /></label>
         <button type="submit">記録する</button>
         <p id="bw-status"></p>
       </form>
@@ -41,9 +42,10 @@ export function renderBodyWeight(container: HTMLElement): void {
       const statusEl = container.querySelector<HTMLParagraphElement>('#bw-status')!;
       const date = container.querySelector<HTMLInputElement>('#bw-date')!.value;
       const weight = container.querySelector<HTMLInputElement>('#bw-weight')!.value;
+      const bodyFatPercentage = container.querySelector<HTMLInputElement>('#bw-body-fat')!.value;
       statusEl.textContent = '送信中...';
       try {
-        await addBodyWeightLog(date, weight);
+        await addBodyWeightLog(date, weight, bodyFatPercentage);
         statusEl.textContent = '記録しました';
         await refresh();
       } catch (err) {
@@ -108,7 +110,7 @@ export function renderBodyWeight(container: HTMLElement): void {
     const sorted = [...logs].sort((a, b) => (a.logged_date < b.logged_date ? 1 : -1));
     listEl.innerHTML = `
       <table class="body-weight-table">
-        <thead><tr><th>日付</th><th>体重(kg)</th><th></th></tr></thead>
+        <thead><tr><th>日付</th><th>体重(kg)</th><th>体脂肪率(%)</th><th></th></tr></thead>
         <tbody>
           ${sorted
             .map(
@@ -116,6 +118,7 @@ export function renderBodyWeight(container: HTMLElement): void {
             <tr data-id="${l.id}">
               <td><input type="date" class="edit-bw-date" value="${escapeHtml(l.logged_date.slice(0, 10))}" /></td>
               <td><input type="number" step="0.1" class="edit-bw-weight" value="${escapeHtml(l.weight.toFixed(1))}" /></td>
+              <td><input type="number" step="0.1" class="edit-bw-body-fat" value="${escapeHtml(l.body_fat_percentage !== null ? l.body_fat_percentage.toFixed(1) : '')}" /></td>
               <td>
                 <button type="button" class="save-btn">保存</button>
                 <button type="button" class="delete-btn danger">削除</button>
@@ -134,9 +137,10 @@ export function renderBodyWeight(container: HTMLElement): void {
       row.querySelector('.save-btn')!.addEventListener('click', async () => {
         const date = row.querySelector<HTMLInputElement>('.edit-bw-date')!.value;
         const weight = row.querySelector<HTMLInputElement>('.edit-bw-weight')!.value;
+        const bodyFatPercentage = row.querySelector<HTMLInputElement>('.edit-bw-body-fat')!.value;
         editStatusEl.textContent = '保存中...';
         try {
-          await editBodyWeightLog(l.id, date, weight);
+          await editBodyWeightLog(l.id, date, weight, bodyFatPercentage);
           editStatusEl.textContent = '保存しました';
           await refresh();
         } catch (err) {

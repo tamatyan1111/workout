@@ -11,6 +11,7 @@ try {
     $userId = require_login();
     $body = read_json_body();
     $targetWeight = require_positive_number($body, 'target_weight');
+    $targetBodyFatPercentage = optional_number($body, 'target_body_fat_percentage');
     $targetDate = require_date($body, 'target_date');
     $pfcMode = require_enum($body, 'pfc_mode', ['standard', 'bulk', 'cut', 'custom']);
 
@@ -24,7 +25,17 @@ try {
     }
 
     $pdo = get_pdo();
-    $id = create_nutrition_goal($pdo, $userId, $targetWeight, $targetDate, $pfcMode, $customProteinG, $customFatG, $customCarbG);
+    $id = create_nutrition_goal(
+        $pdo,
+        $userId,
+        $targetWeight,
+        $targetDate,
+        $pfcMode,
+        $customProteinG,
+        $customFatG,
+        $customCarbG,
+        $targetBodyFatPercentage
+    );
 
     json_ok(['id' => $id]);
 } catch (ValidationException $e) {

@@ -13,13 +13,14 @@ try {
     $id = require_int($body, 'id');
     $loggedDate = require_date($body, 'logged_date');
     $weight = require_positive_number($body, 'weight');
+    $bodyFatPercentage = optional_number($body, 'body_fat_percentage');
 
     $pdo = get_pdo();
     if (!find_body_weight_log($pdo, $userId, $id)) {
         json_error('体重記録が見つかりません', 404);
     }
 
-    $updated = update_body_weight_log($pdo, $userId, $id, $loggedDate, $weight);
+    $updated = update_body_weight_log($pdo, $userId, $id, $loggedDate, $weight, $bodyFatPercentage);
     if (!$updated) {
         json_error('duplicate_date', 409);
     }

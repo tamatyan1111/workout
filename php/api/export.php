@@ -19,15 +19,15 @@ try {
     // BOM付きUTF-8にしてExcelでの文字化けを避ける
     fwrite($out, "\xEF\xBB\xBF");
 
-    fputcsv($out, ['type', 'date', 'cycle', 'exercise', 'set_number', 'weight', 'reps']);
+    fputcsv($out, ['type', 'date', 'cycle', 'exercise', 'set_number', 'weight', 'reps', 'body_fat_percentage']);
     foreach (fetch_logs_for_export($pdo, $userId) as $row) {
         fputcsv($out, [
             'log', $row['logged_date'], $row['cycle_label'], $row['exercise_name'],
-            $row['set_number'], $row['weight'], $row['reps'],
+            $row['set_number'], $row['weight'], $row['reps'], '',
         ]);
     }
     foreach (fetch_body_weight_logs_for_export($pdo, $userId) as $row) {
-        fputcsv($out, ['body_weight', $row['logged_date'], '', '', '', $row['weight'], '']);
+        fputcsv($out, ['body_weight', $row['logged_date'], '', '', '', $row['weight'], '', $row['body_fat_percentage']]);
     }
     fclose($out);
     exit;

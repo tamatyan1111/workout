@@ -395,7 +395,7 @@ function exercise_has_logs(PDO $pdo, int $exerciseId): bool
 
 function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo): array
 {
-    $sql = 'SELECT id, logged_date, weight FROM body_weight_logs WHERE user_id = :user_id';
+    $sql = 'SELECT id, logged_date, weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id';
     $params = ['user_id' => $userId];
     if ($dateFrom !== null) {
         $sql .= ' AND logged_date >= :date_from';
@@ -415,18 +415,25 @@ function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?strin
             'id' => (int) $r['id'],
             'logged_date' => $r['logged_date'],
             'weight' => (float) $r['weight'],
+            'body_fat_percentage' => $r['body_fat_percentage'] !== null ? (float) $r['body_fat_percentage'] : null,
         ];
     }, $stmt->fetchAll());
 }
 
-// design.md §2.6: 同じ日に再送信した場合は既存行を上書きする
-function upsert_body_weight_log(PDO $pdo, int $userId, string $loggedDate, float $weight): void
+// design.md §2.6: 同じ日に再送信した場合は既存行を上書きする。体脂肪率は任意項目(UI再設計フェーズ2)
+function upsert_body_weight_log(PDO $pdo, int $userId, string $loggedDate, float $weight, ?float $bodyFatPercentage = null): void
 {
     $stmt = $pdo->prepare(
-        'INSERT INTO body_weight_logs (user_id, logged_date, weight) VALUES (:user_id, :logged_date, :weight)
-         ON DUPLICATE KEY UPDATE weight = VALUES(weight)'
+        'INSERT INTO body_weight_logs (user_id, logged_date, weight, body_fat_percentage)
+         VALUES (:user_id, :logged_date, :weight, :body_fat_percentage)
+         ON DUPLICATE KEY UPDATE weight = VALUES(weight), body_fat_percentage = VALUES(body_fat_percentage)'
     );
-    $stmt->execute(['user_id' => $userId, 'logged_date' => $loggedDate, 'weight' => $weight]);
+    $stmt->execute([
+        'user_id' => $userId,
+        'logged_date' => $loggedDate,
+        'weight' => $weight,
+        'body_fat_percentage' => $bodyFatPercentage,
+    ]);
 }
 
 function find_body_weight_log(PDO $pdo, int $userId, int $id): ?array
@@ -440,7 +447,7 @@ function find_body_weight_log(PDO $pdo, int $userId, int $id): ?array
 // 2026-08-15追加: 過去の記録の日付・体重を直接編集する。ON DUPLICATE KEYには頼らず、
 // 事前チェックで衝突を検出する(他のUNIQUE制約違反の扱いと同じくraw SQLエラーを返さないため)。
 // 戻り値false = 編集後の日付が既存の別記録と重複(呼び出し側でduplicate_dateエラーに変換する)。
-function update_body_weight_log(PDO $pdo, int $userId, int $id, string $loggedDate, float $weight): bool
+function update_body_weight_log(PDO $pdo, int $userId, int $id, string $loggedDate, float $weight, ?float $bodyFatPercentage = null): bool
 {
     $stmt = $pdo->prepare(
         'SELECT id FROM body_weight_logs WHERE user_id = :user_id AND logged_date = :logged_date AND id != :id'
@@ -450,8 +457,16 @@ function update_body_weight_log(PDO $pdo, int $userId, int $id, string $loggedDa
         return false;
     }
 
-    $stmt = $pdo->prepare('UPDATE body_weight_logs SET logged_date = :logged_date, weight = :weight WHERE id = :id');
-    $stmt->execute(['logged_date' => $loggedDate, 'weight' => $weight, 'id' => $id]);
+    $stmt = $pdo->prepare(
+        'UPDATE body_weight_logs SET logged_date = :logged_date, weight = :weight, body_fat_percentage = :body_fat_percentage
+         WHERE id = :id'
+    );
+    $stmt->execute([
+        'logged_date' => $loggedDate,
+        'weight' => $weight,
+        'body_fat_percentage' => $bodyFatPercentage,
+        'id' => $id,
+    ]);
     return true;
 }
 
@@ -480,7 +495,7 @@ function fetch_logs_for_export(PDO $pdo, int $userId): array
 function fetch_body_weight_logs_for_export(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT logged_date, weight FROM body_weight_logs WHERE user_id = :user_id ORDER BY logged_date'
+        'SELECT logged_date, weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id ORDER BY logged_date'
     );
     $stmt->execute(['user_id' => $userId]);
     return $stmt->fetchAll();
@@ -491,20 +506,23 @@ function fetch_body_weight_logs_for_export(PDO $pdo, int $userId): array
 function fetch_latest_two_body_weights(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT weight FROM body_weight_logs WHERE user_id = :user_id ORDER BY logged_date DESC LIMIT 2'
+        'SELECT weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id ORDER BY logged_date DESC LIMIT 2'
     );
     $stmt->execute(['user_id' => $userId]);
     $rows = $stmt->fetchAll();
     return [
         'current' => isset($rows[0]) ? (float) $rows[0]['weight'] : null,
         'previous' => isset($rows[1]) ? (float) $rows[1]['weight'] : null,
+        'current_body_fat_percentage' => isset($rows[0]) && $rows[0]['body_fat_percentage'] !== null
+            ? (float) $rows[0]['body_fat_percentage'] : null,
     ];
 }
 
 function fetch_latest_nutrition_goal(PDO $pdo, int $userId): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, start_weight, target_weight, target_date, pfc_mode, custom_protein_g, custom_fat_g, custom_carb_g
+        'SELECT id, start_weight, target_weight, target_body_fat_percentage, target_date, pfc_mode,
+                custom_protein_g, custom_fat_g, custom_carb_g
          FROM nutrition_goals WHERE user_id = :user_id ORDER BY created_at DESC, id DESC LIMIT 1'
     );
     $stmt->execute(['user_id' => $userId]);
@@ -516,6 +534,7 @@ function fetch_latest_nutrition_goal(PDO $pdo, int $userId): ?array
         'id' => (int) $row['id'],
         'start_weight' => (float) $row['start_weight'],
         'target_weight' => (float) $row['target_weight'],
+        'target_body_fat_percentage' => $row['target_body_fat_percentage'] !== null ? (float) $row['target_body_fat_percentage'] : null,
         'target_date' => $row['target_date'],
         'pfc_mode' => $row['pfc_mode'],
         'custom_protein_g' => $row['custom_protein_g'] !== null ? (float) $row['custom_protein_g'] : null,
@@ -525,6 +544,7 @@ function fetch_latest_nutrition_goal(PDO $pdo, int $userId): ?array
 }
 
 // design.md §2.11: start_weightは作成時点の直近体重のスナップショット。体重記録が1件も無い場合は作成できない。
+// target_body_fat_percentageは任意項目(UI再設計フェーズ2、design.md未記載)。
 function create_nutrition_goal(
     PDO $pdo,
     int $userId,
@@ -533,7 +553,8 @@ function create_nutrition_goal(
     string $pfcMode,
     ?float $customProteinG,
     ?float $customFatG,
-    ?float $customCarbG
+    ?float $customCarbG,
+    ?float $targetBodyFatPercentage = null
 ): int {
     $weights = fetch_latest_two_body_weights($pdo, $userId);
     if ($weights['current'] === null) {
@@ -541,14 +562,17 @@ function create_nutrition_goal(
     }
     $stmt = $pdo->prepare(
         'INSERT INTO nutrition_goals
-            (user_id, start_weight, target_weight, target_date, pfc_mode, custom_protein_g, custom_fat_g, custom_carb_g)
+            (user_id, start_weight, target_weight, target_body_fat_percentage, target_date, pfc_mode,
+             custom_protein_g, custom_fat_g, custom_carb_g)
          VALUES
-            (:user_id, :start_weight, :target_weight, :target_date, :pfc_mode, :custom_protein_g, :custom_fat_g, :custom_carb_g)'
+            (:user_id, :start_weight, :target_weight, :target_body_fat_percentage, :target_date, :pfc_mode,
+             :custom_protein_g, :custom_fat_g, :custom_carb_g)'
     );
     $stmt->execute([
         'user_id' => $userId,
         'start_weight' => $weights['current'],
         'target_weight' => $targetWeight,
+        'target_body_fat_percentage' => $targetBodyFatPercentage,
         'target_date' => $targetDate,
         'pfc_mode' => $pfcMode,
         'custom_protein_g' => $customProteinG,
@@ -627,8 +651,9 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
             'pfc' => $pfc,
             'progress_percent' => $progressPercent !== null ? round($progressPercent, 1) : null,
             'newly_reached_milestone' => $milestone,
-            // プロフィールタブのサマリー(現在のBMIと並べて表示)向け。design.md未記載、UI再設計フェーズ2
+            // プロフィールタブのサマリー(現在のBMI・体脂肪率と並べて表示)向け。design.md未記載、UI再設計フェーズ2
             'target_bmi' => $heightCm !== null ? round(calculate_bmi($goal['target_weight'], $heightCm), 1) : null,
+            'target_body_fat_percentage' => $goal['target_body_fat_percentage'],
         ];
     }
 
@@ -636,6 +661,7 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
         'height_cm' => $heightCm,
         'activity_level' => $activityLevel,
         'current_weight' => $currentWeight,
+        'current_body_fat_percentage' => $weights['current_body_fat_percentage'],
         'bmi' => $bmi !== null ? round($bmi, 1) : null,
         'bmi_category' => $bmiCategory,
         'bmr' => $bmr !== null ? round($bmr) : null,

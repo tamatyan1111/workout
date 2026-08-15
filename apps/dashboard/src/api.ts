@@ -213,11 +213,21 @@ export const getBodyWeightLogs = (from?: string, to?: string): Promise<BodyWeigh
     date_to: to ?? '',
   }).then((d) => d.logs);
 
-export const addBodyWeightLog = (loggedDate: string, weight: string): Promise<void> =>
-  callPost('add_body_weight_log.php', { logged_date: loggedDate, weight });
+export const addBodyWeightLog = (loggedDate: string, weight: string, bodyFatPercentage?: string): Promise<void> =>
+  callPost('add_body_weight_log.php', { logged_date: loggedDate, weight, body_fat_percentage: bodyFatPercentage || undefined });
 
-export const editBodyWeightLog = (id: number, loggedDate: string, weight: string): Promise<void> =>
-  callPost('edit_body_weight_log.php', { id, logged_date: loggedDate, weight });
+export const editBodyWeightLog = (
+  id: number,
+  loggedDate: string,
+  weight: string,
+  bodyFatPercentage?: string
+): Promise<void> =>
+  callPost('edit_body_weight_log.php', {
+    id,
+    logged_date: loggedDate,
+    weight,
+    body_fat_percentage: bodyFatPercentage || undefined,
+  });
 
 export const deleteBodyWeightLog = (id: number): Promise<void> => callPost('delete_body_weight_log.php', { id });
 
@@ -239,7 +249,8 @@ export const addNutritionGoal = (
   pfcMode: PfcMode,
   customProteinG: string,
   customFatG: string,
-  customCarbG: string
+  customCarbG: string,
+  targetBodyFatPercentage?: string
 ): Promise<{ id: number }> =>
   callPost('add_nutrition_goal.php', {
     target_weight: targetWeight,
@@ -248,6 +259,7 @@ export const addNutritionGoal = (
     custom_protein_g: pfcMode === 'custom' ? customProteinG : undefined,
     custom_fat_g: pfcMode === 'custom' ? customFatG : undefined,
     custom_carb_g: pfcMode === 'custom' ? customCarbG : undefined,
+    target_body_fat_percentage: targetBodyFatPercentage || undefined,
   });
 
 export const searchFoods = (q: string, foodGroupCode?: string): Promise<FoodSearchResult[]> =>

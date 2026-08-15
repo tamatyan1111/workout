@@ -107,6 +107,7 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
     el.innerHTML = `
       <form id="goal-form">
         <label>目標体重(kg) <input type="number" step="0.1" id="goal-weight" required /></label>
+        <label>目標体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="goal-body-fat" /></label>
         <label>達成期日 <input type="date" id="goal-date" required /></label>
         <label>PFC配分方式
           <select id="goal-pfc-mode">
@@ -137,6 +138,7 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
       ev.preventDefault();
       const statusEl = el.querySelector<HTMLParagraphElement>('#goal-status')!;
       const targetWeight = el.querySelector<HTMLInputElement>('#goal-weight')!.value;
+      const targetBodyFatPercentage = el.querySelector<HTMLInputElement>('#goal-body-fat')!.value;
       const targetDate = el.querySelector<HTMLInputElement>('#goal-date')!.value;
       const pfcMode = modeSelect.value as PfcMode;
       const customProtein = el.querySelector<HTMLInputElement>('#goal-custom-protein')!.value;
@@ -144,7 +146,7 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
       const customCarb = el.querySelector<HTMLInputElement>('#goal-custom-carb')!.value;
       statusEl.textContent = '保存中...';
       try {
-        await addNutritionGoal(targetWeight, targetDate, pfcMode, customProtein, customFat, customCarb);
+        await addNutritionGoal(targetWeight, targetDate, pfcMode, customProtein, customFat, customCarb, targetBodyFatPercentage);
         onGoalChanged();
         void getNutritionSummary().then((summary) => draw(summary));
       } catch (err) {
