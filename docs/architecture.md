@@ -1,11 +1,11 @@
 ---
 type: Architecture Doc
 title: アーキテクチャ図
-description: たまちゃんの筋トレ管理サイトのシステム構成図(ログイン必須のマルチユーザーダッシュボード、workout.tamachan-blog.com)
-tags: [筋トレ管理, architecture]
+description: からだ手帳サイトのシステム構成図(ログイン必須のマルチユーザーダッシュボード、workout.tamachan-blog.com)
+tags: [からだ手帳, architecture]
 timestamp: 2026-08-13T00:00:00Z
 ---
-# たまちゃんの筋トレ管理 — アーキテクチャ
+# からだ手帳 — アーキテクチャ
 
 詳細な設計判断・データモデル・API仕様は [design.md](design.md) を参照。ここでは全体構成を図で示す。
 

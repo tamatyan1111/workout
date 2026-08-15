@@ -11,8 +11,8 @@ export function renderAuthScreen(container: HTMLElement, onAuthenticated: () => 
   function draw(): void {
     container.innerHTML = `
       <div class="auth-screen">
-        <h1>たまちゃんの筋トレ管理</h1>
-        <p class="auth-lead">筋トレの記録・進捗をどこからでも管理できます。</p>
+        <h1>からだ手帳</h1>
+        <p class="auth-lead">運動・食事・からだの記録をどこからでも管理できます。</p>
         <a class="google-btn" href="${googleLoginUrl}">Googleでログイン</a>
         <p class="auth-legal-notice">
           続けると、<a href="/terms.html" target="_blank" rel="noopener">利用規約</a>および<a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したものとみなします。

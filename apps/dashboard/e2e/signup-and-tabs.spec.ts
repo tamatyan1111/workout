@@ -24,7 +24,7 @@ test('サインアップ→オンボーディング→全タブが正常表示�
   const uniqueEmail = `e2e-${Date.now()}@example.com`;
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'たまちゃんの筋トレ管理' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'からだ手帳' })).toBeVisible();
 
   // ログインフォームがデフォルトなので、サインアップに切り替える
   await page.getByRole('button', { name: '新規登録' }).click();

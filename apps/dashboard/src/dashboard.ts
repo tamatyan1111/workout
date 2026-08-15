@@ -19,7 +19,7 @@ import { escapeHtml } from 'shared';
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
     <header class="site-header">
-      <h1>たまちゃんの筋トレ管理</h1>
+      <h1>からだ手帳</h1>
       <p class="welcome">ようこそ、${escapeHtml(displayName)}さん</p>
       <nav class="tabs">
         <button type="button" class="tab-button active" data-tab="exercise">運動</button>

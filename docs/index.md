@@ -1,13 +1,13 @@
 ---
 type: Project Index
-title: たまちゃんの筋トレ管理
-description: 仕様駆動開発で進める筋トレ管理サイトプロジェクトの資料目次
-tags: [筋トレ管理]
+title: からだ手帳
+description: 仕様駆動開発で進めるからだ手帳(運動・食事・プロフィール管理)サイトプロジェクトの資料目次
+tags: [からだ手帳]
 timestamp: 2026-07-20T00:00:00Z
 ---
-# たまちゃんの筋トレ管理
+# からだ手帳
 
-XServer(MySQL/PHP)1つのサブドメイン(`workout.tamachan-blog.com`)に構築する、筋トレ記録・進捗管理サイト。仕様駆動開発で進めている。2026-08にGoogle スプレッドシート + Google Apps Script構成から移行し、当初はGitHub Pagesで公開サイトを別ホストしていたが、「1アプリ=1サブドメイン」の方針でXServerに統合した。その後、将来的に無料で一般公開し複数ユーザーが使える製品に育てる方針に転換し、秘密URL方式からログイン認証を伴うマルチユーザー構成へ設計を刷新した(経緯は design.md §0・§0.1、architecture.md 参照)。
+XServer(MySQL/PHP)1つのサブドメイン(`workout.tamachan-blog.com`)に構築する、運動・食事・からだの記録/進捗管理サイト。仕様駆動開発で進めている。2026-08にGoogle スプレッドシート + Google Apps Script構成から移行し、当初はGitHub Pagesで公開サイトを別ホストしていたが、「1アプリ=1サブドメイン」の方針でXServerに統合した。その後、将来的に無料で一般公開し複数ユーザーが使える製品に育てる方針に転換し、秘密URL方式からログイン認証を伴うマルチユーザー構成へ設計を刷新した(経緯は design.md §0・§0.1、architecture.md 参照)。
 
 ## ドキュメント
 
