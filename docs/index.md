@@ -16,7 +16,7 @@ XServer(MySQL/PHP)1つのサブドメイン(`workout.tamachan-blog.com`)に構�
 - [architecture.md](architecture.md) — アーキテクチャ図(図で見るシステム構成)
 
 ## 現在のステータス
-自分専用ツール(秘密URL方式)としては完成・運用中。マルチユーザー化(ログイン認証・複数ユーザー対応)は2026-08に仕様策定が完了した段階で、実装はこれから。実装タスクの詳細な記録はgitのコミット履歴を参照。
+マルチユーザー化(ログイン認証・複数ユーザー対応)は実装・本番デプロイ済みで運用中。筋トレ記録(サイクル・種目・記録・体重)に加えて、食事記録機能(カロリー・PFC管理、requirements.md §7)も実装済み。CI/CD(GitHub Actions、`.github/workflows/ci-cd.yml`)によるテスト自動化・本番デプロイの自動化も整備済み(architecture.md「CI/CD」参照)。実装タスクの詳細な記録はgitのコミット履歴を参照。
 
-- 現行(自分専用)版: https://workout.tamachan-blog.com/ + 同ドメイン配下の秘密URL(記録者のみ把握)
+- 本番: https://workout.tamachan-blog.com/(Google/メールアドレスでログイン、無料で一般公開)
 - ソースコード: https://github.com/tamatyan1111/workout(GitHub Pagesは使用せずソース管理のみ)
