@@ -149,7 +149,7 @@ CIでは専用のMariaDBサービスコンテナ+`sql/schema.sql`のみ(架空�
 
 本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないため、`master`へのマージ後にFTPS(暗号化されたFTP)でファイルを転送する形でCDを組んでいる(`.github/workflows/ci.yml`の`deploy`ジョブ)。
 
-- トリガー: `master`へのpush(=PRのマージ)。`frontend`・`php`・`e2e`の3ジョブが全green必須(ブランチ保護)
+- トリガー: `master`へのpush(=PRのマージ)。`frontend`・`php`・`e2e`の3ジョブが全green必須(ブランチ保護)。加えて、実際にデプロイ対象のパス(`apps/dashboard/`・`packages/shared/`・`php/api/`・`php/private/`)が変わったPRだけが対象(`changes`ジョブ、`dorny/paths-filter`使用)。CI設定やdevDependencyだけの更新(Dependabotの`typescript`/`vitest`等)では承認待ちが発生しない。パスに関わらず強制的にデプロイしたい場合は、Actionsタブから`CI`ワークフローを`workflow_dispatch`で手動実行する
 - 転送先: ダッシュボード(`apps/dashboard/dist`)をドキュメントルート直下に、`php/api`・`php/private`をそれぞれ`api/`・`private/`に、FTPSで同期(`.env`は転送対象から除外し、本番の実際の値を上書きしない)
 - **承認ゲート**: GitHub Environments(`production`)の"Required reviewers"を使い、FTPS認証情報(Secrets)へのアクセス・実際の転送実行の直前で一時停止する。GitHub Actions上で「Review deployments」→「Approve and deploy」を押すまでデプロイは実行されない。これは複数人開発になった場合の安全策(誰でもマージはできても、本番への書き込みは指定した承認者だけができる)であり、DBマイグレーションが必要な変更は承認前に手動で`sql/migrate_*.sql`をphpMyAdminで実行しておく運用と組み合わせている
 - DBマイグレーション自体はSSHが無いため今後も手動(phpMyAdminでSQLを実行)。ファイル転送だけが自動化の対象
