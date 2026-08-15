@@ -596,6 +596,8 @@ CREATE TABLE meal_items (
 
 ## 5. セットアップ手順(XServer)
 
+以下は2026-08の初回移行時に実際に行った手順の記録(手順7・8は当時FTPで手動アップロードした)。**現在の継続的なデプロイはCI/CDで自動化されている**(architecture.md「CI/CD」参照)。この章は初回セットアップの記録として残す。
+
 1. サブドメイン`workout.tamachan-blog.com`は初回のGoogle Sheets→XServer移行時に作成済み(SSLも発行済み)。新規作成は不要。今回はこの既存サブドメインの上に新システムをデプロイし、稼働中の旧(自分専用)版を置き換える
 2. 移行作業を始める前に、`sql/backup_before_migration.sql`をphpMyAdminのSQLタブで実行し、旧`cycles`・`exercises`・`logs`のデータをDB内にスナップショット(`backup_*`テーブル)として残す。念のため、phpMyAdminの「エクスポート」機能によるファイルダウンロードも別途行っておく
 3. MySQLデータベースも既存のものをそのまま使う(新規作成しない)。ただし旧スキーマ(`cycles`・`exercises`・`logs`、いずれも`user_id`列なし)がそのまま残っているため、phpMyAdminで次を実行し、旧テーブルを退避する(InnoDBの`RENAME TABLE`は外部キー制約もそのまま追従する):
