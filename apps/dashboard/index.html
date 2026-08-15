@@ -5,6 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>からだ手帳</title>
+    <script>
+      // テーマ切替のちらつき防止。main.tsの読み込みより前に同期実行する必要があるため
+      // ここにインラインで書く(theme.tsのロジックと同じ)。
+      (function () {
+        var stored = localStorage.getItem('theme');
+        if (stored === 'light' || stored === 'dark') {
+          document.documentElement.dataset.theme = stored;
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
