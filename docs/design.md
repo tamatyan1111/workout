@@ -37,7 +37,7 @@ timestamp: 2026-07-20T00:00:00Z
                                                     [認証必須API(PHP)] --PDO--> [MySQL/MariaDB]
 ```
 
-- ダッシュボードアプリ(静的HTML)は、ログイン画面・サインアップ画面・オンボーディング・管理表タブ・グラフタブ・体重タブ・プロフィール設定を1つのSPAとして提供し、`workout.tamachan-blog.com/`直下にビルド済み成果物をFTPで配置する
+- ダッシュボードアプリ(静的HTML)は、ログイン画面・サインアップ画面・オンボーディング・管理表タブ・グラフタブ・体重タブ・食事タブ・設定タブを1つのSPAとして提供し、`workout.tamachan-blog.com/`直下にビルド済み成果物をFTPS経由のCI/CDで配置する
 - APIはすべて`workout.<domain>/api/`に集約する。全エンドポイントがログイン必須で、旧来の「公開読み取りAPI」と「秘密パスAPI」の区別は廃止する
 - ドメインは当面`workout.tamachan-blog.com`を継続利用する。フロント・APIとも相対パス・`.env`設定に依存する作りのため、将来独立ドメインへ移行する場合もコードの作り直しは不要(DNS/SSL設定とデプロイ先の変更のみで済む)
 - ソースコード(GitHubリポジトリ)はソース管理としてのみ利用し、GitHub Pages等のホスティング機能は使わない(変更なし)
@@ -202,6 +202,8 @@ CREATE TABLE body_weight_logs (
 
 1日1件の記録を前提とし、`(user_id, logged_date)`をユニーク制約にする。同じ日に再送信した場合は`add_body_weight`側で既存行をUPSERT(上書き)する(トレーニング記録のような1日複数セットの概念が体重にはないため、種目記録とは異なり単純な時系列として扱う)。
 
+過去の記録の日付・体重を直接編集する`edit_body_weight_log.php`(2026-08-15追加、`edit_log.php`と同じ全項目送信方式)も用意する。編集後の日付が既存の別記録と重複する場合は、ユニーク制約違反として`{ok:false, error:"duplicate_date"}`を返す(生のSQLエラーをそのまま返さず、意味のあるエラーコードに変換する)。
+
 ### 2.7 サイクル初期設定テンプレート(US-12対応)
 
 DBテーブルは持たない。フロントエンドの静的な設定値として、以下のようなテンプレートを用意し、オンボーディング画面で選択させる。選択すると、そのユーザーの`cycles`に一括で行を作成する(種目は含まない。作成後にUS-7の操作で追加する)。
@@ -306,6 +308,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `delete_exercise.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_logs"}` |
 | `get_body_weight_logs.php` | GET | `date_from?`, `date_to?` | 体重の記録一覧 |
 | `add_body_weight_log.php` | POST | `{logged_date, weight}` | `{ok:true}`(同日の既存記録があれば上書き) |
+| `edit_body_weight_log.php` | POST | `{id, logged_date, weight}` | `{ok:true}` または `{ok:false, error:"duplicate_date"}` |
 | `delete_body_weight_log.php` | POST | `{id}` | `{ok:true}` |
 | `get_me.php` | GET | - | `{display_name, email, birth_date, gender, height_cm, activity_level}` |
 | `update_me.php` | POST | `{display_name?, birth_date?, gender?, height_cm?, activity_level?}` | `{ok:true}` |
@@ -330,9 +333,13 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `get_meals.php` | GET | `date_from?`, `date_to?` | 食事ログ一覧(`meal_items`込み、`recipe_batch_id`でグループ化可能な形) |
 | `add_meal.php` | POST | `{logged_date, meal_type, items:[{master_food_id\|custom_food_id, quantity_g},...]}` または `{logged_date, meal_type, recipe_id}` | `{id, item_ids:[...]}`(レシピ指定時はサーバー側で`recipe_items`を展開し`meal_items`をスナップショット保存) |
 | `add_meal_item.php` | POST | `{meal_id, master_food_id\|custom_food_id, quantity_g}` \| `{meal_id, recipe_id}` | `{ids:[...]}`(既存の食事ログへの追加。カートへの追加操作に対応) |
+| `edit_meal_item.php` | POST | `{id, master_food_id\|custom_food_id, quantity_g}` | `{ok:true}`(食材・分量を直し、`*_snapshot`列を再解決してUPDATE。`meal_id`・`recipe_batch_id`は変更不可) |
 | `delete_meal_item.php` | POST | `{id}` | `{ok:true}`(単品削除) |
 | `delete_meal_item_group.php` | POST | `{recipe_batch_id}` | `{ok:true}`(同じ`recipe_batch_id`を持つ行をまとめて削除) |
-| `delete_meal.php` | POST | `{id}` | `{ok:true}`(食事ログ全体を削除、`meal_items`も`CASCADE`で削除) |
+| `delete_meal.php` | POST | `{id}` | `{ok:true}`(食事ログ全体を削除、`meal_items`も`CASCADE`で削除。写真があればファイルも削除) |
+| `upload_meal_photo.php` | POST(multipart/form-data) | `meal_id`, `photo`(ファイル) | `{ok:true}`(§2.18参照。既存の写真があれば差し替え) |
+| `delete_meal_photo.php` | POST | `{meal_id}` | `{ok:true}` |
+| `get_meal_photo.php` | GET | `meal_id`(クエリ) | 画像バイナリ(`Content-Type: image/jpeg`)。所有権を検証してから返す |
 
 ### 2.11 `nutrition_goals` テーブル — 体重目標・カロリー目標・PFC配分方式(新規、§7対応)
 
@@ -479,7 +486,15 @@ CREATE TABLE meal_items (
 - レシピをカートに追加した瞬間、`recipe_items`をJOINして展開し、`meal_items`に食材ごとの行としてスナップショット付きで`INSERT`する。同じ操作で追加された行には共通の`recipe_batch_id`(UUID)を振り、`recipe_name_snapshot`にレシピ名を記録する。これにより、カート画面・保存後の編集画面の両方で「同じ`recipe_batch_id`を持つ行をまとめて1回の操作で削除する」UIが実現できる(個別行だけを`recipe_batch_id`を残したまま削除することも可能)
 - 直接食材を追加した行は`recipe_batch_id`・`recipe_name_snapshot`とも`NULL`のままになる
 - `meals`→`meal_items`は`ON DELETE CASCADE`とする(`meal_items`は`meals`に完全に従属する明細行であり、§1.3のアカウント削除順序の懸念とは別の、単純な親子関係のため)
-- `photo_path`列はスキーマ・API仕様として用意済みだが、実際のファイルアップロード処理(multipart/form-data受信・保存先ディレクトリ・サイズ/形式バリデーション)はPHP API実装の初回スコープには含めず、フォローアップとして別途実装する。それまでは常に`NULL`(添付なし)としてINSERTする
+- `photo_path`はファイルシステム上の相対パス(例: `uploads/meal_photos/{user_id}/{uuid}.jpg`)を保存する。実ファイルは`php/private/uploads/meal_photos/`配下(Webから直接アクセス不可)に置き、`meals`1件につき1枚まで(2026-08-15、写真アップロード機能を実装。詳細は§2.18)
+- `meal_items`は追加後の編集(`edit_meal_item.php`、2026-08-15追加)にも対応する。「とりあえず仮の分量で記録し、後で正確な値に直したい」という利用シーンのため。`resolve_items_for_meal()`と同じ食品解決ロジックを1件分だけ呼び出し、`*_snapshot`列・`quantity_g`をUPDATEで上書きする(INSERTではなくUPDATE対象に使うだけで、ロジック自体は共通化できる)。`meal_id`・`recipe_batch_id`は変更不可(食材の中身と分量だけを直す操作とし、どの食事・どのレシピ由来かという所属は動かさない)
+
+### 2.18 食事写真のアップロード・配信(新規、2026-08-15)
+
+- **保存**: `upload_meal_photo.php`が`multipart/form-data`で受け取り、`finfo`で実際のMIMEタイプを検証(拡張子だけの判定はしない)。対応形式はJPEG・PNG・WebPのみ。GDライブラリで長辺1600pxを超える場合はリサイズし、JPEG品質80%で再エンコードして保存する(アップロード自体は8MBまで許可、保存後は多くの場合数百KB程度に収まる)
+- ファイル名はUUIDで生成し、ユーザー入力の元ファイル名はそのまま使わない(パストラバーサル・上書き事故を防ぐため)。既に写真がある`meals`に再アップロードした場合、DB更新後に旧ファイルを削除する
+- **配信**: `get_meal_photo.php`は`meal_id`を受け取り、`find_meal()`と同様にログイン中の`user_id`で所有権を検証してから画像バイナリを返す。`php/private/`配下の実ファイルへの直リンクは公開しない(他のデータと同じく`user_id`絞り込みを徹底する方針に合わせる、推測困難なファイル名だけに頼った公開配信は採用しない)
+- **削除**: `delete_meal_photo.php`(`meal_id`のみ)は`photo_path`を`NULL`に更新しファイルを削除する。`delete_meal.php`(食事ログ全体の削除)でも、紐づく写真があれば同様にファイルを削除してから行を削除する
 
 ### 2.16 BMI・TDEE・目標カロリー・PFCグラム数の算出ロジック(読み取り時に計算、§7対応)
 
@@ -543,6 +558,7 @@ CREATE TABLE meal_items (
 [日付・体重の入力欄]
 [期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
 グラフ: 体重推移(折れ線)
+[記録一覧、各行に編集・削除(2026-08-15追加。編集は日付・体重の値を直接書き換え)]
 
 --- 食事タブ(§7対応、新規) ---
 [達成日超過バナー・マイルストーンお祝い表示(該当時のみ)]
@@ -552,6 +568,8 @@ CREATE TABLE meal_items (
 [期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
 グラフ: 摂取カロリー・PFC実績(折れ線) + 目標ライン
 [直近の食事ログ一覧(食材/レシピ単位、レシピはグループとしてまとめて削除可能)]
+  - 各食材行に編集(食材・分量の直接変更)を追加(2026-08-15)
+  - 各食事(meals、朝食/昼食/夕食/間食の単位)に写真の添付・差し替え・削除を追加(2026-08-15、§2.18)。一覧ではサムネイル表示、クリックで拡大
 [レシピ管理: 作成・編集・削除]
 [独自食材の登録・編集・削除]
 
