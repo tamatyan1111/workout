@@ -9,11 +9,11 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # package-lock.jsonはコミットしていない(Windowsで生成したlockfileだとLinux用の
       # ネイティブバイナリ(rolldown等)を解決できない既知のnpmの問題があるため)。
       # そのためnpmの依存関係キャッシュは使わない。
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
@@ -44,7 +44,7 @@ jobs:
       DB_PASS: root
       PUBLIC_CORS_ORIGINS: http://localhost:5173
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
@@ -75,8 +75,8 @@ jobs:
           --health-timeout=5s
           --health-retries=10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - uses: shivammathur/setup-php@v2
@@ -126,3 +126,54 @@ jobs:
           name: playwright-report
           path: apps/dashboard/playwright-report/
           retention-days: 7
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [frontend, php, e2e]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Build dashboard
+        run: npm run build --workspace=apps/dashboard
+
+      # デプロイ先は本番ドキュメントルート直下(index.html等)・api/・private/の3系統。
+      # dangerous-clean-slateは使わない(ローカルに無いリモートのファイルを消さない)。
+      # dashboardの配信元(dist/)にはapi/・private/が含まれないため、この3ステップを
+      # 分けて実行してもお互いを消し合うことはない。
+      - name: Deploy dashboard
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./apps/dashboard/dist/
+          server-dir: ./tamachan-blog.com/public_html/workout/
+
+      - name: Deploy API
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./php/api/
+          server-dir: ./tamachan-blog.com/public_html/workout/api/
+
+      # .envは本番の実際の秘密情報が入っており、Gitには無いファイルなので絶対に上書きしない
+      - name: Deploy private (excluding .env)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./php/private/
+          server-dir: ./tamachan-blog.com/public_html/workout/private/
+          exclude: |
+            **/.env
