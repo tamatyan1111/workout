@@ -4,6 +4,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # typescript-eslint@8.67.0がtypescript <6.1.0までしかサポートしておらず、
+      # typescript 7系だとeslintが起動時エラーになる(2026-08-15に発覚)。
+      # typescript-eslint側が7系対応するまでメジャー更新PRを止めておく。
+      # 対応済みならこのignoreを外して7系へ上げてよい。
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "composer"
     directory: "/"

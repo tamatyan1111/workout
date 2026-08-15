@@ -6,44 +6,7 @@
 
 ## アーキテクチャ
 
-```mermaid
-flowchart TD
-    User["ユーザー(複数人、ログイン必須)"]
-    Google["Google OAuth 2.0"]
-
-    subgraph xserver["1つのサブドメインに集約されたホスティング環境"]
-        Dashboard["ダッシュボード(静的HTML, SPA)<br/>・ログイン/サインアップ<br/>・管理表 / グラフ / 体重 / 設定タブ"]
-        AuthAPI["認証API(PHP)<br/>/api/auth/*<br/>ログイン不要"]
-        API["ダッシュボードAPI(PHP)<br/>/api/*<br/>全エンドポイントでログイン必須"]
-        Shared["共有PHPライブラリ<br/>DB接続・クエリ・認証チェック・レスポンス整形"]
-    end
-
-    DB[("MySQL/MariaDB<br/>users / cycles / exercises / logs / body_weight_logs")]
-
-    User -- "静的HTMLを取得" --> Dashboard
-    Dashboard -- "同一オリジンfetch" --> AuthAPI
-    Dashboard -- "同一オリジンfetch(セッションCookie付き)" --> API
-    AuthAPI -- "Authorization Codeフロー" --> Google
-    AuthAPI -.require.-> Shared
-    API -.require.-> Shared
-    Shared -- "PDO(user_idで必ず絞り込み)" --> DB
-
-    classDef authNode fill:#4a1f1f,stroke:#d97757,color:#fff
-    classDef appNode fill:#1f2f4a,stroke:#5b8fd9,color:#fff
-    classDef dataNode fill:#1f3a2a,stroke:#5bbf8a,color:#fff
-    classDef actor fill:#2a2a2a,stroke:#999,color:#fff
-    classDef sharedNode fill:#3a2f4a,stroke:#a679d9,color:#fff
-    classDef externalNode fill:#3a3a1f,stroke:#c9b458,color:#fff
-
-    class AuthAPI authNode
-    class Dashboard,API appNode
-    class DB dataNode
-    class Shared sharedNode
-    class User actor
-    class Google externalNode
-```
-
-設計判断の詳細(なぜこの構成にしたか)は [docs/architecture.md](docs/architecture.md)・[docs/design.md](docs/design.md) を参照。
+システム構成図・CI/CDパイプライン図・設計判断の詳細(なぜこの構成にしたか)は [docs/architecture.md](docs/architecture.md)・[docs/design.md](docs/design.md) を参照。
 
 ## 技術スタック
 
