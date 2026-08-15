@@ -13,8 +13,8 @@ const GENDER_LABELS: Record<Gender, string> = {
   unspecified: '回答しない',
 };
 
-// nutrition_calc.php ACTIVITY_LEVEL_FACTORSと対応(design.md §2.11)
-const ACTIVITY_LEVEL_LABELS: Record<ActivityLevel, string> = {
+// nutrition_calc.php ACTIVITY_LEVEL_FACTORSと対応(design.md §2.11)。profileSummary.tsでも使う。
+export const ACTIVITY_LEVEL_LABELS: Record<ActivityLevel, string> = {
   sedentary: 'デスクワーク中心・ほぼ運動しない',
   light: '軽い運動習慣(週1〜3日)',
   moderate: '立ち仕事や中程度の運動(週3〜5日)',

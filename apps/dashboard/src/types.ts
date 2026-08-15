@@ -69,6 +69,7 @@ export interface GoalSummary {
   pfc: Pfc | null;
   progress_percent: number | null;
   newly_reached_milestone: number | null;
+  target_bmi: number | null;
 }
 
 // design.md §2.16・2.17「BMI・TDEE・目標カロリー・PFC・進捗マイルストーン」get_nutrition_summaryのレスポンス

@@ -9,17 +9,17 @@ import { renderGraph } from './graph';
 import { renderHome } from './home';
 import { renderNutrition } from './nutrition';
 import { renderProfileEdit } from './profileEdit';
+import { renderProfileSummary } from './profileSummary';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
 import { initScreenNav } from './screenNav';
 import { escapeHtml } from 'shared';
 
 // design.md §3「ログイン後(通常時)」対応。ロゴタップで開くホーム+3タブ(運動・食事・
-// プロフィール)のシェル。運動タブはランディング(サマリー・記録入力・直近の記録)+
-// 詳細画面(種目を管理する・グラフ・サイクル管理)の構成(§3.1〜3.2、UI再設計フェーズ2で
-// ランディング/詳細分割)。プロフィールタブはプロフィール編集・体重記録・データのエクス
-// ポート・アカウントをまとめて持つ(2026-08-15、旧・体重タブ+設定タブを再編)。
-// ホーム画面はUI再設計フェーズ2で追加(2026-08-15)。
+// プロフィール)のシェル。運動・食事・プロフィールの各タブはランディング(サマリー+
+// 日常的な入力)+詳細画面(管理・設定系)の構成(§3.1〜3.2、UI再設計フェーズ2でランディング/
+// 詳細分割)。プロフィールタブの詳細画面はプロフィール編集・データのエクスポート・アカウント
+// (2026-08-15、旧・体重タブ+設定タブを再編)。ホーム画面はUI再設計フェーズ2で追加(2026-08-15)。
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
     <header class="site-header">
@@ -85,14 +85,50 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       </section>
       <section id="tab-nutrition" class="tab-panel" hidden></section>
       <section id="tab-profile" class="tab-panel" hidden>
-        <h2>プロフィール</h2>
-        <div id="profile-edit"><p>読み込み中...</p></div>
-        <h2>体重記録</h2>
-        <div id="body-weight"><p>読み込み中...</p></div>
-        <h2>データのエクスポート</h2>
-        <div id="data-export"><p>読み込み中...</p></div>
-        <h2>アカウント</h2>
-        <div id="account"><p>読み込み中...</p></div>
+        <div data-screen="landing">
+          <h2>サマリー</h2>
+          <div id="profile-summary"><p>読み込み中...</p></div>
+          <h2>体重を記録する</h2>
+          <div id="body-weight"><p>読み込み中...</p></div>
+          <div class="link-list">
+            <button type="button" class="link-card" data-goto="edit">
+              <span>
+                <span class="link-title">プロフィールを編集する</span>
+                <span class="link-desc">表示名・生年月日・性別・身長・活動レベル</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+            <button type="button" class="link-card" data-goto="export">
+              <span>
+                <span class="link-title">データのエクスポート</span>
+                <span class="link-desc">記録・体重データをCSVでダウンロード</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+            <button type="button" class="link-card" data-goto="account">
+              <span>
+                <span class="link-title">アカウント</span>
+                <span class="link-desc">テーマ切替・ログアウト・アカウントの削除</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+          </div>
+        </div>
+        <div data-screen="edit" hidden>
+          <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
+          <h2>プロフィール編集</h2>
+          <div id="profile-edit"><p>読み込み中...</p></div>
+        </div>
+        <div data-screen="export" hidden>
+          <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
+          <h2>データのエクスポート</h2>
+          <div id="data-export"><p>読み込み中...</p></div>
+        </div>
+        <div data-screen="account" hidden>
+          <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
+          <h2>アカウント</h2>
+          <div id="account"><p>読み込み中...</p></div>
+        </div>
       </section>
     </main>
     <footer class="app-footer">
@@ -111,7 +147,9 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
   const nutritionEl = panels.nutrition;
 
   initScreenNav(panels.exercise, 'landing');
+  initScreenNav(panels.profile, 'landing');
 
+  const profileSummaryEl = container.querySelector<HTMLElement>('#profile-summary')!;
   const profileEditEl = container.querySelector<HTMLElement>('#profile-edit')!;
   const bodyWeightEl = container.querySelector<HTMLElement>('#body-weight')!;
   const dataExportEl = container.querySelector<HTMLElement>('#data-export')!;
@@ -143,6 +181,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     }
     if (tab === 'profile' && !profileRendered) {
       profileRendered = true;
+      renderProfileSummary(profileSummaryEl);
       renderProfileEdit(profileEditEl);
       renderBodyWeight(bodyWeightEl);
       renderDataExport(dataExportEl);
