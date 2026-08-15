@@ -1,4 +1,4 @@
-import { addRecipe, deleteRecipe, editRecipe, getRecipes } from './api';
+import { addRecipe, deleteRecipe, editRecipe, getRecipes, shareRecipe, unshareRecipe } from './api';
 import { renderFoodSearch } from './foodSearch';
 import type { CartItem, Recipe } from './types';
 import { escapeHtml } from 'shared';
@@ -14,6 +14,9 @@ export function renderRecipes(container: HTMLElement, onChanged: () => void): vo
   let editingId: number | null = null;
   let draftName = '';
   let draftItems: CartItem[] = [];
+  // design.md §2.19: 生の共有URLはshare_recipe.phpの応答でしか得られない(DBはハッシュのみ保持)。
+  // refresh()でrecipesを取り直してもこのMapはクロージャ内に残るので、発行直後だけ表示できる
+  const shareUrlsById = new Map<number, string>();
 
   refresh();
 
@@ -78,8 +81,9 @@ export function renderRecipes(container: HTMLElement, onChanged: () => void): vo
       return;
     }
     listEl.innerHTML = recipes
-      .map(
-        (r) => `
+      .map((r) => {
+        const shareUrl = shareUrlsById.get(r.id);
+        return `
       <div class="recipe-card" data-id="${r.id}">
         <strong>${escapeHtml(r.name)}</strong>
         <ul class="recipe-item-list">
@@ -87,22 +91,69 @@ export function renderRecipes(container: HTMLElement, onChanged: () => void): vo
         </ul>
         <button type="button" class="edit-recipe-btn">編集</button>
         <button type="button" class="delete-recipe-btn danger">削除</button>
+        ${
+          r.is_shared
+            ? '<button type="button" class="unshare-recipe-btn danger">共有を解除</button>'
+            : '<button type="button" class="share-recipe-btn">共有リンクを発行</button>'
+        }
+        <div class="recipe-share-info">
+          ${
+            shareUrl
+              ? `<input type="text" class="share-url-input" value="${escapeHtml(shareUrl)}" readonly />
+                 <button type="button" class="copy-share-url-btn">コピー</button>`
+              : r.is_shared
+                ? '<span class="field-note">共有中です。リンクをもう一度確認したい場合は「共有を解除」してから再度発行してください(古いリンクは無効になります)</span>'
+                : ''
+          }
+        </div>
+        <p class="recipe-share-status"></p>
       </div>
-    `
-      )
+    `;
+      })
       .join('');
 
     listEl.querySelectorAll<HTMLElement>('.recipe-card').forEach((card) => {
       const recipe = recipes.find((r) => r.id === Number(card.dataset.id))!;
+      const statusEl = card.querySelector<HTMLParagraphElement>('.recipe-share-status')!;
       card.querySelector('.edit-recipe-btn')!.addEventListener('click', () => startEdit(recipe));
       card.querySelector('.delete-recipe-btn')!.addEventListener('click', async () => {
         if (!confirm(`レシピ「${recipe.name}」を削除しますか?`)) return;
         try {
           await deleteRecipe(recipe.id);
+          shareUrlsById.delete(recipe.id);
           refresh();
           onChanged();
         } catch (err) {
           alert(`削除に失敗しました: ${errorMessage(err)}`);
+        }
+      });
+      card.querySelector('.share-recipe-btn')?.addEventListener('click', async () => {
+        statusEl.textContent = '発行中...';
+        try {
+          const { share_url: shareUrl } = await shareRecipe(recipe.id);
+          shareUrlsById.set(recipe.id, shareUrl);
+          refresh();
+        } catch (err) {
+          statusEl.textContent = `発行に失敗しました: ${errorMessage(err)}`;
+        }
+      });
+      card.querySelector('.unshare-recipe-btn')?.addEventListener('click', async () => {
+        if (!confirm('共有を解除しますか?(発行済みのリンクは無効になります)')) return;
+        try {
+          await unshareRecipe(recipe.id);
+          shareUrlsById.delete(recipe.id);
+          refresh();
+        } catch (err) {
+          statusEl.textContent = `共有の解除に失敗しました: ${errorMessage(err)}`;
+        }
+      });
+      card.querySelector('.copy-share-url-btn')?.addEventListener('click', async () => {
+        const url = card.querySelector<HTMLInputElement>('.share-url-input')!.value;
+        try {
+          await navigator.clipboard.writeText(url);
+          statusEl.textContent = 'コピーしました';
+        } catch (err) {
+          statusEl.textContent = `コピーに失敗しました: ${errorMessage(err)}`;
         }
       });
     });

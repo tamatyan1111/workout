@@ -425,6 +425,87 @@ final class QueriesTest extends TestCase
         $this->assertSame(342.0, $items[0]['food']['kcal_per_100g']);
     }
 
+    // design.md §2.19: 共有を有効化すると、そのハッシュでレシピが引ける
+    public function testEnableRecipeSharingMakesRecipeFindableByToken(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, '共有レシピ', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0],
+        ]);
+
+        $token = enable_recipe_sharing(self::$pdo, 1, $recipeId);
+        $found = find_recipe_by_share_token(self::$pdo, hash_token($token));
+
+        $this->assertNotNull($found);
+        $this->assertSame($recipeId, (int) $found['id']);
+        $this->assertSame(1, (int) $found['user_id']);
+        $this->assertSame('共有レシピ', $found['name']);
+
+        $recipes = fetch_recipes(self::$pdo, 1);
+        $this->assertTrue($recipes[0]['is_shared']);
+    }
+
+    // 再度共有すると新しいトークンになり、古いトークンはもう使えない(暗黙のリンク再発行)
+    public function testEnableRecipeSharingTwiceRotatesToken(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, 'ローテーション確認', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0],
+        ]);
+
+        $firstToken = enable_recipe_sharing(self::$pdo, 1, $recipeId);
+        $secondToken = enable_recipe_sharing(self::$pdo, 1, $recipeId);
+
+        $this->assertNotSame($firstToken, $secondToken);
+        $this->assertNull(find_recipe_by_share_token(self::$pdo, hash_token($firstToken)));
+        $this->assertNotNull(find_recipe_by_share_token(self::$pdo, hash_token($secondToken)));
+    }
+
+    public function testDisableRecipeSharingInvalidatesToken(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, '共有解除確認', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0],
+        ]);
+        $token = enable_recipe_sharing(self::$pdo, 1, $recipeId);
+
+        disable_recipe_sharing(self::$pdo, 1, $recipeId);
+
+        $this->assertNull(find_recipe_by_share_token(self::$pdo, hash_token($token)));
+        $this->assertFalse(fetch_recipes(self::$pdo, 1)[0]['is_shared']);
+    }
+
+    // design.md §1.2: 他ユーザーのレシピIDを指定しても共有の有効化・無効化はできない
+    public function testEnableAndDisableRecipeSharingAreScopedPerUser(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, '他人のレシピ', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0],
+        ]);
+
+        $token = enable_recipe_sharing(self::$pdo, 2, $recipeId);
+        $this->assertNull(find_recipe_by_share_token(self::$pdo, hash_token($token)));
+        $this->assertFalse(fetch_recipes(self::$pdo, 1)[0]['is_shared']);
+
+        enable_recipe_sharing(self::$pdo, 1, $recipeId);
+        disable_recipe_sharing(self::$pdo, 2, $recipeId);
+        $this->assertTrue(fetch_recipes(self::$pdo, 1)[0]['is_shared']);
+    }
+
+    // 共有リンク経由の閲覧フロー全体(get_shared_recipe.phpが辿る経路)を通しで確認
+    public function testSharedRecipeFlowResolvesCurrentNutritionForViewer(): void
+    {
+        $recipeId = create_recipe(self::$pdo, 1, '共有閲覧確認', [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 150.0],
+        ]);
+        $token = enable_recipe_sharing(self::$pdo, 1, $recipeId);
+
+        $recipe = find_recipe_by_share_token(self::$pdo, hash_token($token));
+        $this->assertNotNull($recipe);
+        $items = expand_recipe_items(self::$pdo, (int) $recipe['user_id'], (int) $recipe['id']);
+
+        $this->assertSame('共有閲覧確認', $recipe['name']);
+        $this->assertCount(1, $items);
+        $this->assertSame(150.0, $items[0]['quantity_g']);
+        $this->assertSame(342.0, $items[0]['food']['kcal_per_100g']);
+    }
+
     // design.md §2.15: meal_itemsは追加した瞬間の栄養値をスナップショットし、
     // 後からcustom_foodsの値を編集しても過去のログの計算結果は変わらない
     public function testInsertMealItemsSnapshotsNutritionAtTimeOfLogging(): void

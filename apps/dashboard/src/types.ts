@@ -122,7 +122,26 @@ export interface RecipeItem {
 export interface Recipe {
   id: number;
   name: string;
+  is_shared: boolean;
   items: RecipeItem[];
+}
+
+// design.md §2.19「レシピの共有リンク機能」対応。get_shared_recipe.phpのレスポンス
+// (未ログインの閲覧者向けなので、食事ログのFoodRef方式とは別に栄養値そのものを持つ)
+export interface SharedRecipeItem {
+  quantity_g: number;
+  food: {
+    name: string;
+    kcal_per_100g: number;
+    protein_g_per_100g: number;
+    fat_g_per_100g: number;
+    carb_g_per_100g: number;
+  };
+}
+
+export interface SharedRecipe {
+  name: string;
+  items: SharedRecipeItem[];
 }
 
 export interface MealItem {

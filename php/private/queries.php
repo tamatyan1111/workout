@@ -852,7 +852,9 @@ function delete_custom_food(PDO $pdo, int $id): void
 
 function fetch_recipes(PDO $pdo, int $userId): array
 {
-    $stmt = $pdo->prepare('SELECT id, name FROM recipes WHERE user_id = :user_id ORDER BY name');
+    $stmt = $pdo->prepare(
+        'SELECT id, name, share_token_hash IS NOT NULL AS is_shared FROM recipes WHERE user_id = :user_id ORDER BY name'
+    );
     $stmt->execute(['user_id' => $userId]);
     $recipes = $stmt->fetchAll();
     if (count($recipes) === 0) {
@@ -883,6 +885,7 @@ function fetch_recipes(PDO $pdo, int $userId): array
         return [
             'id' => (int) $r['id'],
             'name' => $r['name'],
+            'is_shared' => (bool) $r['is_shared'],
             'items' => $itemsByRecipe[(int) $r['id']] ?? [],
         ];
     }, $recipes);
@@ -892,6 +895,34 @@ function find_recipe(PDO $pdo, int $userId, int $id): ?array
 {
     $stmt = $pdo->prepare('SELECT id, name FROM recipes WHERE id = :id AND user_id = :user_id');
     $stmt->execute(['id' => $id, 'user_id' => $userId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+// design.md §2.19: レシピの共有リンク機能。生トークンはDBに残さず、SHA-256ハッシュのみ保存する
+// (password_reset_tokensと同じ方針、generate_random_token/hash_tokenを再利用)。
+// 有効化のたびに新しいトークンで上書きする(既存トークンを「返す」という選択肢は、生トークンを
+// DBに残さない設計上そもそも存在しないため。結果として「再度共有」が暗黙のリンク再発行になる)
+function enable_recipe_sharing(PDO $pdo, int $userId, int $recipeId): string
+{
+    $token = generate_random_token();
+    $stmt = $pdo->prepare('UPDATE recipes SET share_token_hash = :hash WHERE id = :id AND user_id = :user_id');
+    $stmt->execute(['hash' => hash_token($token), 'id' => $recipeId, 'user_id' => $userId]);
+    return $token;
+}
+
+function disable_recipe_sharing(PDO $pdo, int $userId, int $recipeId): void
+{
+    $stmt = $pdo->prepare('UPDATE recipes SET share_token_hash = NULL WHERE id = :id AND user_id = :user_id');
+    $stmt->execute(['id' => $recipeId, 'user_id' => $userId]);
+}
+
+// 共有リンクの公開閲覧ページ用。未ログインの閲覧者から呼ばれるため、current_user_idではなく
+// トークンから引いたオーナーのuser_idを呼び出し側がexpand_recipe_items()に渡す
+function find_recipe_by_share_token(PDO $pdo, string $tokenHash): ?array
+{
+    $stmt = $pdo->prepare('SELECT id, user_id, name FROM recipes WHERE share_token_hash = :hash');
+    $stmt->execute(['hash' => $tokenHash]);
     $row = $stmt->fetch();
     return $row ?: null;
 }

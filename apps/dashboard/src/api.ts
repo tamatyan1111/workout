@@ -17,6 +17,7 @@ import type {
   Profile,
   Recipe,
   RecentLog,
+  SharedRecipe,
   SetInput,
 } from './types';
 import type { ActivityLevel } from 'shared';
@@ -308,6 +309,15 @@ export const editRecipe = (id: number, name: string, items: CartItem[]): Promise
   });
 
 export const deleteRecipe = (id: number): Promise<void> => callPost('delete_recipe.php', { id });
+
+export const shareRecipe = (id: number): Promise<{ share_url: string }> => callPost('share_recipe.php', { id });
+
+export const unshareRecipe = (id: number): Promise<void> => callPost('unshare_recipe.php', { id });
+
+// design.md §2.19: 未ログインの共有閲覧ページから呼ぶ。callGetはcredentials: 'same-origin'だが、
+// Cookieが無くても単に送られないだけで、このエンドポイント自体ログイン不要のため問題ない
+export const getSharedRecipe = (token: string): Promise<SharedRecipe> =>
+  callGet<SharedRecipe>('get_shared_recipe.php', { token });
 
 export const getMeals = (from?: string, to?: string): Promise<Meal[]> =>
   callGet<{ meals: Meal[] }>('get_meals.php', { date_from: from ?? '', date_to: to ?? '' }).then((d) => d.meals);
