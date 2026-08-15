@@ -13,7 +13,7 @@ jobs:
       # package-lock.jsonはコミットしていない(Windowsで生成したlockfileだとLinux用の
       # ネイティブバイナリ(rolldown等)を解決できない既知のnpmの問題があるため)。
       # そのためnpmの依存関係キャッシュは使わない。
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
@@ -76,7 +76,7 @@ jobs:
           --health-retries=10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - uses: shivammathur/setup-php@v2
@@ -134,7 +134,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
