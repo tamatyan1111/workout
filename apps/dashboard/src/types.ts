@@ -127,6 +127,8 @@ export interface Recipe {
 
 export interface MealItem {
   id: number;
+  master_food_id: number | null;
+  custom_food_id: number | null;
   food_name: string;
   kcal_per_100g: number;
   protein_g_per_100g: number;

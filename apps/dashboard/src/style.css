@@ -505,3 +505,66 @@ td input {
 .custom-food-table {
   font-size: 0.85rem;
 }
+
+.meal-photo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+
+.meal-photo-thumb {
+  width: 4rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.upload-photo-label {
+  cursor: pointer;
+}
+
+.photo-status {
+  width: 100%;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  cursor: zoom-out;
+  z-index: 100;
+}
+
+.lightbox-overlay img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+}
+
+.meal-item-edit {
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 0.3rem;
+  padding: 0.5rem 0 !important;
+}
+
+.meal-item-edit-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.meal-item-edit-qty input {
+  width: 5rem !important;
+}

@@ -65,7 +65,7 @@ npm run dev --workspace=dashboard
 
 ### バックエンド(PHP)
 
-PHP・MySQL/MariaDBのローカル環境自体が無い場合、Windowsなら`winget install --id PHP.PHP.8.2`・`winget install --id MariaDB.Server`で導入できる。`php.ini`で`pdo_mysql`・`mbstring`拡張を有効化すること(既定でコメントアウトされていることが多い)。
+PHP・MySQL/MariaDBのローカル環境自体が無い場合、Windowsなら`winget install --id PHP.PHP.8.2`・`winget install --id MariaDB.Server`で導入できる。`php.ini`で`pdo_mysql`・`mbstring`・`gd`・`fileinfo`拡張を有効化すること(既定でコメントアウトされていることが多い。`gd`・`fileinfo`は食事写真のアップロード処理で使う)。
 
 ```bash
 composer install

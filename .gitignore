@@ -24,6 +24,9 @@ php/private/.env
 # 実データ(個人のトレーニング記録。公開リポジトリには含めない)
 sql/data.sql
 
+# ユーザーがアップロードした食事写真(design.md §2.18、実データなのでコミットしない)
+php/private/uploads/
+
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json

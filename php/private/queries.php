@@ -437,6 +437,24 @@ function find_body_weight_log(PDO $pdo, int $userId, int $id): ?array
     return $row ?: null;
 }
 
+// 2026-08-15追加: 過去の記録の日付・体重を直接編集する。ON DUPLICATE KEYには頼らず、
+// 事前チェックで衝突を検出する(他のUNIQUE制約違反の扱いと同じくraw SQLエラーを返さないため)。
+// 戻り値false = 編集後の日付が既存の別記録と重複(呼び出し側でduplicate_dateエラーに変換する)。
+function update_body_weight_log(PDO $pdo, int $userId, int $id, string $loggedDate, float $weight): bool
+{
+    $stmt = $pdo->prepare(
+        'SELECT id FROM body_weight_logs WHERE user_id = :user_id AND logged_date = :logged_date AND id != :id'
+    );
+    $stmt->execute(['user_id' => $userId, 'logged_date' => $loggedDate, 'id' => $id]);
+    if ($stmt->fetch()) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare('UPDATE body_weight_logs SET logged_date = :logged_date, weight = :weight WHERE id = :id');
+    $stmt->execute(['logged_date' => $loggedDate, 'weight' => $weight, 'id' => $id]);
+    return true;
+}
+
 function delete_body_weight_log(PDO $pdo, int $id): void
 {
     $stmt = $pdo->prepare('DELETE FROM body_weight_logs WHERE id = :id');
@@ -982,8 +1000,9 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo):
     }
 
     $itemsStmt = $pdo->prepare(
-        'SELECT id, meal_id, food_name_snapshot, kcal_per_100g_snapshot, protein_g_per_100g_snapshot,
-                fat_g_per_100g_snapshot, carb_g_per_100g_snapshot, quantity_g, recipe_batch_id, recipe_name_snapshot
+        'SELECT id, meal_id, master_food_id, custom_food_id, food_name_snapshot, kcal_per_100g_snapshot,
+                protein_g_per_100g_snapshot, fat_g_per_100g_snapshot, carb_g_per_100g_snapshot,
+                quantity_g, recipe_batch_id, recipe_name_snapshot
          FROM meal_items WHERE user_id = :user_id ORDER BY id'
     );
     $itemsStmt->execute(['user_id' => $userId]);
@@ -991,6 +1010,8 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo):
     foreach ($itemsStmt->fetchAll() as $row) {
         $itemsByMeal[(int) $row['meal_id']][] = [
             'id' => (int) $row['id'],
+            'master_food_id' => $row['master_food_id'] !== null ? (int) $row['master_food_id'] : null,
+            'custom_food_id' => $row['custom_food_id'] !== null ? (int) $row['custom_food_id'] : null,
             'food_name' => $row['food_name_snapshot'],
             'kcal_per_100g' => (float) $row['kcal_per_100g_snapshot'],
             'protein_g_per_100g' => (float) $row['protein_g_per_100g_snapshot'],
@@ -1015,10 +1036,18 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo):
 
 function find_meal(PDO $pdo, int $userId, int $id): ?array
 {
-    $stmt = $pdo->prepare('SELECT id FROM meals WHERE id = :id AND user_id = :user_id');
+    $stmt = $pdo->prepare('SELECT id, photo_path FROM meals WHERE id = :id AND user_id = :user_id');
     $stmt->execute(['id' => $id, 'user_id' => $userId]);
     $row = $stmt->fetch();
     return $row ?: null;
+}
+
+// 2026-08-15追加(§2.18): 写真の添付・差し替え・削除。$photoPathはmeal_photos/{user_id}/{uuid}.jpg
+// のような相対パス、削除時はnullを渡す。呼び出し側で古いファイルの削除を行う(この関数はDB更新のみ)。
+function update_meal_photo(PDO $pdo, int $mealId, ?string $photoPath): void
+{
+    $stmt = $pdo->prepare('UPDATE meals SET photo_path = :photo_path WHERE id = :id');
+    $stmt->execute(['photo_path' => $photoPath, 'id' => $mealId]);
 }
 
 function create_meal(PDO $pdo, int $userId, string $loggedDate, string $mealType, ?string $photoPath): int
@@ -1146,6 +1175,42 @@ function find_meal_item(PDO $pdo, int $userId, int $id): ?array
     $stmt->execute(['id' => $id, 'user_id' => $userId]);
     $row = $stmt->fetch();
     return $row ?: null;
+}
+
+// 2026-08-15追加(design.md §2.15): 食材・分量を後から直す。resolve_items_for_meal()と同じ
+// resolve_food_source()で食品を解決し直し、*_snapshot列をUPDATEで上書きする(INSERTではなく
+// UPDATE対象に使うだけで、追加時と同じ食品解決ロジックを再利用できる)。meal_id・recipe_batch_idは
+// 変更しない(食材の中身と分量だけを直す操作とし、どの食事・どのレシピ由来かという所属は動かさない)。
+function update_meal_item(PDO $pdo, int $userId, int $id, ?int $masterFoodId, ?int $customFoodId, float $quantityG): void
+{
+    $food = resolve_food_source($pdo, $userId, $masterFoodId, $customFoodId);
+    if ($food === null) {
+        json_error('食品が見つかりません', 404);
+    }
+
+    $stmt = $pdo->prepare(
+        'UPDATE meal_items SET
+            master_food_id = :master_food_id,
+            custom_food_id = :custom_food_id,
+            food_name_snapshot = :food_name_snapshot,
+            kcal_per_100g_snapshot = :kcal,
+            protein_g_per_100g_snapshot = :protein,
+            fat_g_per_100g_snapshot = :fat,
+            carb_g_per_100g_snapshot = :carb,
+            quantity_g = :quantity_g
+         WHERE id = :id'
+    );
+    $stmt->execute([
+        'master_food_id' => $masterFoodId,
+        'custom_food_id' => $customFoodId,
+        'food_name_snapshot' => $food['name'],
+        'kcal' => $food['kcal_per_100g'],
+        'protein' => $food['protein_g_per_100g'],
+        'fat' => $food['fat_g_per_100g'],
+        'carb' => $food['carb_g_per_100g'],
+        'quantity_g' => $quantityG,
+        'id' => $id,
+    ]);
 }
 
 function delete_meal_item(PDO $pdo, int $id): void
