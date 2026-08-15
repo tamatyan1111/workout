@@ -13,8 +13,11 @@ function errorMessage(err: unknown): string {
 // タップで各タブの記録フォームへ直接移動できるようにする(design.md未記載、UI再設計フェーズ2)。
 export function renderHome(container: HTMLElement, onGoto: (tab: TabKey) => void): void {
   container.innerHTML = `
-    <h2>今日のからだ手帳</h2>
-    <div class="nutrition-stats" id="home-stats"><p>読み込み中...</p></div>
+    <div class="stack">
+    <div class="card">
+      <h2>今日のからだ手帳</h2>
+      <div class="nutrition-stats" id="home-stats"><p>読み込み中...</p></div>
+    </div>
     <div class="link-list">
       <button type="button" class="link-card" data-goto="exercise">
         <span>
@@ -37,6 +40,7 @@ export function renderHome(container: HTMLElement, onGoto: (tab: TabKey) => void
         </span>
         <span class="chev">→</span>
       </button>
+    </div>
     </div>
   `;
 

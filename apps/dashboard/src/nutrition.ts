@@ -8,11 +8,15 @@ import { initScreenNav } from './screenNav';
 // (レシピ管理・独自食材管理)の構成(UI再設計フェーズ2でランディング/詳細分割)。
 export function renderNutrition(container: HTMLElement): void {
   container.innerHTML = `
-    <div data-screen="landing">
-      <h2>サマリー</h2>
-      <div id="nutrition-summary"><p>読み込み中...</p></div>
-      <h2>食事ログ</h2>
-      <div id="meal-log"><p>読み込み中...</p></div>
+    <div data-screen="landing" class="stack">
+      <div class="card">
+        <h2>サマリー</h2>
+        <div id="nutrition-summary"><p>読み込み中...</p></div>
+      </div>
+      <div class="card">
+        <h2>食事ログ</h2>
+        <div id="meal-log"><p>読み込み中...</p></div>
+      </div>
       <div class="link-list">
         <button type="button" class="link-card" data-goto="recipes">
           <span>

@@ -106,20 +106,24 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
   function renderGoalForm(el: HTMLElement, currentMode: PfcMode): void {
     el.innerHTML = `
       <form id="goal-form">
-        <label>目標体重(kg) <input type="number" step="0.1" id="goal-weight" required /></label>
-        <label>目標体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="goal-body-fat" /></label>
-        <label>達成期日 <input type="date" id="goal-date" required /></label>
-        <label>PFC配分方式
-          <select id="goal-pfc-mode">
-            ${(Object.keys(PFC_MODE_LABELS) as PfcMode[])
-              .map((m) => `<option value="${m}" ${m === currentMode ? 'selected' : ''}>${escapeHtml(PFC_MODE_LABELS[m])}</option>`)
-              .join('')}
-          </select>
-        </label>
-        <div id="custom-pfc-fields" hidden>
-          <label>タンパク質(g) <input type="number" step="0.1" id="goal-custom-protein" /></label>
-          <label>脂質(g) <input type="number" step="0.1" id="goal-custom-fat" /></label>
-          <label>炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" /></label>
+        <div class="field-row">
+          <label class="field">目標体重(kg) <input type="number" step="0.1" id="goal-weight" required /></label>
+          <label class="field">目標体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="goal-body-fat" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field">達成期日 <input type="date" id="goal-date" required /></label>
+          <label class="field">PFC配分方式
+            <select id="goal-pfc-mode">
+              ${(Object.keys(PFC_MODE_LABELS) as PfcMode[])
+                .map((m) => `<option value="${m}" ${m === currentMode ? 'selected' : ''}>${escapeHtml(PFC_MODE_LABELS[m])}</option>`)
+                .join('')}
+            </select>
+          </label>
+        </div>
+        <div id="custom-pfc-fields" class="field-row" hidden>
+          <label class="field">タンパク質(g) <input type="number" step="0.1" id="goal-custom-protein" /></label>
+          <label class="field">脂質(g) <input type="number" step="0.1" id="goal-custom-fat" /></label>
+          <label class="field">炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" /></label>
         </div>
         <button type="submit">保存</button>
         <p id="goal-status"></p>

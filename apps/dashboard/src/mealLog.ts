@@ -79,14 +79,16 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
   function draw(): void {
     container.innerHTML = `
       <form id="meal-header-form">
-        <label>日付 <input type="date" id="meal-date" value="${loggedDate}" /></label>
-        <label>区分
-          <select id="meal-type-select">
-            ${(Object.keys(MEAL_TYPE_LABELS) as MealType[])
-              .map((t) => `<option value="${t}" ${t === mealType ? 'selected' : ''}>${escapeHtml(MEAL_TYPE_LABELS[t])}</option>`)
-              .join('')}
-          </select>
-        </label>
+        <div class="field-row">
+          <label class="field">日付 <input type="date" id="meal-date" value="${loggedDate}" /></label>
+          <label class="field">区分
+            <select id="meal-type-select">
+              ${(Object.keys(MEAL_TYPE_LABELS) as MealType[])
+                .map((t) => `<option value="${t}" ${t === mealType ? 'selected' : ''}>${escapeHtml(MEAL_TYPE_LABELS[t])}</option>`)
+                .join('')}
+            </select>
+          </label>
+        </div>
       </form>
 
       <h4>食品を検索して追加</h4>

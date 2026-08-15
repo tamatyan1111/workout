@@ -22,9 +22,11 @@ export function renderBodyWeight(container: HTMLElement): void {
   function draw(): void {
     container.innerHTML = `
       <form id="body-weight-form">
-        <label>日付 <input type="date" id="bw-date" value="${todayStr()}" required /></label>
-        <label>体重(kg) <input type="number" step="0.1" id="bw-weight" required /></label>
-        <label>体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="bw-body-fat" /></label>
+        <div class="field-row">
+          <label class="field">日付 <input type="date" id="bw-date" value="${todayStr()}" required /></label>
+          <label class="field">体重(kg) <input type="number" step="0.1" id="bw-weight" required /></label>
+          <label class="field">体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="bw-body-fat" /></label>
+        </div>
         <button type="submit">記録する</button>
         <p id="bw-status"></p>
       </form>
@@ -34,6 +36,7 @@ export function renderBodyWeight(container: HTMLElement): void {
         <button type="button" data-period="all">全期間</button>
       </div>
       <div class="chart-wrap"><canvas id="body-weight-chart"></canvas></div>
+      <h3>履歴</h3>
       <div id="bw-list"><p>読み込み中...</p></div>
     `;
 
