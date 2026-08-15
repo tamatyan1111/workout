@@ -1,6 +1,6 @@
 # たまちゃんの筋トレ管理
 
-[![CI](https://github.com/tamatyan1111/workout/actions/workflows/ci.yml/badge.svg)](https://github.com/tamatyan1111/workout/actions/workflows/ci.yml)
+[![CI/CD](https://github.com/tamatyan1111/workout/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/tamatyan1111/workout/actions/workflows/ci-cd.yml)
 
 筋トレの記録入力・進捗確認を行うWebアプリ。npm workspacesによるモノリポ構成で、ログイン必須のダッシュボード(フロントエンド、TypeScript)とAPI(バックエンド、PHP)を1つのリポジトリで管理している。将来的に無料で一般公開し、複数のユーザーがそれぞれ自分の記録を管理できる製品として育てる方針。
 
@@ -130,7 +130,7 @@ composer run lint      # PHP_CodeSniffer(PSR-12)
 composer run stan      # PHPStan
 ```
 
-PHPUnitのIntegrationテストは実際のMySQL/MariaDBが必要(`DB_HOST`等の環境変数、または`php/private/.env`から接続情報を読む)。CIではMariaDBのサービスコンテナに対して実行している(`.github/workflows/ci.yml`)。
+PHPUnitのIntegrationテストは実際のMySQL/MariaDBが必要(`DB_HOST`等の環境変数、または`php/private/.env`から接続情報を読む)。CIではMariaDBのサービスコンテナに対して実行している(`.github/workflows/ci-cd.yml`)。
 
 ### E2Eテスト(Playwright)
 
@@ -147,7 +147,7 @@ CIでは専用のMariaDBサービスコンテナ+`sql/schema.sql`のみ(架空�
 
 ## デプロイについて
 
-本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないため、`master`へのマージ後にFTPS(暗号化されたFTP)でファイルを転送する形でCDを組んでいる(`.github/workflows/ci.yml`の`deploy`ジョブ)。
+本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないため、`master`へのマージ後にFTPS(暗号化されたFTP)でファイルを転送する形でCDを組んでいる(`.github/workflows/ci-cd.yml`の`deploy`ジョブ)。
 
 - トリガー: `master`へのpush(=PRのマージ)。`frontend`・`php`・`e2e`の3ジョブが全green必須(ブランチ保護)。加えて、実際にデプロイ対象のパス(`apps/dashboard/`・`packages/shared/`・`php/api/`・`php/private/`)が変わったPRだけが対象(`changes`ジョブ、`dorny/paths-filter`使用)。CI設定やdevDependencyだけの更新(Dependabotの`typescript`/`vitest`等)では承認待ちが発生しない。パスに関わらず強制的にデプロイしたい場合は、Actionsタブから`CI`ワークフローを`workflow_dispatch`で手動実行する
 - 転送先: ダッシュボード(`apps/dashboard/dist`)をドキュメントルート直下に、`php/api`・`php/private`をそれぞれ`api/`・`private/`に、FTPSで同期(`.env`は転送対象から除外し、本番の実際の値を上書きしない)
