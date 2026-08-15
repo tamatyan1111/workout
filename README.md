@@ -19,15 +19,17 @@
 | データベース | MySQL / MariaDB |
 | モノリポ管理 | npm workspaces |
 | フロントエンドテスト | Vitest + jsdom |
+| E2Eテスト | Playwright(Chromium) |
 | バックエンドテスト | PHPUnit(Unit + Integration) |
 | 静的解析 | ESLint + typescript-eslint / PHPStan + PHP_CodeSniffer(PSR-12) |
-| CI | GitHub Actions |
+| CI/CD | GitHub Actions |
 
 ## ディレクトリ構成
 
 ```
 apps/
-  dashboard/       ログイン必須のダッシュボード(管理表・グラフ・体重・設定タブ)
+  dashboard/       ログイン必須のダッシュボード(管理表・グラフ・体重・食事・設定タブ)
+    e2e/           Playwright E2Eテスト
 packages/
   shared/          型定義・ユーティリティ
 php/
@@ -38,8 +40,16 @@ php/
 sql/
   schema.sql       テーブル定義
   seed.sql         ローカル開発・CI用の架空データ
+  foods_seed.sql   食品マスタ(文部科学省データ由来)
+dev/
+  router.php       ローカルでダッシュボード+APIを同一オリジン配信するための組み込みサーバー用ルーター
+legal/
+  terms.md / privacy.md  利用規約・プライバシーポリシー
 docs/
   requirements.md / design.md / architecture.md  要件・設計の詳細ドキュメント
+.github/
+  workflows/ci-cd.yml  CI/CDパイプライン
+  dependabot.yml       依存パッケージの自動更新設定
 ```
 
 ## ローカル開発
@@ -112,7 +122,7 @@ CIでは専用のMariaDBサービスコンテナ+`sql/schema.sql`のみ(架空�
 
 本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないため、`master`へのマージ後にFTPS(暗号化されたFTP)でファイルを転送する形でCDを組んでいる(`.github/workflows/ci-cd.yml`の`deploy`ジョブ)。
 
-- トリガー: `master`へのpush(=PRのマージ)。`frontend`・`php`・`e2e`の3ジョブが全green必須(ブランチ保護)。加えて、実際にデプロイ対象のパス(`apps/dashboard/`・`packages/shared/`・`php/api/`・`php/private/`)が変わったPRだけが対象(`changes`ジョブ、`dorny/paths-filter`使用)。CI設定やdevDependencyだけの更新(Dependabotの`typescript`/`vitest`等)では承認待ちが発生しない。パスに関わらず強制的にデプロイしたい場合は、Actionsタブから`CI`ワークフローを`workflow_dispatch`で手動実行する
+- トリガー: `master`へのpush(=PRのマージ)。`frontend`・`backend`・`e2e`の3ジョブが全green必須(ブランチ保護)。加えて、実際にデプロイ対象のパス(`apps/dashboard/src`・`public`・`index.html`・`vite.config.ts`・`packages/shared/src`・`php/api`・`php/private`)が変わったPRだけが対象(`detect-changes`ジョブ、`dorny/paths-filter`使用)。CI設定やdevDependencyだけの更新(Dependabotの`typescript`/`vitest`等、`package.json`のみの変更)では承認待ちが発生しない。パスに関わらず強制的にデプロイしたい場合は、Actionsタブから`CI/CD`ワークフローを`workflow_dispatch`で手動実行する
 - 転送先: ダッシュボード(`apps/dashboard/dist`)をドキュメントルート直下に、`php/api`・`php/private`をそれぞれ`api/`・`private/`に、FTPSで同期(`.env`は転送対象から除外し、本番の実際の値を上書きしない)
 - **承認ゲート**: GitHub Environments(`production`)の"Required reviewers"を使い、FTPS認証情報(Secrets)へのアクセス・実際の転送実行の直前で一時停止する。GitHub Actions上で「Review deployments」→「Approve and deploy」を押すまでデプロイは実行されない。これは複数人開発になった場合の安全策(誰でもマージはできても、本番への書き込みは指定した承認者だけができる)であり、DBマイグレーションが必要な変更は承認前に手動で`sql/migrate_*.sql`をphpMyAdminで実行しておく運用と組み合わせている
 - DBマイグレーション自体はSSHが無いため今後も手動(phpMyAdminでSQLを実行)。ファイル転送だけが自動化の対象
