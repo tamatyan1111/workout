@@ -6,29 +6,34 @@ import { renderBodyWeight } from './bodyWeight';
 import { renderCycleManagement } from './cycleManagement';
 import { renderDataExport } from './dataExport';
 import { renderGraph } from './graph';
+import { renderHome } from './home';
 import { renderNutrition } from './nutrition';
 import { renderProfileEdit } from './profileEdit';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
 import { escapeHtml } from 'shared';
 
-// design.md §3「ログイン後(通常時)」対応。3タブ(運動・食事・プロフィール)のシェル。
-// 運動タブは記録入力・直近の記録・管理表・グラフ・管理表の編集・サイクル管理をまとめて持つ
-// (§3.1〜3.2)。プロフィールタブはプロフィール編集・体重記録・データのエクスポート・
-// アカウントをまとめて持つ(2026-08-15、旧・体重タブ+設定タブを再編)。
+// design.md §3「ログイン後(通常時)」対応。ロゴタップで開くホーム+3タブ(運動・食事・
+// プロフィール)のシェル。運動タブは記録入力・直近の記録・管理表・グラフ・管理表の編集・
+// サイクル管理をまとめて持つ(§3.1〜3.2)。プロフィールタブはプロフィール編集・体重記録・
+// データのエクスポート・アカウントをまとめて持つ(2026-08-15、旧・体重タブ+設定タブを再編)。
+// ホーム画面はUI再設計フェーズ2で追加(2026-08-15)。
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
     <header class="site-header">
-      <h1>からだ手帳</h1>
-      <p class="welcome">ようこそ、${escapeHtml(displayName)}さん</p>
-      <nav class="tabs">
-        <button type="button" class="tab-button active" data-tab="exercise">運動</button>
-        <button type="button" class="tab-button" data-tab="nutrition">食事</button>
-        <button type="button" class="tab-button" data-tab="profile">プロフィール</button>
-      </nav>
+      <div class="header-inner">
+        <button type="button" class="logo" id="logo-home">からだ手帳</button>
+        <p class="welcome">ようこそ、${escapeHtml(displayName)}さん</p>
+      </div>
     </header>
+    <nav class="tabs tabs-standalone">
+      <button type="button" class="tab-button" data-tab="exercise">運動</button>
+      <button type="button" class="tab-button" data-tab="nutrition">食事</button>
+      <button type="button" class="tab-button" data-tab="profile">プロフィール</button>
+    </nav>
     <main>
-      <section id="tab-exercise" class="tab-panel">
+      <section id="tab-home" class="tab-panel"></section>
+      <section id="tab-exercise" class="tab-panel" hidden>
         <h2>記録を入力</h2>
         <div id="record-form"><p>読み込み中...</p></div>
         <h2>直近の記録</h2>
@@ -62,6 +67,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
 
   const tabButtons = container.querySelectorAll<HTMLButtonElement>('.tab-button');
   const panels: Record<string, HTMLElement> = {
+    home: container.querySelector<HTMLElement>('#tab-home')!,
     exercise: container.querySelector<HTMLElement>('#tab-exercise')!,
     nutrition: container.querySelector<HTMLElement>('#tab-nutrition')!,
     profile: container.querySelector<HTMLElement>('#tab-profile')!,
@@ -73,31 +79,43 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
   const dataExportEl = container.querySelector<HTMLElement>('#data-export')!;
   const accountEl = container.querySelector<HTMLElement>('#account')!;
 
+  let exerciseRendered = false;
   let nutritionRendered = false;
   let profileRendered = false;
 
-  tabButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      tabButtons.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      const tab = btn.dataset.tab!;
-      Object.entries(panels).forEach(([key, el]) => {
-        el.hidden = key !== tab;
-      });
-      // 食事・プロフィールタブは自前でデータ取得するが、初回だけ描画すれば以降はタブ内で完結する
-      if (tab === 'nutrition' && !nutritionRendered) {
-        renderNutrition(nutritionEl);
-        nutritionRendered = true;
-      }
-      if (tab === 'profile' && !profileRendered) {
-        renderProfileEdit(profileEditEl);
-        renderBodyWeight(bodyWeightEl);
-        renderDataExport(dataExportEl);
-        renderAccount(accountEl, onLoggedOut);
-        profileRendered = true;
-      }
+  // ロゴタップ(→ホーム)・タブ切替の両方から呼ばれる、画面表示の中心関数
+  function showPanel(key: string): void {
+    tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === key));
+    Object.entries(panels).forEach(([panelKey, el]) => {
+      el.hidden = panelKey !== key;
     });
+  }
+
+  // ホーム・タブどちらから来ても、各タブの初回描画(データ取得)は1回だけ行う
+  function activateTab(tab: string): void {
+    showPanel(tab);
+    if (tab === 'exercise' && !exerciseRendered) {
+      exerciseRendered = true;
+      void loadExercisePanel();
+      void renderRecentLogs(recentLogsEl);
+    }
+    if (tab === 'nutrition' && !nutritionRendered) {
+      nutritionRendered = true;
+      renderNutrition(nutritionEl);
+    }
+    if (tab === 'profile' && !profileRendered) {
+      profileRendered = true;
+      renderProfileEdit(profileEditEl);
+      renderBodyWeight(bodyWeightEl);
+      renderDataExport(dataExportEl);
+      renderAccount(accountEl, onLoggedOut);
+    }
+  }
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab!));
   });
+  container.querySelector('#logo-home')!.addEventListener('click', () => showPanel('home'));
 
   const recordFormEl = container.querySelector<HTMLElement>('#record-form')!;
   const recentLogsEl = container.querySelector<HTMLElement>('#recent-logs')!;
@@ -138,6 +156,6 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     }
   }
 
-  void loadExercisePanel();
-  void renderRecentLogs(recentLogsEl);
+  renderHome(panels.home, (tab) => activateTab(tab));
+  showPanel('home');
 }

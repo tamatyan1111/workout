@@ -38,13 +38,15 @@ test('サインアップ→オンボーディング→全タブが正常表示�
   await expect(page.getByRole('heading', { name: 'ようこそ' })).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: /フルボディ/ }).click();
 
-  // 通常のダッシュボードに遷移する
+  // 通常のダッシュボードに遷移する。初期表示はホーム画面
   await expect(page.getByText('ようこそ、E2Eテストユーザーさん')).toBeVisible({ timeout: 10_000 });
+  await assertNoErrorInPanel(page.locator('#tab-home'));
 
+  // ロゴをクリックするとホームに戻ることを確認してから、全タブを確認する
+  await page.locator('#logo-home').click();
+  await expect(page.locator('#tab-home')).toBeVisible();
   for (const tab of TABS) {
-    if (tab.dataTab !== 'exercise') {
-      await page.locator(`.tab-button[data-tab="${tab.dataTab}"]`).click();
-    }
+    await page.locator(`.tab-button[data-tab="${tab.dataTab}"]`).click();
     const panel = page.locator(`#tab-${tab.dataTab}`);
     await expect(panel).toBeVisible();
     await assertNoErrorInPanel(panel);

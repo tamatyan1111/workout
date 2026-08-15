@@ -102,14 +102,31 @@ body {
   border-bottom: none;
 }
 
-.site-header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.25rem;
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.logo {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: var(--accent-contrast);
+  cursor: pointer;
+}
+
+.logo:hover {
+  opacity: 0.85;
 }
 
 .welcome {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 0.9rem;
   color: var(--accent-contrast);
   opacity: 0.85;
@@ -118,32 +135,86 @@ body {
 .tabs {
   display: flex;
   gap: 0.4rem;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--surface-2);
   padding: 0.3rem;
   border-radius: 999px;
+  width: fit-content;
+}
+
+.tabs-standalone {
+  margin: 1rem 1rem 1.2rem;
 }
 
 .tab-button {
   flex: 1;
-  padding: 0.5rem 0.7rem;
+  padding: 0.5rem 0.9rem;
   border: none;
   background: transparent;
-  color: var(--accent-contrast);
-  opacity: 0.75;
+  color: var(--text-muted);
   border-radius: 999px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 600;
   font-family: inherit;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.15s ease,
-    color 0.15s ease,
-    opacity 0.15s ease;
+    color 0.15s ease;
 }
 
 .tab-button.active {
   background: var(--surface);
   color: var(--accent-strong);
-  opacity: 1;
+  box-shadow: 0 1px 2px rgba(15, 30, 27, 0.08);
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.link-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.link-card:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.link-title {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.link-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.chev {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 1.1rem;
 }
 
 main {
