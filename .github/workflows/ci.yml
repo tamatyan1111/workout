@@ -183,7 +183,7 @@ jobs:
       # dashboardの配信元(dist/)にはapi/・private/が含まれないため、この3ステップを
       # 分けて実行してもお互いを消し合うことはない。
       - name: Deploy dashboard
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USERNAME }}
@@ -193,7 +193,7 @@ jobs:
           server-dir: ./tamachan-blog.com/public_html/workout/
 
       - name: Deploy API
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USERNAME }}
@@ -204,7 +204,7 @@ jobs:
 
       # .envは本番の実際の秘密情報が入っており、Gitには無いファイルなので絶対に上書きしない
       - name: Deploy private (excluding .env)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USERNAME }}
