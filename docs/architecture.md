@@ -46,7 +46,7 @@ flowchart TD
     class Google externalNode
 ```
 
-ソースコードはGitHub(`github.com/tamatyan1111/workout`)で管理しているが、GitHub Pagesなどのホスティング機能は使わず、ビルド成果物をFTPでXServerへ配置する形にしている(ソース管理とホスティングを分離)。
+ソースコードはGitHub(`github.com/tamatyan1111/workout`)で管理しているが、GitHub Pagesなどのホスティング機能は使わず、ビルド成果物をFTPSでXServerへ配置する形にしている(ソース管理とホスティングを分離)。配置自体はCI/CD(下記)で自動化している。
 
 ## ポイント
 
@@ -67,6 +67,65 @@ flowchart TD
 | ソースコード管理 | GitHub(ホスティングには使わない) | 無料 |
 | フロントエンド | Vite + TypeScript | 無料 |
 | グラフ描画 | Chart.js | 無料 |
+
+## CI/CD
+
+`.github/workflows/ci-cd.yml`。`master`へのPRマージをトリガーに、テスト・ビルド確認・本番デプロイまで一気通貫で行う。
+
+```mermaid
+flowchart TD
+    Trigger["push(master) / pull_request"]
+    Trigger --> Frontend
+    Trigger --> Backend
+    Frontend -- "成功" --> E2E
+    Backend -- "成功" --> E2E
+    Trigger -.push(master)のみ.-> DetectChanges
+
+    subgraph Frontend["frontend"]
+        F1["ESLint / tsc / Vitest / vite build"]
+    end
+    subgraph Backend["backend"]
+        B1["PHP_CodeSniffer / PHPStan / PHPUnit<br/>(MariaDBサービスコンテナ)"]
+    end
+    subgraph E2E["e2e"]
+        E1["Playwright(Chromium)<br/>dev/router.php + MariaDBで本番相当の同一オリジン構成を再現"]
+    end
+    subgraph DetectChanges["detect-changes"]
+        D1["dorny/paths-filterで、dashboard/API/private配下の変更かを判定"]
+    end
+
+    E2E -- "成功" --> Gate
+    DetectChanges -- "変更あり" --> Gate
+    Gate{"デプロイ対象の<br/>変更がある?"}
+    Gate -- "no" --> Skip["deployはskip<br/>(承認待ちすら発生しない)"]
+    Gate -- "yes" --> Approval["GitHub Environments(production)<br/>Required reviewersが承認するまで一時停止"]
+    Approval -- "Approve and deploy" --> Deploy
+
+    subgraph Deploy["deploy"]
+        DP1["FTPSでdashboard / api / private を転送<br/>(.envは除外)"]
+    end
+
+    Deploy --> Prod[("workout.tamachan-blog.com")]
+
+    classDef appNode fill:#1f2f4a,stroke:#5b8fd9,color:#fff
+    classDef dataNode fill:#1f3a2a,stroke:#5bbf8a,color:#fff
+    classDef actor fill:#2a2a2a,stroke:#999,color:#fff
+    classDef gateNode fill:#4a1f1f,stroke:#d97757,color:#fff
+
+    class Frontend,Backend,E2E,DetectChanges,Deploy appNode
+    class Prod dataNode
+    class Trigger actor
+    class Gate,Approval gateNode
+```
+
+**ポイント**:
+
+- `frontend`・`backend`は並行実行、両方成功後に`e2e`が走る。`detect-changes`は`push(master)`の時だけ動く(PRの時点では判定不要なため)
+- **承認ゲート**: `deploy`ジョブはGitHub Environments(`production`)の"Required reviewers"を使い、FTPS認証情報(Secrets)へのアクセス・実際の転送実行の直前で一時停止する。承認者(現状はたまちゃんさん本人)が「Approve and deploy」を押すまで実行されない。これは複数人開発になった場合の安全策で、マージ自体は誰でもできても、本番への書き込みは指定した承認者だけができる設計になっている
+- **パスフィルター**: `detect-changes`が、実際にビルド成果物へ影響するパス(`apps/dashboard/src`・`public`・`index.html`・`vite.config.ts`・`packages/shared/src`・`php/api`・`php/private`)の変更かどうかを判定する。CI設定やdevDependencyだけの更新(Dependabotの`typescript`/`vitest`更新等)では、`deploy`は承認待ちにすらならずスキップされる
+- **DBマイグレーション**: XServerはSSHが使えずGitHub ActionsからDBへ直接繋げないため、スキーマ変更は今後も手動(承認ボタンを押す前にphpMyAdminで`sql/migrate_*.sql`を実行しておく運用)
+- 強制的にデプロイしたい場合(パスフィルターに関わらず)は、Actionsタブから`workflow_dispatch`で手動実行できる
+- 依存パッケージの更新はDependabot(週次、npm/composer/github-actions)が自動でPRを作る。中身の確認・マージは人間(たまちゃんさん、または委任された私)が行う
 
 ## 過去のアーキテクチャからの変更
 

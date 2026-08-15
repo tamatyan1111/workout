@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -10,11 +10,13 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
       # package-lock.jsonはコミットしていない(Windowsで生成したlockfileだとLinux用の
       # ネイティブバイナリ(rolldown等)を解決できない既知のnpmの問題があるため)。
       # そのためnpmの依存関係キャッシュは使わない。
-      - uses: actions/setup-node@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
@@ -23,7 +25,7 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-  php:
+  backend:
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -45,8 +47,10 @@ jobs:
       DB_PASS: root
       PUBLIC_CORS_ORIGINS: http://localhost:5173
     steps:
-      - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           tools: composer
@@ -56,12 +60,13 @@ jobs:
           mysql -h127.0.0.1 -uroot -proot workout_test < sql/schema.sql
           mysql -h127.0.0.1 -uroot -proot workout_test < sql/seed.sql
       - run: composer run lint
-      - run: composer run stan
+      - name: Static analysis (PHPStan)
+        run: composer run stan
       - run: composer run test
 
   e2e:
     runs-on: ubuntu-latest
-    needs: [frontend, php]
+    needs: [frontend, backend]
     services:
       mariadb:
         image: mariadb:10.5
@@ -76,11 +81,14 @@ jobs:
           --health-timeout=5s
           --health-retries=10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: shivammathur/setup-php@v2
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: pdo_mysql, mbstring
@@ -106,7 +114,7 @@ jobs:
       # dev/router.php(README「同一オリジンで動作確認」参照)でビルド済みdistとAPIをまとめて配信する。
       # 本番と同じ同一オリジン構成でないとセッションCookie認証が機能しないため、
       # フロントエンド単独(vite preview等)ではE2Eの意味が無い
-      - name: Start app server
+      - name: Start PHP dev server (dev/router.php)
         run: nohup php -S localhost:8000 -t apps/dashboard/dist dev/router.php > server.log 2>&1 &
       - name: Wait for server to be ready
         run: |
@@ -131,14 +139,16 @@ jobs:
   # デプロイ対象のパス(dashboard/API/private/共有パッケージ)が実際に変わったPRだけ
   # deployジョブをキューに積む。CI設定やdevDependencyだけの変更(例: Dependabotの
   # typescript/vitest/jsdom更新)で毎回「承認待ち」が積まれるのを防ぐのが狙い。
-  changes:
+  detect-changes:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     outputs:
       app: ${{ steps.filter.outputs.app }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v3
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
         id: filter
         with:
           # apps/dashboard/**やpackages/shared/**のように丸ごと指定すると、
@@ -156,22 +166,24 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [frontend, php, e2e, changes]
+    needs: [frontend, backend, e2e, detect-changes]
     # workflow_dispatch(手動実行)はパスフィルターを無視して強制的にデプロイする、という抜け道。
     if: |
       always() &&
       needs.frontend.result == 'success' &&
-      needs.php.result == 'success' &&
+      needs.backend.result == 'success' &&
       needs.e2e.result == 'success' &&
       github.ref == 'refs/heads/master' &&
       (
-        (github.event_name == 'push' && needs.changes.outputs.app == 'true') ||
+        (github.event_name == 'push' && needs['detect-changes'].outputs.app == 'true') ||
         github.event_name == 'workflow_dispatch'
       )
     environment: production
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
