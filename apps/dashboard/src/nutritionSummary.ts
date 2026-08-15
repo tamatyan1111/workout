@@ -36,18 +36,6 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
       }
       <div class="nutrition-stats">
         <div class="stat-card">
-          <span class="stat-label">現在の体重</span>
-          <span class="stat-value">${summary.current_weight !== null ? `${summary.current_weight.toFixed(1)}kg` : '記録なし'}</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">BMI</span>
-          <span class="stat-value">${summary.bmi !== null ? summary.bmi.toFixed(1) : '—'}</span>
-          ${summary.bmi_category ? `<span class="stat-sub">${escapeHtml(summary.bmi_category)}</span>` : ''}
-        </div>
-      </div>
-
-      <div class="nutrition-stats">
-        <div class="stat-card">
           <span class="stat-label">維持カロリー</span>
           <span class="stat-value">${summary.tdee !== null ? `${summary.tdee}kcal` : '—'}</span>
           ${

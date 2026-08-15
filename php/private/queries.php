@@ -627,6 +627,8 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
             'pfc' => $pfc,
             'progress_percent' => $progressPercent !== null ? round($progressPercent, 1) : null,
             'newly_reached_milestone' => $milestone,
+            // プロフィールタブのサマリー(現在のBMIと並べて表示)向け。design.md未記載、UI再設計フェーズ2
+            'target_bmi' => $heightCm !== null ? round(calculate_bmi($goal['target_weight'], $heightCm), 1) : null,
         ];
     }
 
