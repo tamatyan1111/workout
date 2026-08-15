@@ -34,7 +34,7 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
   let sets: SetInput[] = buildSetsFromCurrent(firstExercise());
 
   if (selectable.length === 0) {
-    container.innerHTML = '<p>まだ種目が登録されていません。「管理表の編集」から追加してください。</p>';
+    container.innerHTML = '<p>まだ種目が登録されていません。「種目を管理する」から追加してください。</p>';
     return;
   }
 

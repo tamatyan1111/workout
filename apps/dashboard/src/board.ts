@@ -13,7 +13,7 @@ function renderCycles(exercises: Exercise[]): string {
   const cycleIds = [...new Set(active.map((e) => e.cycle.id))].sort((a, b) => a - b);
 
   if (cycleIds.length === 0) {
-    return '<p>まだ種目が登録されていません。「管理表の編集」から追加してください。</p>';
+    return '<p>まだ種目が登録されていません。「種目を管理する」から追加してください。</p>';
   }
 
   return cycleIds
