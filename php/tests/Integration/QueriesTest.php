@@ -240,6 +240,29 @@ final class QueriesTest extends TestCase
         $this->assertCount(0, fetch_body_weight_logs(self::$pdo, 1, null, null));
     }
 
+    public function testUpsertBodyWeightLogPersistsBodyFatPercentage(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5, 18.5);
+        $logs = fetch_body_weight_logs(self::$pdo, 1, null, null);
+        $this->assertSame(18.5, $logs[0]['body_fat_percentage']);
+    }
+
+    public function testBodyFatPercentageIsNullByDefault(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5);
+        $logs = fetch_body_weight_logs(self::$pdo, 1, null, null);
+        $this->assertNull($logs[0]['body_fat_percentage']);
+    }
+
+    public function testUpdateBodyWeightLogUpdatesBodyFatPercentage(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5, 18.5);
+        $id = fetch_body_weight_logs(self::$pdo, 1, null, null)[0]['id'];
+        update_body_weight_log(self::$pdo, 1, $id, '2026-08-01', 68.0, 18.0);
+        $logs = fetch_body_weight_logs(self::$pdo, 1, null, null);
+        $this->assertSame(18.0, $logs[0]['body_fat_percentage']);
+    }
+
     // ==== ユーザー・アカウント削除 ====
 
     public function testFindUserByEmail(): void
@@ -339,6 +362,24 @@ final class QueriesTest extends TestCase
 
         $goal = fetch_latest_nutrition_goal(self::$pdo, 1);
         $this->assertSame(65.0, $goal['target_weight']);
+    }
+
+    public function testCreateNutritionGoalPersistsTargetBodyFatPercentage(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        create_nutrition_goal(self::$pdo, 1, 65.0, '2026-12-01', 'cut', null, null, null, 15.0);
+
+        $goal = fetch_latest_nutrition_goal(self::$pdo, 1);
+        $this->assertSame(15.0, $goal['target_body_fat_percentage']);
+    }
+
+    public function testTargetBodyFatPercentageIsNullByDefault(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        create_nutrition_goal(self::$pdo, 1, 65.0, '2026-12-01', 'cut', null, null, null);
+
+        $goal = fetch_latest_nutrition_goal(self::$pdo, 1);
+        $this->assertNull($goal['target_body_fat_percentage']);
     }
 
     public function testSearchFoodsIncludesMasterFoods(): void
@@ -698,6 +739,21 @@ final class QueriesTest extends TestCase
         $this->assertSame(200.0, $summary['goal']['pfc']['carb_g']);
         // 150*4 + 55*9 + 200*4 = 600 + 495 + 800 = 1895
         $this->assertSame(1895.0, $summary['goal']['target_calories']);
+    }
+
+    public function testBuildNutritionSummaryIncludesTargetBmiAndBodyFatPercentage(): void
+    {
+        self::$pdo->exec("UPDATE users SET height_cm = 175 WHERE id = 1");
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 80.0, 22.0);
+        create_nutrition_goal(self::$pdo, 1, 70.0, '2026-12-01', 'standard', null, null, null, 18.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertSame(22.0, $summary['current_body_fat_percentage']);
+        $this->assertNotNull($summary['goal']);
+        // 70 / (1.75*1.75) = 22.857...
+        $this->assertEqualsWithDelta(22.9, $summary['goal']['target_bmi'], 0.1);
+        $this->assertSame(18.0, $summary['goal']['target_body_fat_percentage']);
     }
 
     public function testBuildNutritionSummaryIncludesGoalProgress(): void

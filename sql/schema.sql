@@ -74,11 +74,12 @@ CREATE TABLE logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE body_weight_logs (
-  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id     INT UNSIGNED NOT NULL,
-  logged_date DATE NOT NULL,
-  weight      DECIMAL(5,2) NOT NULL,
-  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id                   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id              INT UNSIGNED NOT NULL,
+  logged_date          DATE NOT NULL,
+  weight               DECIMAL(5,2) NOT NULL,
+  body_fat_percentage  DECIMAL(4,1) NULL,       -- 任意項目。未入力可(UI再設計フェーズ2)
+  created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_body_weight_logs_user_id_logged_date (user_id, logged_date),
   KEY idx_body_weight_logs_user_id_logged_date (user_id, logged_date),
@@ -88,16 +89,17 @@ CREATE TABLE body_weight_logs (
 -- 以下、食事記録機能(design.md §2.11〜2.15)対応
 
 CREATE TABLE nutrition_goals (
-  id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id             INT UNSIGNED NOT NULL,
-  start_weight        DECIMAL(5,2) NOT NULL,   -- 設定時点の直近体重のスナップショット(進捗率計算の起点)
-  target_weight       DECIMAL(5,2) NOT NULL,
-  target_date         DATE NOT NULL,
-  pfc_mode            ENUM('standard', 'bulk', 'cut', 'custom') NOT NULL DEFAULT 'standard',
-  custom_protein_g    DECIMAL(6,1) NULL,       -- pfc_mode='custom' のときのみ使用
-  custom_fat_g        DECIMAL(6,1) NULL,
-  custom_carb_g       DECIMAL(6,1) NULL,
-  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id                          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id                     INT UNSIGNED NOT NULL,
+  start_weight                DECIMAL(5,2) NOT NULL,   -- 設定時点の直近体重のスナップショット(進捗率計算の起点)
+  target_weight               DECIMAL(5,2) NOT NULL,
+  target_body_fat_percentage  DECIMAL(4,1) NULL,       -- 任意項目。未入力可(UI再設計フェーズ2)
+  target_date                 DATE NOT NULL,
+  pfc_mode                    ENUM('standard', 'bulk', 'cut', 'custom') NOT NULL DEFAULT 'standard',
+  custom_protein_g            DECIMAL(6,1) NULL,       -- pfc_mode='custom' のときのみ使用
+  custom_fat_g                DECIMAL(6,1) NULL,
+  custom_carb_g               DECIMAL(6,1) NULL,
+  created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_nutrition_goals_user_id_created_at (user_id, created_at),
   CONSTRAINT fk_nutrition_goals_user_id FOREIGN KEY (user_id) REFERENCES users(id)

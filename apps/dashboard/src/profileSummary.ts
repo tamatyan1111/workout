@@ -59,6 +59,16 @@ export function renderProfileSummary(container: HTMLElement): void {
           <span class="stat-value">${goal?.target_bmi !== null && goal?.target_bmi !== undefined ? goal.target_bmi.toFixed(1) : '—'}</span>
         </div>
       </div>
+      <div class="nutrition-stats">
+        <div class="stat-card">
+          <span class="stat-label">体脂肪率</span>
+          <span class="stat-value">${summary.current_body_fat_percentage !== null ? `${summary.current_body_fat_percentage.toFixed(1)}%` : '記録なし'}</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">目標体脂肪率</span>
+          <span class="stat-value">${goal?.target_body_fat_percentage !== null && goal?.target_body_fat_percentage !== undefined ? `${goal.target_body_fat_percentage.toFixed(1)}%` : '—'}</span>
+        </div>
+      </div>
       ${
         goal
           ? `<p class="field-note">目標達成日: ${escapeHtml(goal.target_date)}(目標の変更は食事タブから)</p>`
