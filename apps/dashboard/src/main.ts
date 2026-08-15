@@ -3,6 +3,7 @@ import { getCycles, getMe, UnauthorizedError } from './api';
 import { renderAuthScreen, renderPasswordResetConfirm } from './auth';
 import { renderOnboarding } from './onboarding';
 import { renderDashboard } from './dashboard';
+import { renderSharedRecipe } from './sharedRecipe';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -21,10 +22,22 @@ function handleResetPasswordRoute(): boolean {
   return true;
 }
 
+// design.md §2.19: レシピの共有リンク(/?share_recipe=...)も同じ理由でログイン判定より先に処理する。
+// パラメータ名を"token"ではなく"share_recipe"にしているのは、他のトークン系ルート(reset_token等)と
+// URL上で見分けやすくするため。
+function handleSharedRecipeRoute(): boolean {
+  const token = new URLSearchParams(window.location.search).get('share_recipe');
+  if (!token) return false;
+
+  renderSharedRecipe(app, token);
+  return true;
+}
+
 // design.md §3: 未ログイン → ログイン/サインアップ画面、ログイン済みでサイクル未設定 →
 // オンボーディング、それ以外 → 通常のダッシュボード、の3状態を出し分ける
 async function boot(): Promise<void> {
   if (handleResetPasswordRoute()) return;
+  if (handleSharedRecipeRoute()) return;
 
   try {
     const profile = await getMe();

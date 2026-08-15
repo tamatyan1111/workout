@@ -38,7 +38,7 @@ timestamp: 2026-07-20T00:00:00Z
 ```
 
 - ダッシュボードアプリ(静的HTML)は、ログイン画面・サインアップ画面・オンボーディング・管理表タブ・グラフタブ・体重タブ・食事タブ・設定タブを1つのSPAとして提供し、`workout.tamachan-blog.com/`直下にビルド済み成果物をFTPS経由のCI/CDで配置する
-- APIはすべて`workout.<domain>/api/`に集約する。全エンドポイントがログイン必須で、旧来の「公開読み取りAPI」と「秘密パスAPI」の区別は廃止する
+- APIはすべて`workout.<domain>/api/`に集約する。全エンドポイントがログイン必須で、旧来の「公開読み取りAPI」と「秘密パスAPI」の区別は廃止する(唯一の例外は`get_shared_recipe.php`。§2.19参照。ログインではなく推測困難なトークンでゲートする、パスワードリセットリンクと同じ設計)
 - ドメインは当面`workout.tamachan-blog.com`を継続利用する。フロント・APIとも相対パス・`.env`設定に依存する作りのため、将来独立ドメインへ移行する場合もコードの作り直しは不要(DNS/SSL設定とデプロイ先の変更のみで済む)
 - ソースコード(GitHubリポジトリ)はソース管理としてのみ利用し、GitHub Pages等のホスティング機能は使わない(変更なし)
 
@@ -326,10 +326,13 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `add_custom_food.php` | POST | `{name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g}` | `{id}` |
 | `edit_custom_food.php` | POST | `{id, name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g}`(`edit_exercise.php`等と同じく部分更新ではなく全項目を送る) | `{ok:true}` |
 | `delete_custom_food.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_recipes"}` |
-| `get_recipes.php` | GET | - | 自分のレシピ一覧(構成食材込み) |
+| `get_recipes.php` | GET | - | 自分のレシピ一覧(構成食材込み、`is_shared`フラグ込み) |
 | `add_recipe.php` | POST | `{name, items:[{master_food_id\|custom_food_id, quantity_g},...]}` | `{id}` |
 | `edit_recipe.php` | POST | `{id, name, items:[...]}`(itemsは丸ごと置き換え) | `{ok:true}` |
 | `delete_recipe.php` | POST | `{id}` | `{ok:true}` |
+| `share_recipe.php` | POST | `{id}` | `{share_url}`(§2.19。共有のたびにトークンを再発行) |
+| `unshare_recipe.php` | POST | `{id}` | `{ok:true}` |
+| `get_shared_recipe.php` | GET(**ログイン不要**) | `token`(クエリ) | `{name, items}`(§2.19、無効なトークンは404) |
 | `get_meals.php` | GET | `date_from?`, `date_to?` | 食事ログ一覧(`meal_items`込み、`recipe_batch_id`でグループ化可能な形) |
 | `add_meal.php` | POST | `{logged_date, meal_type, items:[{master_food_id\|custom_food_id, quantity_g},...]}` または `{logged_date, meal_type, recipe_id}` | `{id, item_ids:[...]}`(レシピ指定時はサーバー側で`recipe_items`を展開し`meal_items`をスナップショット保存) |
 | `add_meal_item.php` | POST | `{meal_id, master_food_id\|custom_food_id, quantity_g}` \| `{meal_id, recipe_id}` | `{ids:[...]}`(既存の食事ログへの追加。カートへの追加操作に対応) |
@@ -413,11 +416,13 @@ CREATE TABLE custom_foods (
 
 ```sql
 CREATE TABLE recipes (
-  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id     INT UNSIGNED NOT NULL,
-  name        VARCHAR(255) NOT NULL,
-  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id           INT UNSIGNED NOT NULL,
+  name              VARCHAR(255) NOT NULL,
+  share_token_hash  CHAR(64) NULL,   -- 共有リンク用トークンのSHA-256。NULL=非公開(§2.19、2026-08-15追加)
+  created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_recipes_share_token_hash (share_token_hash),
   CONSTRAINT fk_recipes_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -438,7 +443,7 @@ CREATE TABLE recipe_items (
 
 - `recipe_items`は`master_food_id`・`custom_food_id`のどちらか一方だけを設定する。ポリモーフィックな1列参照ではなく2列のFKに分けることで、DBレベルの参照整合性(参照先が実在すること)は維持している。ただし「どちらか一方のみ」という排他性そのものはDBの`CHECK`制約では表現していない(MariaDBは外部キー制約が張られた列をCHECK制約内で参照できないため、`ERROR 1901`になり実装時に判明した)。この排他チェックは`parse_recipe_items()`(`php/private/queries.php`)で行う
 - `recipe_items`はテンプレートなので、食材の栄養値は**スナップショットせず**常に`foods`/`custom_foods`を都度JOINして最新値を参照する(レシピ編集はテンプレートの更新であり、過去ログとは無関係なため。過去ログ側の不変性は§2.15の`meal_items`側で担保する)
-- レシピは`user_id`に閉じたテンプレートで、他ユーザーとの共有機能は今回のスコープ外([requirements.md](requirements.md) §7)。`recipe_items`は`recipes`削除時に`CASCADE`で削除される(レシピの構成要素はレシピと運命を共にする子データのため、§1.3のアカウント削除順序の懸念とは別枠)
+- レシピは`user_id`に閉じたテンプレートだが、リンクによる限定共有(閲覧のみ)には対応する。詳細は§2.19。`recipe_items`は`recipes`削除時に`CASCADE`で削除される(レシピの構成要素はレシピと運命を共にする子データのため、§1.3のアカウント削除順序の懸念とは別枠)
 
 ### 2.15 `meals` / `meal_items` テーブル — 食事ログ(新規)
 
@@ -495,6 +500,14 @@ CREATE TABLE meal_items (
 - ファイル名はUUIDで生成し、ユーザー入力の元ファイル名はそのまま使わない(パストラバーサル・上書き事故を防ぐため)。既に写真がある`meals`に再アップロードした場合、DB更新後に旧ファイルを削除する
 - **配信**: `get_meal_photo.php`は`meal_id`を受け取り、`find_meal()`と同様にログイン中の`user_id`で所有権を検証してから画像バイナリを返す。`php/private/`配下の実ファイルへの直リンクは公開しない(他のデータと同じく`user_id`絞り込みを徹底する方針に合わせる、推測困難なファイル名だけに頼った公開配信は採用しない)
 - **削除**: `delete_meal_photo.php`(`meal_id`のみ)は`photo_path`を`NULL`に更新しファイルを削除する。`delete_meal.php`(食事ログ全体の削除)でも、紐づく写真があれば同様にファイルを削除してから行を削除する
+
+### 2.19 レシピの共有リンク機能(新規、2026-08-15)
+
+- **トークン方式**: `password_reset_tokens`と同じ方針で、生トークン(`generate_random_token()`、32バイトのランダム値)はDBに残さず、SHA-256ハッシュ(`hash_token()`)のみ`recipes.share_token_hash`に保存する。`NULL`=非公開、非`NULL`=共有中、という1列でトグルを表現する(共有可否だけのための別列は持たない)
+- **発行・停止**: `share_recipe.php`(POST、ログイン必須、所有権チェック)は共有を有効化し、`app_base_url`から組み立てた共有URL(`/?share_recipe=<生トークン>`)を返す。**共有のたびに新しいトークンで上書きする**(既存トークンを「返す」という選択肢は、生トークンをDBに残さない設計上そもそも存在しない)。この結果、「もう一度発行する」操作が暗黙のリンク再発行(旧リンクの無効化)になる。`unshare_recipe.php`(POST)は`share_token_hash`を`NULL`に戻す
+- **閲覧**: `get_shared_recipe.php`(GET、**意図的にログイン不要**、§1.1参照)は`token`パラメータのハッシュで`recipes`を検索し、見つかったレシピのオーナーの`user_id`を使って`expand_recipe_items()`(§2.14と同じ、常にライブ解決)を呼び出し、レシピ名・構成食材・現在の栄養値を返す。閲覧側はセッションを持たないため、オーナーの`user_id`は常にトークンの検索結果から得る(リクエストパラメータのuser_idは信用しない、という§1.2の方針と矛盾しない)
+- **フロント**: 専用のパス(`/shared-recipe`等)ではなく、パスワードリセットと同じくルート直下のクエリパラメータ方式(`/?share_recipe=...`)にする(§1.1・§3参照、ルートは常に実ファイルの`index.html`でありService Workerのフォールバック設定変更が不要なため)。`apps/dashboard/src/sharedRecipe.ts`がログイン画面と同じ`.auth-screen`の体裁で、ダッシュボードのUIに一切依存せずレンダリングする
+- **スコープ外**(変更なし、[requirements.md](requirements.md) §7参照): 共有レシピの公開ディレクトリでの検索・閲覧、共有された側が「自分のレシピとしてコピーする」機能。今回はリンクを知っている相手への閲覧のみ
 
 ### 2.16 BMI・TDEE・目標カロリー・PFCグラム数の算出ロジック(読み取り時に計算、§7対応)
 
@@ -570,7 +583,7 @@ CREATE TABLE meal_items (
 [直近の食事ログ一覧(食材/レシピ単位、レシピはグループとしてまとめて削除可能)]
   - 各食材行に編集(食材・分量の直接変更)を追加(2026-08-15)
   - 各食事(meals、朝食/昼食/夕食/間食の単位)に写真の添付・差し替え・削除を追加(2026-08-15、§2.18)。一覧ではサムネイル表示、クリックで拡大
-[レシピ管理: 作成・編集・削除]
+[レシピ管理: 作成・編集・削除・共有リンクの発行/停止(2026-08-15、§2.19)]
 [独自食材の登録・編集・削除]
 
 --- 設定タブ ---

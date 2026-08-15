@@ -491,6 +491,27 @@ td input {
   flex-wrap: wrap;
 }
 
+.recipe-share-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.recipe-share-info:empty {
+  margin-top: 0;
+}
+
+.share-url-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.recipe-share-status {
+  font-size: 0.8rem;
+  margin: 0.3rem 0 0;
+}
+
 .recipe-quick-add {
   display: flex;
   gap: 0.5rem;
