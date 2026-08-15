@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   frontend:
@@ -121,16 +122,46 @@ jobs:
         run: npm run e2e --workspace=apps/dashboard
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: apps/dashboard/playwright-report/
           retention-days: 7
 
+  # デプロイ対象のパス(dashboard/API/private/共有パッケージ)が実際に変わったPRだけ
+  # deployジョブをキューに積む。CI設定やdevDependencyだけの変更(例: Dependabotの
+  # typescript/vitest/jsdom更新)で毎回「承認待ち」が積まれるのを防ぐのが狙い。
+  changes:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'apps/dashboard/**'
+              - 'packages/shared/**'
+              - 'php/api/**'
+              - 'php/private/**'
+
   deploy:
     runs-on: ubuntu-latest
-    needs: [frontend, php, e2e]
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: [frontend, php, e2e, changes]
+    # workflow_dispatch(手動実行)はパスフィルターを無視して強制的にデプロイする、という抜け道。
+    if: |
+      always() &&
+      needs.frontend.result == 'success' &&
+      needs.php.result == 'success' &&
+      needs.e2e.result == 'success' &&
+      github.ref == 'refs/heads/master' &&
+      (
+        (github.event_name == 'push' && needs.changes.outputs.app == 'true') ||
+        github.event_name == 'workflow_dispatch'
+      )
     environment: production
     steps:
       - uses: actions/checkout@v7
