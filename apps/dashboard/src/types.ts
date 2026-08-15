@@ -78,6 +78,7 @@ export interface NutritionSummary {
   current_weight: number | null;
   bmi: number | null;
   bmi_category: string | null;
+  bmr: number | null;
   tdee: number | null;
   goal: GoalSummary | null;
 }

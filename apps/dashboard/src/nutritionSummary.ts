@@ -44,10 +44,23 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
           <span class="stat-value">${summary.bmi !== null ? summary.bmi.toFixed(1) : '—'}</span>
           ${summary.bmi_category ? `<span class="stat-sub">${escapeHtml(summary.bmi_category)}</span>` : ''}
         </div>
+      </div>
+
+      <div class="nutrition-stats">
         <div class="stat-card">
-          <span class="stat-label">維持カロリー(TDEE)</span>
+          <span class="stat-label">維持カロリー</span>
           <span class="stat-value">${summary.tdee !== null ? `${summary.tdee}kcal` : '—'}</span>
-          ${summary.tdee === null ? '<span class="stat-sub">プロフィールタブで身長・活動レベルを入力してください</span>' : ''}
+          ${
+            summary.tdee !== null && summary.bmr !== null
+              ? `<span class="stat-sub">基礎代謝${summary.bmr}kcal+活動量${summary.tdee - summary.bmr}kcal</span>`
+              : summary.tdee === null
+                ? '<span class="stat-sub">プロフィールタブで身長・活動レベルを入力してください</span>'
+                : ''
+          }
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">目標カロリー</span>
+          <span class="stat-value">${summary.goal?.target_calories !== null && summary.goal?.target_calories !== undefined ? `${summary.goal.target_calories}kcal` : '—'}</span>
         </div>
       </div>
 
@@ -69,10 +82,6 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
             <span class="stat-label">目標体重</span>
             <span class="stat-value">${goal.target_weight.toFixed(1)}kg</span>
             <span class="stat-sub">${escapeHtml(goal.target_date)}まで(残り${goal.days_remaining}日)</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">目標カロリー</span>
-            <span class="stat-value">${goal.target_calories !== null ? `${goal.target_calories}kcal` : '—'}</span>
           </div>
           <div class="stat-card">
             <span class="stat-label">進捗</span>

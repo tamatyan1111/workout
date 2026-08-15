@@ -47,19 +47,29 @@ function bmi_category_label(float $bmi): string
     return '肥満(4度)';
 }
 
+// Mifflin-St Jeor式の基礎代謝。性別が'unspecified'の場合は計算できずnullを返す。
+// 維持カロリー(TDEE)の内訳表示用にcalculate_tdeeから独立させている(design.md未記載、UI再設計フェーズ2)。
+function calculate_bmr(float $weightKg, int $heightCm, int $age, string $gender): ?float
+{
+    if ($gender !== 'male' && $gender !== 'female') {
+        return null;
+    }
+    return $gender === 'male'
+        ? 10 * $weightKg + 6.25 * $heightCm - 5 * $age + 5
+        : 10 * $weightKg + 6.25 * $heightCm - 5 * $age - 161;
+}
+
 // 性別が'unspecified'、または活動レベル未設定の場合はMifflin-St Jeor式を計算できずnullを返す
 function calculate_tdee(float $weightKg, int $heightCm, int $age, string $gender, ?string $activityLevel): ?float
 {
-    if ($gender !== 'male' && $gender !== 'female') {
+    $bmr = calculate_bmr($weightKg, $heightCm, $age, $gender);
+    if ($bmr === null) {
         return null;
     }
     $factor = ACTIVITY_LEVEL_FACTORS[$activityLevel ?? ''] ?? null;
     if ($factor === null) {
         return null;
     }
-    $bmr = $gender === 'male'
-        ? 10 * $weightKg + 6.25 * $heightCm - 5 * $age + 5
-        : 10 * $weightKg + 6.25 * $heightCm - 5 * $age - 161;
     return $bmr * $factor;
 }
 

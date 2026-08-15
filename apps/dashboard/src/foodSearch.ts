@@ -6,11 +6,39 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// 文部科学省「日本食品標準成分表」の食品群18区分(固定・変動しない、sql/schema.sqlのfoodsテーブル参照)
+const FOOD_GROUPS: { code: string; name: string }[] = [
+  { code: '01', name: '穀類' },
+  { code: '02', name: 'いも及びでん粉類' },
+  { code: '03', name: '砂糖及び甘味類' },
+  { code: '04', name: '豆類' },
+  { code: '05', name: '種実類' },
+  { code: '06', name: '野菜類' },
+  { code: '07', name: '果実類' },
+  { code: '08', name: 'きのこ類' },
+  { code: '09', name: '藻類' },
+  { code: '10', name: '魚介類' },
+  { code: '11', name: '肉類' },
+  { code: '12', name: '卵類' },
+  { code: '13', name: '乳類' },
+  { code: '14', name: '油脂類' },
+  { code: '15', name: '菓子類' },
+  { code: '16', name: 'し好飲料類' },
+  { code: '17', name: '調味料及び香辛料類' },
+  { code: '18', name: '調理済み流通食品類' },
+];
+
 // mealLog.ts・recipes.tsの両方から使う、食品検索→グラム数指定→カートに追加するウィジェット。
 // onAddで追加を通知する(カート自体の保持・表示は呼び出し元の責務)。
 export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem) => void): void {
   container.innerHTML = `
     <form id="food-search-form">
+      <label>食品グループ
+        <select id="food-search-group">
+          <option value="">すべて</option>
+          ${FOOD_GROUPS.map((g) => `<option value="${g.code}">${escapeHtml(g.name)}</option>`).join('')}
+        </select>
+      </label>
       <label>食品名で検索 <input type="text" id="food-search-q" placeholder="例: 白米、にわとり むね" /></label>
       <button type="submit">検索</button>
     </form>
@@ -24,13 +52,14 @@ export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem)
   container.querySelector<HTMLFormElement>('#food-search-form')!.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const q = container.querySelector<HTMLInputElement>('#food-search-q')!.value.trim();
-    if (!q) {
-      statusEl.textContent = '検索語を入力してください';
+    const groupCode = container.querySelector<HTMLSelectElement>('#food-search-group')!.value;
+    if (!q && !groupCode) {
+      statusEl.textContent = '検索語か食品グループを指定してください';
       return;
     }
     statusEl.textContent = '検索中...';
     try {
-      const foods = await searchFoods(q);
+      const foods = await searchFoods(q, groupCode || undefined);
       statusEl.textContent = foods.length === 0 ? '該当する食品が見つかりませんでした' : '';
       renderResults(foods);
     } catch (err) {
