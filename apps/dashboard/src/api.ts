@@ -109,7 +109,7 @@ export const updateMe = (
 
 export const deleteAccount = (): Promise<void> => callPost('delete_account.php', {});
 
-// design.md §3「設定タブ」US-17対応。<a href>によるページ遷移だと、Service Workerの
+// design.md §3「プロフィールタブ」US-17対応。<a href>によるページ遷移だと、Service Workerの
 // SPAナビゲーションフォールバック(§design.md 相当の既知の落とし穴)に巻き込まれて
 // index.htmlが返ってしまうことがあるため、fetch + Blobで明示的にダウンロードさせる
 // (fetchはnavigateモードのリクエストではないため、Service Workerの当該フォールバックの

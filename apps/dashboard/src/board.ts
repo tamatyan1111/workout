@@ -1,7 +1,7 @@
 import type { Exercise } from './types';
 import { escapeHtml } from 'shared';
 
-// exercises は呼び出し元(dashboard.ts)で取得済みのものを受け取る(グラフタブと二重取得しない)。
+// exercises は呼び出し元(dashboard.ts)で取得済みのものを受け取る(グラフセクションと二重取得しない)。
 // design.md §2.3: サイクルはユーザーごとに自由なため、[1,2,3,4]のような固定反復はせず、
 // 実際に種目が属しているサイクルをid昇順(作成順)でグルーピングして表示する。
 export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {

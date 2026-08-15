@@ -8,11 +8,9 @@ import { expect, test, type Locator } from '@playwright/test';
 // 出ていないことを共通のチェックとしている。
 
 const TABS: { dataTab: string; label: string }[] = [
-  { dataTab: 'board', label: '管理表' },
-  { dataTab: 'graph', label: 'グラフ' },
-  { dataTab: 'body-weight', label: '体重' },
+  { dataTab: 'exercise', label: '運動' },
   { dataTab: 'nutrition', label: '食事' },
-  { dataTab: 'settings', label: '設定' },
+  { dataTab: 'profile', label: 'プロフィール' },
 ];
 
 async function assertNoErrorInPanel(panel: Locator): Promise<void> {
@@ -44,7 +42,7 @@ test('サインアップ→オンボーディング→全タブが正常表示�
   await expect(page.getByText('ようこそ、E2Eテストユーザーさん')).toBeVisible({ timeout: 10_000 });
 
   for (const tab of TABS) {
-    if (tab.dataTab !== 'board') {
+    if (tab.dataTab !== 'exercise') {
       await page.locator(`.tab-button[data-tab="${tab.dataTab}"]`).click();
     }
     const panel = page.locator(`#tab-${tab.dataTab}`);

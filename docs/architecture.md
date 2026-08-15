@@ -15,7 +15,7 @@ flowchart TD
     Google["Google OAuth 2.0"]
 
     subgraph xserver["XServer: workout.tamachan-blog.com"]
-        Dashboard["ダッシュボード(静的HTML, SPA)<br/>・ログイン/サインアップ<br/>・管理表 / グラフ / 体重 / 食事 / 設定タブ"]
+        Dashboard["ダッシュボード(静的HTML, SPA)<br/>・ログイン/サインアップ<br/>・運動 / 食事 / プロフィールタブ"]
         AuthAPI["認証API(PHP)<br/>/api/auth/*<br/>ログイン不要"]
         API["ダッシュボードAPI(PHP)<br/>/api/*<br/>全エンドポイントでログイン必須"]
         Shared["共有PHPライブラリ<br/>DB接続・クエリ・認証チェック・レスポンス整形"]

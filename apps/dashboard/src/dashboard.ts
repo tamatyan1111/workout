@@ -1,44 +1,58 @@
 import { getBoard, getCycles, getLogs } from './api';
+import { renderAccount } from './account';
 import { renderBoard } from './board';
 import { renderBoardEdit } from './boardEdit';
 import { renderBodyWeight } from './bodyWeight';
+import { renderCycleManagement } from './cycleManagement';
+import { renderDataExport } from './dataExport';
 import { renderGraph } from './graph';
 import { renderNutrition } from './nutrition';
+import { renderProfileEdit } from './profileEdit';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
-import { renderSettings } from './settings';
 import { escapeHtml } from 'shared';
 
-// design.md §3「ログイン後(通常時)」対応。5タブ(管理表・グラフ・体重・食事・設定)のシェル。
-// 管理表タブは記録入力・直近の記録・管理表の表示・管理表の編集(§3.1〜3.2)をまとめて持つ。
+// design.md §3「ログイン後(通常時)」対応。3タブ(運動・食事・プロフィール)のシェル。
+// 運動タブは記録入力・直近の記録・管理表・グラフ・管理表の編集・サイクル管理をまとめて持つ
+// (§3.1〜3.2)。プロフィールタブはプロフィール編集・体重記録・データのエクスポート・
+// アカウントをまとめて持つ(2026-08-15、旧・体重タブ+設定タブを再編)。
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
     <header class="site-header">
       <h1>たまちゃんの筋トレ管理</h1>
       <p class="welcome">ようこそ、${escapeHtml(displayName)}さん</p>
       <nav class="tabs">
-        <button type="button" class="tab-button active" data-tab="board">管理表</button>
-        <button type="button" class="tab-button" data-tab="graph">グラフ</button>
-        <button type="button" class="tab-button" data-tab="body-weight">体重</button>
+        <button type="button" class="tab-button active" data-tab="exercise">運動</button>
         <button type="button" class="tab-button" data-tab="nutrition">食事</button>
-        <button type="button" class="tab-button" data-tab="settings">設定</button>
+        <button type="button" class="tab-button" data-tab="profile">プロフィール</button>
       </nav>
     </header>
     <main>
-      <section id="tab-board" class="tab-panel">
+      <section id="tab-exercise" class="tab-panel">
         <h2>記録を入力</h2>
         <div id="record-form"><p>読み込み中...</p></div>
         <h2>直近の記録</h2>
         <div id="recent-logs"></div>
         <h2>管理表</h2>
         <div id="board-view"><p>読み込み中...</p></div>
+        <h2>グラフ</h2>
+        <div id="graph-view"><p>読み込み中...</p></div>
         <h2>管理表の編集</h2>
         <div id="board-edit"><p>読み込み中...</p></div>
+        <h2>サイクル管理</h2>
+        <div id="cycle-management"><p>読み込み中...</p></div>
       </section>
-      <section id="tab-graph" class="tab-panel" hidden><p>読み込み中...</p></section>
-      <section id="tab-body-weight" class="tab-panel" hidden></section>
       <section id="tab-nutrition" class="tab-panel" hidden></section>
-      <section id="tab-settings" class="tab-panel" hidden></section>
+      <section id="tab-profile" class="tab-panel" hidden>
+        <h2>プロフィール</h2>
+        <div id="profile-edit"><p>読み込み中...</p></div>
+        <h2>体重記録</h2>
+        <div id="body-weight"><p>読み込み中...</p></div>
+        <h2>データのエクスポート</h2>
+        <div id="data-export"><p>読み込み中...</p></div>
+        <h2>アカウント</h2>
+        <div id="account"><p>読み込み中...</p></div>
+      </section>
     </main>
     <footer class="app-footer">
       <a href="/terms.html" target="_blank" rel="noopener">利用規約</a> ・
@@ -48,20 +62,19 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
 
   const tabButtons = container.querySelectorAll<HTMLButtonElement>('.tab-button');
   const panels: Record<string, HTMLElement> = {
-    board: container.querySelector<HTMLElement>('#tab-board')!,
-    graph: container.querySelector<HTMLElement>('#tab-graph')!,
-    'body-weight': container.querySelector<HTMLElement>('#tab-body-weight')!,
+    exercise: container.querySelector<HTMLElement>('#tab-exercise')!,
     nutrition: container.querySelector<HTMLElement>('#tab-nutrition')!,
-    settings: container.querySelector<HTMLElement>('#tab-settings')!,
+    profile: container.querySelector<HTMLElement>('#tab-profile')!,
   };
-  const graphEl = panels.graph;
-  const bodyWeightEl = panels['body-weight'];
   const nutritionEl = panels.nutrition;
-  const settingsEl = panels.settings;
 
-  let bodyWeightRendered = false;
+  const profileEditEl = container.querySelector<HTMLElement>('#profile-edit')!;
+  const bodyWeightEl = container.querySelector<HTMLElement>('#body-weight')!;
+  const dataExportEl = container.querySelector<HTMLElement>('#data-export')!;
+  const accountEl = container.querySelector<HTMLElement>('#account')!;
+
   let nutritionRendered = false;
-  let settingsRendered = false;
+  let profileRendered = false;
 
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -71,20 +84,17 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       Object.entries(panels).forEach(([key, el]) => {
         el.hidden = key !== tab;
       });
-      // 記録の追加・修正・削除は管理表タブで行われるため、グラフタブは開くたびに最新データを取り直す
-      if (tab === 'graph') void loadGraph();
-      // 体重・設定タブは自前でデータ取得するが、初回だけ描画すれば以降はタブ内で完結する
-      if (tab === 'body-weight' && !bodyWeightRendered) {
-        renderBodyWeight(bodyWeightEl);
-        bodyWeightRendered = true;
-      }
+      // 食事・プロフィールタブは自前でデータ取得するが、初回だけ描画すれば以降はタブ内で完結する
       if (tab === 'nutrition' && !nutritionRendered) {
         renderNutrition(nutritionEl);
         nutritionRendered = true;
       }
-      if (tab === 'settings' && !settingsRendered) {
-        renderSettings(settingsEl, onLoggedOut);
-        settingsRendered = true;
+      if (tab === 'profile' && !profileRendered) {
+        renderProfileEdit(profileEditEl);
+        renderBodyWeight(bodyWeightEl);
+        renderDataExport(dataExportEl);
+        renderAccount(accountEl, onLoggedOut);
+        profileRendered = true;
       }
     });
   });
@@ -92,24 +102,33 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
   const recordFormEl = container.querySelector<HTMLElement>('#record-form')!;
   const recentLogsEl = container.querySelector<HTMLElement>('#recent-logs')!;
   const boardViewEl = container.querySelector<HTMLElement>('#board-view')!;
+  const graphEl = container.querySelector<HTMLElement>('#graph-view')!;
   const boardEditEl = container.querySelector<HTMLElement>('#board-edit')!;
+  const cycleManagementEl = container.querySelector<HTMLElement>('#cycle-management')!;
 
-  async function loadBoardTab(): Promise<void> {
+  async function loadExercisePanel(): Promise<void> {
     try {
-      const [exercises, cycles] = await Promise.all([getBoard(), getCycles()]);
+      const [exercises, cycles, logs] = await Promise.all([getBoard(), getCycles(), getLogs()]);
       renderBoard(boardViewEl, exercises);
       renderRecordForm(recordFormEl, exercises, () => {
         void renderRecentLogs(recentLogsEl);
+        void loadGraph();
       });
-      renderBoardEdit(boardEditEl, exercises, cycles, () => void loadBoardTab());
+      renderBoardEdit(boardEditEl, exercises, cycles, () => void loadExercisePanel());
+      renderGraph(graphEl, exercises, logs);
+      renderCycleManagement(cycleManagementEl, cycles, () => void loadExercisePanel());
     } catch (err) {
-      const message = `<p class="error">管理表の取得に失敗しました: ${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
+      const message = `<p class="error">運動タブの取得に失敗しました: ${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
       boardViewEl.innerHTML = message;
       recordFormEl.innerHTML = message;
       boardEditEl.innerHTML = message;
+      graphEl.innerHTML = message;
+      cycleManagementEl.innerHTML = message;
     }
   }
 
+  // 記録の追加はグラフにも反映したいが、管理表全体の再読み込み(記録フォームのリセットを伴う)は
+  // 避けたいため、グラフだけを軽く取り直す専用の関数を分ける
   async function loadGraph(): Promise<void> {
     try {
       const [exercises, logs] = await Promise.all([getBoard(), getLogs()]);
@@ -119,6 +138,6 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     }
   }
 
-  void loadBoardTab();
+  void loadExercisePanel();
   void renderRecentLogs(recentLogsEl);
 }
