@@ -15,13 +15,13 @@ flowchart TD
     Google["Google OAuth 2.0"]
 
     subgraph xserver["XServer: workout.tamachan-blog.com"]
-        Dashboard["ダッシュボード(静的HTML, SPA)<br/>・ログイン/サインアップ<br/>・管理表 / グラフ / 体重 / 設定タブ"]
+        Dashboard["ダッシュボード(静的HTML, SPA)<br/>・ログイン/サインアップ<br/>・管理表 / グラフ / 体重 / 食事 / 設定タブ"]
         AuthAPI["認証API(PHP)<br/>/api/auth/*<br/>ログイン不要"]
         API["ダッシュボードAPI(PHP)<br/>/api/*<br/>全エンドポイントでログイン必須"]
         Shared["共有PHPライブラリ<br/>DB接続・クエリ・認証チェック・レスポンス整形"]
     end
 
-    DB[("MySQL/MariaDB<br/>users / cycles / exercises / logs / body_weight_logs")]
+    DB[("MySQL/MariaDB<br/>users / cycles / exercises / logs / body_weight_logs<br/>nutrition_goals / foods / custom_foods / recipes / meals 等")]
 
     User -- "静的HTMLを取得" --> Dashboard
     Dashboard -- "同一オリジンfetch" --> AuthAPI
