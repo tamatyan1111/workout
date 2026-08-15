@@ -13,7 +13,7 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// design.md §3「体重タブ」US-15対応。日付・体重を記録すると、種目のグラフタブと同じ
+// design.md §3「プロフィールタブ」US-15対応。日付・体重を記録すると、運動タブのグラフと同じ
 // 期間切り替えで推移を折れ線グラフで見られる。
 export function renderBodyWeight(container: HTMLElement): void {
   let currentPeriod: Period = '30d';

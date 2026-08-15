@@ -47,7 +47,7 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
         <div class="stat-card">
           <span class="stat-label">維持カロリー(TDEE)</span>
           <span class="stat-value">${summary.tdee !== null ? `${summary.tdee}kcal` : '—'}</span>
-          ${summary.tdee === null ? '<span class="stat-sub">設定タブで身長・活動レベルを入力してください</span>' : ''}
+          ${summary.tdee === null ? '<span class="stat-sub">プロフィールタブで身長・活動レベルを入力してください</span>' : ''}
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
           </table>
           ${goal.pfc.warning ? `<p class="error">${escapeHtml(goal.pfc.warning)}</p>` : ''}
         `
-            : '<p>身長・活動レベルが未設定のため、目標カロリー・PFCを計算できません(設定タブから入力してください)</p>'
+            : '<p>身長・活動レベルが未設定のため、目標カロリー・PFCを計算できません(プロフィールタブから入力してください)</p>'
         }
         <button type="button" id="edit-goal-btn" class="link-button">目標を変更する</button>
       `

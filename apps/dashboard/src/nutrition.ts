@@ -4,7 +4,7 @@ import { renderNutritionSummary } from './nutritionSummary';
 import { renderRecipes } from './recipes';
 
 // design.md §3「食事タブ」対応。BMI/TDEE/目標のサマリー・食事ログ・レシピ管理・
-// 独自食材管理をまとめて1つのタブにする(管理表タブの構成にならい、セクションを縦に並べる)。
+// 独自食材管理をまとめて1つのタブにする(運動タブの構成にならい、セクションを縦に並べる)。
 export function renderNutrition(container: HTMLElement): void {
   container.innerHTML = `
     <h2>栄養サマリー・目標</h2>
