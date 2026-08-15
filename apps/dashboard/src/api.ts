@@ -57,6 +57,18 @@ async function callPost<T = void>(path: string, payload: Record<string, unknown>
   return parseResponse<T>(res);
 }
 
+// design.md §2.18: 写真アップロードはmultipart/form-data(callPostのJSON専用body組み立てが使えない)。
+// Content-Typeはbrowserがboundary付きで自動設定するため明示しない。
+async function callPostFormData<T = void>(path: string, formData: FormData): Promise<T> {
+  const res = await fetch(`${API_DIR}/${path}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    body: formData,
+  });
+  return parseResponse<T>(res);
+}
+
 // ==== 認証(design.md §2.10「認証API」) ====
 
 export const signup = (email: string, password: string, displayName: string): Promise<void> =>
@@ -203,6 +215,9 @@ export const getBodyWeightLogs = (from?: string, to?: string): Promise<BodyWeigh
 export const addBodyWeightLog = (loggedDate: string, weight: string): Promise<void> =>
   callPost('add_body_weight_log.php', { logged_date: loggedDate, weight });
 
+export const editBodyWeightLog = (id: number, loggedDate: string, weight: string): Promise<void> =>
+  callPost('edit_body_weight_log.php', { id, logged_date: loggedDate, weight });
+
 export const deleteBodyWeightLog = (id: number): Promise<void> => callPost('delete_body_weight_log.php', { id });
 
 // ==== 食事記録機能(design.md §2.11〜2.17、§7対応) ====
@@ -321,9 +336,25 @@ export const addMealItem = (mealId: number, item: CartItem): Promise<{ ids: numb
 export const addMealItemFromRecipe = (mealId: number, recipeId: number): Promise<{ ids: number[] }> =>
   callPost('add_meal_item.php', { meal_id: mealId, recipe_id: recipeId });
 
+export const editMealItem = (id: number, ref: FoodRef, quantityG: string): Promise<void> =>
+  callPost('edit_meal_item.php', { id, ...foodRefParams(ref), quantity_g: quantityG });
+
 export const deleteMealItem = (id: number): Promise<void> => callPost('delete_meal_item.php', { id });
 
 export const deleteMealItemGroup = (recipeBatchId: string): Promise<void> =>
   callPost('delete_meal_item_group.php', { recipe_batch_id: recipeBatchId });
 
 export const deleteMeal = (id: number): Promise<void> => callPost('delete_meal.php', { id });
+
+// design.md §2.18: 写真は認証付きAPI経由で配信するため、<img src>にセッションCookieが
+// 必要になる(same-origin配信なのでcredentials指定不要でブラウザが自動付与する)
+export const mealPhotoUrl = (mealId: number): string => `${API_DIR}/get_meal_photo.php?meal_id=${mealId}`;
+
+export const uploadMealPhoto = (mealId: number, file: File): Promise<void> => {
+  const formData = new FormData();
+  formData.append('meal_id', String(mealId));
+  formData.append('photo', file);
+  return callPostFormData('upload_meal_photo.php', formData);
+};
+
+export const deleteMealPhoto = (mealId: number): Promise<void> => callPost('delete_meal_photo.php', { meal_id: mealId });

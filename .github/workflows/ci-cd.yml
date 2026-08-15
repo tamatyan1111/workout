@@ -53,6 +53,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: gd, fileinfo
           tools: composer
       - run: composer install --no-interaction --prefer-dist
       - name: Apply schema and seed data
@@ -91,7 +92,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_mysql, mbstring
+          extensions: pdo_mysql, mbstring, gd, fileinfo
       - run: npm install
       - name: Build dashboard
         run: npm run build --workspace=apps/dashboard

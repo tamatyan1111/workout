@@ -498,6 +498,83 @@ final class QueriesTest extends TestCase
         $this->assertSame(0, (int) $stmt->fetchColumn());
     }
 
+    // 2026-08-15追加: 食材・分量の編集(design.md §2.15)
+    public function testUpdateMealItemReResolvesSnapshotAndQuantity(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
+        $food = resolve_food_source(self::$pdo, 1, 1, null);
+        $ids = insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0, 'food' => $food],
+        ], null, null);
+
+        // 食材(白米→にわとり むね)・分量を仮の値から直す
+        update_meal_item(self::$pdo, 1, $ids[0], 2, null, 150.0);
+
+        $items = fetch_meals(self::$pdo, 1, null, null)[0]['items'];
+        $this->assertSame(2, $items[0]['master_food_id']);
+        $this->assertStringContainsString('にわとり', $items[0]['food_name']);
+        $this->assertSame(150.0, $items[0]['quantity_g']);
+        $this->assertSame(105.0, $items[0]['kcal_per_100g']); // にわとり むねのkcal_per_100gを再解決している
+    }
+
+    public function testUpdateMealItemKeepsMealIdAndRecipeBatchId(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'dinner', null);
+        $food = resolve_food_source(self::$pdo, 1, 1, null);
+        $ids = insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 200.0, 'food' => $food],
+        ], 'batch-uuid-edit', 'カレーライス');
+
+        update_meal_item(self::$pdo, 1, $ids[0], 1, null, 250.0);
+
+        $items = fetch_meals(self::$pdo, 1, null, null)[0]['items'];
+        $this->assertSame('batch-uuid-edit', $items[0]['recipe_batch_id']);
+    }
+
+    // 2026-08-15追加: 過去の記録の日付・体重の編集(design.md §2.6)
+    public function testUpdateBodyWeightLogChangesDateAndWeight(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5);
+        $id = fetch_body_weight_logs(self::$pdo, 1, null, null)[0]['id'];
+
+        $updated = update_body_weight_log(self::$pdo, 1, $id, '2026-08-02', 69.5);
+
+        $this->assertTrue($updated);
+        $logs = fetch_body_weight_logs(self::$pdo, 1, null, null);
+        $this->assertSame('2026-08-02', $logs[0]['logged_date']);
+        $this->assertSame(69.5, $logs[0]['weight']);
+    }
+
+    public function testUpdateBodyWeightLogReturnsFalseOnDuplicateDate(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-02', 69.0);
+        $idToEdit = fetch_body_weight_logs(self::$pdo, 1, null, null)[1]['id']; // 08-02の行
+
+        // 08-02の記録を、既に08-01の記録がある日付に変更しようとする
+        $updated = update_body_weight_log(self::$pdo, 1, $idToEdit, '2026-08-01', 70.0);
+
+        $this->assertFalse($updated);
+        // 元の日付・体重のまま変わっていないことを確認
+        $logs = fetch_body_weight_logs(self::$pdo, 1, null, null);
+        $this->assertSame(69.0, $logs[1]['weight']);
+    }
+
+    // 2026-08-15追加: 食事写真(design.md §2.18)。実ファイルI/Oを伴うprocess_and_save_meal_photo()
+    // 自体はUnitテスト(ImageProcessingTest.php)で検証し、ここではDB更新の挙動だけを見る。
+    public function testUpdateMealPhotoSetsAndClearsPhotoPath(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'lunch', null);
+
+        update_meal_photo(self::$pdo, $mealId, '1/photo-uuid.jpg');
+        $meal = find_meal(self::$pdo, 1, $mealId);
+        $this->assertSame('1/photo-uuid.jpg', $meal['photo_path']);
+
+        update_meal_photo(self::$pdo, $mealId, null);
+        $meal = find_meal(self::$pdo, 1, $mealId);
+        $this->assertNull($meal['photo_path']);
+    }
+
     // design.md §2.16: 身長・体重・生年月日・性別・活動レベルが揃うとBMI・TDEEが計算される
     public function testBuildNutritionSummaryComputesBmiAndTdeeWhenProfileComplete(): void
     {

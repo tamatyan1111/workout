@@ -6,9 +6,13 @@ import {
   deleteMeal,
   deleteMealItem,
   deleteMealItemGroup,
+  deleteMealPhoto,
+  editMealItem,
   getMeals,
   getNutritionSummary,
   getRecipes,
+  mealPhotoUrl,
+  uploadMealPhoto,
 } from './api';
 import { todayStr } from './date';
 import { renderFoodSearch } from './foodSearch';
@@ -24,6 +28,15 @@ type CartEntry = { kind: 'item'; item: CartItem } | { kind: 'recipe'; recipeId: 
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+// 写真サムネイルのクリック時に、画面全体に原寸大表示するためのオーバーレイ(クリックで閉じる)
+function openLightbox(src: string): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'lightbox-overlay';
+  overlay.innerHTML = `<img src="${src}" alt="食事の写真(拡大)" />`;
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
 }
 
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
@@ -49,6 +62,7 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
   let summary: NutritionSummary | null = null;
   let calorieChart: Chart | null = null;
   let pfcChart: Chart | null = null;
+  let editingItemId: number | null = null;
 
   container.innerHTML = '<p>読み込み中...</p>';
 
@@ -313,6 +327,15 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
             <span>${totalKcal}kcal</span>
             <button type="button" class="delete-meal-btn danger">記録ごと削除</button>
           </div>
+          <div class="meal-photo">
+            ${m.photo_path ? `<img class="meal-photo-thumb" src="${mealPhotoUrl(m.id)}" alt="食事の写真" />` : ''}
+            <label class="link-button upload-photo-label">
+              ${m.photo_path ? '写真を差し替え' : '写真を追加'}
+              <input type="file" class="upload-photo-input" accept="image/jpeg,image/png,image/webp" hidden />
+            </label>
+            ${m.photo_path ? '<button type="button" class="delete-photo-btn danger">写真を削除</button>' : ''}
+            <p class="photo-status"></p>
+          </div>
           <ul class="meal-item-list">
             ${[...groups.entries()]
               .map(
@@ -325,11 +348,28 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
               )
               .join('')}
             ${ungrouped
-              .map(
-                (item) => `
+              .map((item) =>
+                item.id === editingItemId
+                  ? `
+              <li class="meal-item-edit" data-item-id="${item.id}">
+                <div class="meal-item-edit-qty">
+                  ${escapeHtml(item.food_name)}
+                  <input type="number" class="edit-item-qty" value="${item.quantity_g}" min="1" step="1" />g
+                  <button type="button" class="save-item-qty-btn">分量を保存</button>
+                  <button type="button" class="cancel-item-edit-btn">キャンセル</button>
+                </div>
+                <p class="field-note">食材そのものを変更する場合は、下で検索して選び直してください</p>
+                <div class="edit-item-food-search"></div>
+                <p class="edit-item-status"></p>
+              </li>
+            `
+                  : `
               <li class="meal-item-single" data-item-id="${item.id}">
                 <span>${escapeHtml(item.food_name)} ${item.quantity_g}g (${Math.round(itemKcal(item))}kcal)</span>
-                <button type="button" class="delete-item-btn">削除</button>
+                <span>
+                  <button type="button" class="edit-item-btn">編集</button>
+                  <button type="button" class="delete-item-btn">削除</button>
+                </span>
               </li>
             `
               )
@@ -352,6 +392,32 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
           alert(`削除に失敗しました: ${errorMessage(err)}`);
         }
       });
+
+      const photoStatusEl = card.querySelector<HTMLParagraphElement>('.photo-status')!;
+      card.querySelector<HTMLImageElement>('.meal-photo-thumb')?.addEventListener('click', () => {
+        openLightbox(mealPhotoUrl(mealId));
+      });
+      card.querySelector<HTMLInputElement>('.upload-photo-input')!.addEventListener('change', async (ev) => {
+        const file = (ev.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        photoStatusEl.textContent = 'アップロード中...';
+        try {
+          await uploadMealPhoto(mealId, file);
+          await refreshMeals();
+        } catch (err) {
+          photoStatusEl.textContent = `アップロードに失敗しました: ${errorMessage(err)}`;
+        }
+      });
+      card.querySelector('.delete-photo-btn')?.addEventListener('click', async () => {
+        if (!confirm('写真を削除しますか?')) return;
+        try {
+          await deleteMealPhoto(mealId);
+          await refreshMeals();
+        } catch (err) {
+          photoStatusEl.textContent = `削除に失敗しました: ${errorMessage(err)}`;
+        }
+      });
+
       card.querySelectorAll<HTMLElement>('.meal-item-group').forEach((groupEl) => {
         groupEl.querySelector('.delete-group-btn')!.addEventListener('click', async () => {
           const batchId = groupEl.dataset.batchId!;
@@ -365,8 +431,12 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
         });
       });
       card.querySelectorAll<HTMLElement>('.meal-item-single').forEach((itemEl) => {
+        const itemId = Number(itemEl.dataset.itemId);
+        itemEl.querySelector('.edit-item-btn')!.addEventListener('click', () => {
+          editingItemId = itemId;
+          renderMealList(listEl);
+        });
         itemEl.querySelector('.delete-item-btn')!.addEventListener('click', async () => {
-          const itemId = Number(itemEl.dataset.itemId);
           try {
             await deleteMealItem(itemId);
             await refreshMeals();
@@ -374,6 +444,47 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
           } catch (err) {
             alert(`削除に失敗しました: ${errorMessage(err)}`);
           }
+        });
+      });
+      card.querySelectorAll<HTMLElement>('.meal-item-edit').forEach((itemEl) => {
+        const itemId = Number(itemEl.dataset.itemId);
+        const meal = meals.find((mm) => mm.id === mealId)!;
+        const item = meal.items.find((i) => i.id === itemId)!;
+        const statusEl = itemEl.querySelector<HTMLParagraphElement>('.edit-item-status')!;
+
+        itemEl.querySelector('.cancel-item-edit-btn')!.addEventListener('click', () => {
+          editingItemId = null;
+          renderMealList(listEl);
+        });
+        itemEl.querySelector('.save-item-qty-btn')!.addEventListener('click', async () => {
+          const qty = itemEl.querySelector<HTMLInputElement>('.edit-item-qty')!.value;
+          const ref =
+            item.master_food_id !== null
+              ? { source: 'master' as const, id: item.master_food_id }
+              : { source: 'custom' as const, id: item.custom_food_id! };
+          statusEl.textContent = '保存中...';
+          try {
+            await editMealItem(itemId, ref, qty);
+            editingItemId = null;
+            await refreshMeals();
+            onChanged();
+          } catch (err) {
+            statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
+          }
+        });
+
+        renderFoodSearch(itemEl.querySelector<HTMLElement>('.edit-item-food-search')!, (newItem) => {
+          void (async () => {
+            statusEl.textContent = '保存中...';
+            try {
+              await editMealItem(itemId, newItem.ref, String(newItem.quantityG));
+              editingItemId = null;
+              await refreshMeals();
+              onChanged();
+            } catch (err) {
+              statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
+            }
+          })();
         });
       });
     });

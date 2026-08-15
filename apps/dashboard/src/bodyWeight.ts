@@ -1,5 +1,5 @@
 import { Chart, registerables } from 'chart.js';
-import { addBodyWeightLog, deleteBodyWeightLog, getBodyWeightLogs } from './api';
+import { addBodyWeightLog, deleteBodyWeightLog, editBodyWeightLog, getBodyWeightLogs } from './api';
 import { todayStr } from './date';
 import { periodRange } from './graph';
 import type { BodyWeightLog } from './types';
@@ -114,18 +114,37 @@ export function renderBodyWeight(container: HTMLElement): void {
             .map(
               (l) => `
             <tr data-id="${l.id}">
-              <td>${escapeHtml(l.logged_date.slice(0, 10))}</td>
-              <td>${escapeHtml(l.weight.toFixed(1))}</td>
-              <td><button type="button" class="delete-btn">削除</button></td>
+              <td><input type="date" class="edit-bw-date" value="${escapeHtml(l.logged_date.slice(0, 10))}" /></td>
+              <td><input type="number" step="0.1" class="edit-bw-weight" value="${escapeHtml(l.weight.toFixed(1))}" /></td>
+              <td>
+                <button type="button" class="save-btn">保存</button>
+                <button type="button" class="delete-btn danger">削除</button>
+              </td>
             </tr>
           `
             )
             .join('')}
         </tbody>
       </table>
+      <p id="bw-edit-status"></p>
     `;
+    const editStatusEl = listEl.querySelector<HTMLParagraphElement>('#bw-edit-status')!;
     sorted.forEach((l) => {
       const row = listEl.querySelector<HTMLTableRowElement>(`tr[data-id="${l.id}"]`)!;
+      row.querySelector('.save-btn')!.addEventListener('click', async () => {
+        const date = row.querySelector<HTMLInputElement>('.edit-bw-date')!.value;
+        const weight = row.querySelector<HTMLInputElement>('.edit-bw-weight')!.value;
+        editStatusEl.textContent = '保存中...';
+        try {
+          await editBodyWeightLog(l.id, date, weight);
+          editStatusEl.textContent = '保存しました';
+          await refresh();
+        } catch (err) {
+          editStatusEl.textContent = errorMessage(err).includes('duplicate_date')
+            ? 'その日付には既に別の記録があります'
+            : `保存に失敗しました: ${errorMessage(err)}`;
+        }
+      });
       row.querySelector('.delete-btn')!.addEventListener('click', async () => {
         try {
           await deleteBodyWeightLog(l.id);

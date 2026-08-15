@@ -1,5 +1,5 @@
 <?php
-// meal_itemsはON DELETE CASCADEで連動削除される(design.md §2.15)。
+// meal_itemsはON DELETE CASCADEで連動削除される(design.md §2.15)。写真があればファイルも削除する。
 
 require_once __DIR__ . '/../private/bootstrap.php';
 
@@ -13,11 +13,13 @@ try {
     $id = require_int($body, 'id');
 
     $pdo = get_pdo();
-    if (!find_meal($pdo, $userId, $id)) {
+    $meal = find_meal($pdo, $userId, $id);
+    if (!$meal) {
         json_error('食事記録が見つかりません', 404);
     }
 
     delete_meal($pdo, $id);
+    delete_meal_photo_file($meal['photo_path']);
     json_ok();
 } catch (ValidationException $e) {
     json_error($e->getMessage(), 400);
