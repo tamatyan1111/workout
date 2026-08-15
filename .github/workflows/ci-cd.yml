@@ -148,7 +148,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Detect changed paths
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         id: filter
         with:
           # apps/dashboard/**やpackages/shared/**のように丸ごと指定すると、
