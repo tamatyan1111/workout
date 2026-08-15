@@ -36,13 +36,19 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     <main>
       <section id="tab-home" class="tab-panel"></section>
       <section id="tab-exercise" class="tab-panel" hidden>
-        <div data-screen="landing">
-          <h2>サマリー</h2>
-          <div id="board-view"><p>読み込み中...</p></div>
-          <h2>運動を記録する</h2>
-          <div id="record-form"><p>読み込み中...</p></div>
-          <h2>直近の記録</h2>
-          <div id="recent-logs"></div>
+        <div data-screen="landing" class="stack">
+          <div class="card">
+            <h2>サマリー</h2>
+            <div id="board-view"><p>読み込み中...</p></div>
+          </div>
+          <div class="card">
+            <h2>運動を記録する</h2>
+            <div id="record-form"><p>読み込み中...</p></div>
+          </div>
+          <div class="card">
+            <h2>直近の記録</h2>
+            <div id="recent-logs"></div>
+          </div>
           <div class="link-list">
             <button type="button" class="link-card" data-goto="board">
               <span>
@@ -69,27 +75,37 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
         </div>
         <div data-screen="board" hidden>
           <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
-          <h2>種目を管理する</h2>
-          <div id="board-edit"><p>読み込み中...</p></div>
+          <div class="card">
+            <h2>種目を管理する</h2>
+            <div id="board-edit"><p>読み込み中...</p></div>
+          </div>
         </div>
         <div data-screen="graph" hidden>
           <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
-          <h2>グラフ</h2>
-          <div id="graph-view"><p>読み込み中...</p></div>
+          <div class="card">
+            <h2>グラフ</h2>
+            <div id="graph-view"><p>読み込み中...</p></div>
+          </div>
         </div>
         <div data-screen="cycles" hidden>
           <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
-          <h2>サイクル管理</h2>
-          <div id="cycle-management"><p>読み込み中...</p></div>
+          <div class="card">
+            <h2>サイクル管理</h2>
+            <div id="cycle-management"><p>読み込み中...</p></div>
+          </div>
         </div>
       </section>
       <section id="tab-nutrition" class="tab-panel" hidden></section>
       <section id="tab-profile" class="tab-panel" hidden>
-        <div data-screen="landing">
-          <h2>サマリー</h2>
-          <div id="profile-summary"><p>読み込み中...</p></div>
-          <h2>体重を記録する</h2>
-          <div id="body-weight"><p>読み込み中...</p></div>
+        <div data-screen="landing" class="stack">
+          <div class="card">
+            <h2>サマリー</h2>
+            <div id="profile-summary"><p>読み込み中...</p></div>
+          </div>
+          <div class="card">
+            <h2>体重を記録する</h2>
+            <div id="body-weight"><p>読み込み中...</p></div>
+          </div>
           <div class="link-list">
             <button type="button" class="link-card" data-goto="edit">
               <span>
@@ -116,18 +132,24 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
         </div>
         <div data-screen="edit" hidden>
           <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
-          <h2>プロフィール編集</h2>
-          <div id="profile-edit"><p>読み込み中...</p></div>
+          <div class="card">
+            <h2>プロフィール編集</h2>
+            <div id="profile-edit"><p>読み込み中...</p></div>
+          </div>
         </div>
         <div data-screen="export" hidden>
           <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
-          <h2>データのエクスポート</h2>
-          <div id="data-export"><p>読み込み中...</p></div>
+          <div class="card">
+            <h2>データのエクスポート</h2>
+            <div id="data-export"><p>読み込み中...</p></div>
+          </div>
         </div>
         <div data-screen="account" hidden>
           <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
-          <h2>アカウント</h2>
-          <div id="account"><p>読み込み中...</p></div>
+          <div class="card">
+            <h2>アカウント</h2>
+            <div id="account"><p>読み込み中...</p></div>
+          </div>
         </div>
       </section>
     </main>

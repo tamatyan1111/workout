@@ -85,6 +85,12 @@
   box-sizing: border-box;
 }
 
+/* .stack等のdisplay指定がhidden属性より強くなってしまう(同じ要素にdata-screen+class="stack"が
+   付くケースがある)のを防ぐため、hidden属性を常に最優先させる */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   color: var(--text);
@@ -222,14 +228,79 @@ main {
 }
 
 section {
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
 }
 
-section h2,
-section h3 {
-  font-size: 1rem;
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 1.1rem 1.2rem;
+}
+
+main h2,
+.card h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.7rem;
+}
+
+main h3,
+.card h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 1rem 0 0.6rem;
+}
+
+main h4,
+.card h4 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0.9rem 0 0.5rem;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 8rem;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  margin-top: 0;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 form label {
@@ -317,10 +388,12 @@ button.danger {
 }
 
 .link-button {
+  display: inline-block;
   background: transparent;
   color: var(--accent-strong);
   border: none;
   padding: 0;
+  margin-bottom: 0.8rem;
   text-decoration: underline;
   font-size: 0.85rem;
 }
@@ -332,30 +405,52 @@ button.danger {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   margin-bottom: 1rem;
 }
 
 th,
 td {
-  border: 1px solid var(--border);
-  padding: 0.4rem;
-  text-align: center;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0.55rem 0.5rem;
+  text-align: left;
 }
 
 th {
-  color: var(--text-muted);
+  font-size: 0.72rem;
   font-weight: 600;
-  background: var(--surface-2);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: none;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
 }
 
 td input {
   width: 4.5rem;
-  padding: 0.3rem;
+  padding: 0.35rem 0.4rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .error {
   color: var(--danger);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table-scroll table {
+  min-width: 34rem;
 }
 
 .cycle-block {

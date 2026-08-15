@@ -59,21 +59,23 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
 
     container.innerHTML = `
       <form id="record-form">
-        <label>日付 <input type="date" id="record-date" value="${previousDate || todayStr()}" required /></label>
-        <label>種目
-          <select id="record-exercise" required>
-            ${cycleIds
-              .map((cycleId) => {
-                const rows = selectable.filter((e) => e.cycle.id === cycleId);
-                return `
-                  <optgroup label="${escapeHtml(rows[0].cycle.label)}">
-                    ${rows.map((e) => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('')}
-                  </optgroup>
-                `;
-              })
-              .join('')}
-          </select>
-        </label>
+        <div class="field-row">
+          <label class="field">日付 <input type="date" id="record-date" value="${previousDate || todayStr()}" required /></label>
+          <label class="field">種目
+            <select id="record-exercise" required>
+              ${cycleIds
+                .map((cycleId) => {
+                  const rows = selectable.filter((e) => e.cycle.id === cycleId);
+                  return `
+                    <optgroup label="${escapeHtml(rows[0].cycle.label)}">
+                      ${rows.map((e) => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('')}
+                    </optgroup>
+                  `;
+                })
+                .join('')}
+            </select>
+          </label>
+        </div>
         <div id="set-rows">
           ${sets
             .map(

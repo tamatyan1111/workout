@@ -7,14 +7,16 @@ import { escapeHtml } from 'shared';
 // cyclesは種目が1件も無いものも含む全件(design.md §2.10「get_cycles」)を渡すこと。
 export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], cycles: Cycle[], onChanged: () => void): void {
   container.innerHTML = `
-    <table class="board-edit-table">
-      <thead>
-        <tr><th>サイクル</th><th>種目名</th><th>目標重量(kg)</th><th>目標回数</th><th>目標セット</th><th>廃止</th><th></th></tr>
-      </thead>
-      <tbody>
-        ${exercises.map((e) => renderEditRow(e)).join('')}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="board-edit-table">
+        <thead>
+          <tr><th>サイクル</th><th>種目名</th><th>目標重量(kg)</th><th>目標回数</th><th>目標セット</th><th>廃止</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${exercises.map((e) => renderEditRow(e)).join('')}
+        </tbody>
+      </table>
+    </div>
 
     <h3>種目を追加</h3>
     ${
@@ -22,15 +24,19 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
         ? '<p>サイクルがありません。先に設定画面からサイクルを作成してください。</p>'
         : `
     <form id="add-exercise-form">
-      <label>サイクル
-        <select id="new-cycle" required>
-          ${cycles.map((c) => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join('')}
-        </select>
-      </label>
-      <label>種目名 <input type="text" id="new-name" required /></label>
-      <label>目標重量(kg) <input type="number" step="0.01" id="new-target-weight" /></label>
-      <label>目標回数 <input type="number" id="new-target-reps" required /></label>
-      <label>目標セット <input type="number" id="new-target-sets" required /></label>
+      <div class="field-row">
+        <label class="field">サイクル
+          <select id="new-cycle" required>
+            ${cycles.map((c) => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">種目名 <input type="text" id="new-name" required /></label>
+      </div>
+      <div class="field-row">
+        <label class="field">目標重量(kg) <input type="number" step="0.01" id="new-target-weight" /></label>
+        <label class="field">目標回数 <input type="number" id="new-target-reps" required /></label>
+        <label class="field">目標セット <input type="number" id="new-target-sets" required /></label>
+      </div>
       <button type="submit">追加</button>
       <p id="add-exercise-status"></p>
     </form>

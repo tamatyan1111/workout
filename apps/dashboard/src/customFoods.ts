@@ -94,11 +94,15 @@ export function renderCustomFoods(container: HTMLElement, onChanged: () => void)
     const wrapEl = container.querySelector<HTMLElement>('#custom-food-form-wrap')!;
     wrapEl.innerHTML = `
       <form id="custom-food-form">
-        <label>食品名 <input type="text" id="cf-name" value="${escapeHtml(food?.name ?? '')}" required /></label>
-        <label>カロリー(kcal/100g) <input type="number" step="0.1" id="cf-kcal" value="${food?.kcal_per_100g ?? ''}" required /></label>
-        <label>タンパク質(g/100g) <input type="number" step="0.1" id="cf-protein" value="${food?.protein_g_per_100g ?? ''}" required /></label>
-        <label>脂質(g/100g) <input type="number" step="0.1" id="cf-fat" value="${food?.fat_g_per_100g ?? ''}" required /></label>
-        <label>炭水化物(g/100g) <input type="number" step="0.1" id="cf-carb" value="${food?.carb_g_per_100g ?? ''}" required /></label>
+        <div class="field-row">
+          <label class="field">食品名 <input type="text" id="cf-name" value="${escapeHtml(food?.name ?? '')}" required /></label>
+          <label class="field">カロリー(kcal/100g) <input type="number" step="0.1" id="cf-kcal" value="${food?.kcal_per_100g ?? ''}" required /></label>
+        </div>
+        <div class="field-row">
+          <label class="field">タンパク質(g/100g) <input type="number" step="0.1" id="cf-protein" value="${food?.protein_g_per_100g ?? ''}" required /></label>
+          <label class="field">脂質(g/100g) <input type="number" step="0.1" id="cf-fat" value="${food?.fat_g_per_100g ?? ''}" required /></label>
+          <label class="field">炭水化物(g/100g) <input type="number" step="0.1" id="cf-carb" value="${food?.carb_g_per_100g ?? ''}" required /></label>
+        </div>
         <button type="submit">保存</button>
         <button type="button" id="cancel-custom-food-btn">キャンセル</button>
         <p id="custom-food-status"></p>

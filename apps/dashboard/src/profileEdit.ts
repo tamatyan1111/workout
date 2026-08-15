@@ -34,31 +34,37 @@ export function renderProfileEdit(container: HTMLElement): void {
   function draw(profile: Profile): void {
     container.innerHTML = `
       <form id="profile-form">
-        <label>表示名 <input type="text" id="profile-name" value="${escapeHtml(profile.display_name)}" required /></label>
-        <label>生年月日 <input type="date" id="profile-birth-date" value="${escapeHtml(profile.birth_date ?? '')}" /></label>
-        <label>性別
-          <select id="profile-gender">
-            ${(Object.keys(GENDER_LABELS) as Gender[])
-              .map(
-                (g) => `<option value="${g}" ${g === profile.gender ? 'selected' : ''}>${escapeHtml(GENDER_LABELS[g])}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label>身長(cm)<span class="field-note">BMI・食事機能の目標カロリー計算に使用</span>
-          <input type="number" id="profile-height" min="1" value="${profile.height_cm ?? ''}" />
-        </label>
-        <label>活動レベル<span class="field-note">TDEE(維持カロリー)計算に使用</span>
-          <select id="profile-activity-level">
-            <option value="">未設定</option>
-            ${(Object.keys(ACTIVITY_LEVEL_LABELS) as ActivityLevel[])
-              .map(
-                (a) =>
-                  `<option value="${a}" ${a === profile.activity_level ? 'selected' : ''}>${escapeHtml(ACTIVITY_LEVEL_LABELS[a])}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
+        <div class="field-row">
+          <label class="field">表示名 <input type="text" id="profile-name" value="${escapeHtml(profile.display_name)}" required /></label>
+          <label class="field">生年月日 <input type="date" id="profile-birth-date" value="${escapeHtml(profile.birth_date ?? '')}" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field">性別
+            <select id="profile-gender">
+              ${(Object.keys(GENDER_LABELS) as Gender[])
+                .map(
+                  (g) => `<option value="${g}" ${g === profile.gender ? 'selected' : ''}>${escapeHtml(GENDER_LABELS[g])}</option>`
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">身長(cm)<span class="field-note">BMI・食事機能の目標カロリー計算に使用</span>
+            <input type="number" id="profile-height" min="1" value="${profile.height_cm ?? ''}" />
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">活動レベル<span class="field-note">TDEE(維持カロリー)計算に使用</span>
+            <select id="profile-activity-level">
+              <option value="">未設定</option>
+              ${(Object.keys(ACTIVITY_LEVEL_LABELS) as ActivityLevel[])
+                .map(
+                  (a) =>
+                    `<option value="${a}" ${a === profile.activity_level ? 'selected' : ''}>${escapeHtml(ACTIVITY_LEVEL_LABELS[a])}</option>`
+                )
+                .join('')}
+            </select>
+          </label>
+        </div>
         <button type="submit">保存</button>
         <p id="profile-status"></p>
       </form>
