@@ -24,7 +24,9 @@ test('レシピの共有リンクは未ログインで閲覧でき、共有を�
   const panel = page.locator('#tab-nutrition');
   await expect(panel.getByText('読み込み中...')).toHaveCount(0, { timeout: 15_000 });
 
-  // 独自食材を1件登録してからレシピに使う
+  // 独自食材を1件登録してからレシピに使う(食事タブはランディング/詳細画面分割のため、
+  // 「独自食材を管理する」の詳細画面に移動してから操作する)
+  await panel.locator('[data-goto="custom-foods"]').click();
   const customFoods = panel.locator('#custom-foods');
   await customFoods.getByRole('button', { name: '独自食材を追加' }).click();
   await customFoods.locator('#cf-name').fill('E2Eテスト食材');
@@ -35,7 +37,9 @@ test('レシピの共有リンクは未ログインで閲覧でき、共有を�
   await customFoods.getByRole('button', { name: '保存' }).click();
   await expect(customFoods.getByText('E2Eテスト食材')).toBeVisible();
 
-  // レシピを作成
+  // レシピを作成(ランディングに戻ってから「レシピ管理」の詳細画面に移動する)
+  await panel.locator('[data-screen="custom-foods"] [data-goto="landing"]').click();
+  await panel.locator('[data-goto="recipes"]').click();
   const recipes = panel.locator('#recipes');
   await recipes.getByRole('button', { name: '新しいレシピを作る' }).click();
   await recipes.locator('#recipe-name-input').fill('E2E共有レシピ');

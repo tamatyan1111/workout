@@ -580,9 +580,11 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
         $bmiCategory = bmi_category_label($bmi);
     }
 
+    $bmr = null;
     $tdee = null;
     if ($heightCm !== null && $currentWeight !== null && $user['birth_date'] !== null) {
         $age = calculate_age($user['birth_date'], $today);
+        $bmr = calculate_bmr($currentWeight, $heightCm, $age, $user['gender']);
         $tdee = calculate_tdee($currentWeight, $heightCm, $age, $user['gender'], $activityLevel);
     }
 
@@ -634,6 +636,7 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
         'current_weight' => $currentWeight,
         'bmi' => $bmi !== null ? round($bmi, 1) : null,
         'bmi_category' => $bmiCategory,
+        'bmr' => $bmr !== null ? round($bmr) : null,
         'tdee' => $tdee !== null ? round($tdee) : null,
         'goal' => $goalSummary,
     ];

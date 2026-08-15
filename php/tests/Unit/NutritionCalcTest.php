@@ -31,6 +31,17 @@ final class NutritionCalcTest extends TestCase
         $this->assertSame('肥満(4度)', bmi_category_label(40.0));
     }
 
+    public function testCalculateBmrMale(): void
+    {
+        // 10*70 + 6.25*175 - 5*30 + 5 = 700 + 1093.75 - 150 + 5 = 1648.75
+        $this->assertEqualsWithDelta(1648.75, calculate_bmr(70, 175, 30, 'male'), 0.01);
+    }
+
+    public function testCalculateBmrReturnsNullForUnspecifiedGender(): void
+    {
+        $this->assertNull(calculate_bmr(70, 175, 30, 'unspecified'));
+    }
+
     public function testCalculateTdeeMale(): void
     {
         $tdee = calculate_tdee(70, 175, 30, 'male', 'sedentary');
