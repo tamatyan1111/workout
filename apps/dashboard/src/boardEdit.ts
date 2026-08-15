@@ -9,7 +9,7 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
   container.innerHTML = `
     <table class="board-edit-table">
       <thead>
-        <tr><th>サイクル</th><th>種目名</th><th>目標重量</th><th>目標回数</th><th>目標セット</th><th>廃止</th><th></th></tr>
+        <tr><th>サイクル</th><th>種目名</th><th>目標重量(kg)</th><th>目標回数</th><th>目標セット</th><th>廃止</th><th></th></tr>
       </thead>
       <tbody>
         ${exercises.map((e) => renderEditRow(e)).join('')}

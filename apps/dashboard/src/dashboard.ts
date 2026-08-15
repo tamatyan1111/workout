@@ -11,12 +11,14 @@ import { renderNutrition } from './nutrition';
 import { renderProfileEdit } from './profileEdit';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
+import { initScreenNav } from './screenNav';
 import { escapeHtml } from 'shared';
 
 // design.md §3「ログイン後(通常時)」対応。ロゴタップで開くホーム+3タブ(運動・食事・
-// プロフィール)のシェル。運動タブは記録入力・直近の記録・管理表・グラフ・管理表の編集・
-// サイクル管理をまとめて持つ(§3.1〜3.2)。プロフィールタブはプロフィール編集・体重記録・
-// データのエクスポート・アカウントをまとめて持つ(2026-08-15、旧・体重タブ+設定タブを再編)。
+// プロフィール)のシェル。運動タブはランディング(サマリー・記録入力・直近の記録)+
+// 詳細画面(種目を管理する・グラフ・サイクル管理)の構成(§3.1〜3.2、UI再設計フェーズ2で
+// ランディング/詳細分割)。プロフィールタブはプロフィール編集・体重記録・データのエクス
+// ポート・アカウントをまとめて持つ(2026-08-15、旧・体重タブ+設定タブを再編)。
 // ホーム画面はUI再設計フェーズ2で追加(2026-08-15)。
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
@@ -34,18 +36,52 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     <main>
       <section id="tab-home" class="tab-panel"></section>
       <section id="tab-exercise" class="tab-panel" hidden>
-        <h2>記録を入力</h2>
-        <div id="record-form"><p>読み込み中...</p></div>
-        <h2>直近の記録</h2>
-        <div id="recent-logs"></div>
-        <h2>管理表</h2>
-        <div id="board-view"><p>読み込み中...</p></div>
-        <h2>グラフ</h2>
-        <div id="graph-view"><p>読み込み中...</p></div>
-        <h2>管理表の編集</h2>
-        <div id="board-edit"><p>読み込み中...</p></div>
-        <h2>サイクル管理</h2>
-        <div id="cycle-management"><p>読み込み中...</p></div>
+        <div data-screen="landing">
+          <h2>サマリー</h2>
+          <div id="board-view"><p>読み込み中...</p></div>
+          <h2>運動を記録する</h2>
+          <div id="record-form"><p>読み込み中...</p></div>
+          <h2>直近の記録</h2>
+          <div id="recent-logs"></div>
+          <div class="link-list">
+            <button type="button" class="link-card" data-goto="board">
+              <span>
+                <span class="link-title">種目を管理する</span>
+                <span class="link-desc">目標値の変更・種目の追加や廃止</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+            <button type="button" class="link-card" data-goto="graph">
+              <span>
+                <span class="link-title">グラフを見る</span>
+                <span class="link-desc">重量推移・総作業量の推移</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+            <button type="button" class="link-card" data-goto="cycles">
+              <span>
+                <span class="link-title">サイクルを管理する</span>
+                <span class="link-desc">分割(Push/Pull/Legsなど)の追加・変更</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+          </div>
+        </div>
+        <div data-screen="board" hidden>
+          <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
+          <h2>種目を管理する</h2>
+          <div id="board-edit"><p>読み込み中...</p></div>
+        </div>
+        <div data-screen="graph" hidden>
+          <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
+          <h2>グラフ</h2>
+          <div id="graph-view"><p>読み込み中...</p></div>
+        </div>
+        <div data-screen="cycles" hidden>
+          <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
+          <h2>サイクル管理</h2>
+          <div id="cycle-management"><p>読み込み中...</p></div>
+        </div>
       </section>
       <section id="tab-nutrition" class="tab-panel" hidden></section>
       <section id="tab-profile" class="tab-panel" hidden>
@@ -73,6 +109,8 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     profile: container.querySelector<HTMLElement>('#tab-profile')!,
   };
   const nutritionEl = panels.nutrition;
+
+  initScreenNav(panels.exercise, 'landing');
 
   const profileEditEl = container.querySelector<HTMLElement>('#profile-edit')!;
   const bodyWeightEl = container.querySelector<HTMLElement>('#body-weight')!;
