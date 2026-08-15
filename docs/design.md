@@ -1,8 +1,8 @@
 ---
 type: Design Doc
 title: 設計
-description: 筋トレ管理サイトのアーキテクチャ・データモデル・画面構成
-tags: [筋トレ管理, design]
+description: からだ手帳サイトのアーキテクチャ・データモデル・画面構成
+tags: [からだ手帳, design]
 timestamp: 2026-07-20T00:00:00Z
 ---
 # 設計

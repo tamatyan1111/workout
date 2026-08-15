@@ -1,8 +1,8 @@
-# たまちゃんの筋トレ管理
+# からだ手帳
 
 [![CI/CD](https://github.com/tamatyan1111/workout/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/tamatyan1111/workout/actions/workflows/ci-cd.yml)
 
-筋トレの記録入力・進捗確認を行うWebアプリ。npm workspacesによるモノリポ構成で、ログイン必須のダッシュボード(フロントエンド、TypeScript)とAPI(バックエンド、PHP)を1つのリポジトリで管理している。将来的に無料で一般公開し、複数のユーザーがそれぞれ自分の記録を管理できる製品として育てる方針。
+運動・食事・からだの記録入力/進捗確認を行うWebアプリ。npm workspacesによるモノリポ構成で、ログイン必須のダッシュボード(フロントエンド、TypeScript)とAPI(バックエンド、PHP)を1つのリポジトリで管理している。将来的に無料で一般公開し、複数のユーザーがそれぞれ自分の記録を管理できる製品として育てる方針。
 
 ## アーキテクチャ
 

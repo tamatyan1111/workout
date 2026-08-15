@@ -5,7 +5,7 @@
 function send_password_reset_email(array $config, string $toEmail, string $resetUrl): void
 {
     $from = $config['mail_from'];
-    $subject = '【たまちゃんの筋トレ管理】パスワード再設定';
+    $subject = '【からだ手帳】パスワード再設定';
     $body = "パスワード再設定のリクエストを受け付けました。\n"
         . "以下のURLから新しいパスワードを設定してください(有効期限: 1時間)。\n\n"
         . $resetUrl . "\n\n"
