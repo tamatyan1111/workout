@@ -147,7 +147,12 @@ CIでは専用のMariaDBサービスコンテナ+`sql/schema.sql`のみ(架空�
 
 ## デプロイについて
 
-本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないためCI/CDによる自動デプロイは組んでいない。ビルド成果物(`apps/dashboard/dist`)をFTPで手動アップロードする運用。CI自体は品質ゲート(lint・型チェック・テスト・ビルド確認)として独立して機能する。
+本番は共有ホスティング(XServer)上で稼働しており、SSH/Composerが使えないため、`master`へのマージ後にFTPS(暗号化されたFTP)でファイルを転送する形でCDを組んでいる(`.github/workflows/ci.yml`の`deploy`ジョブ)。
+
+- トリガー: `master`へのpush(=PRのマージ)。`frontend`・`php`・`e2e`の3ジョブが全green必須(ブランチ保護)
+- 転送先: ダッシュボード(`apps/dashboard/dist`)をドキュメントルート直下に、`php/api`・`php/private`をそれぞれ`api/`・`private/`に、FTPSで同期(`.env`は転送対象から除外し、本番の実際の値を上書きしない)
+- **承認ゲート**: GitHub Environments(`production`)の"Required reviewers"を使い、FTPS認証情報(Secrets)へのアクセス・実際の転送実行の直前で一時停止する。GitHub Actions上で「Review deployments」→「Approve and deploy」を押すまでデプロイは実行されない。これは複数人開発になった場合の安全策(誰でもマージはできても、本番への書き込みは指定した承認者だけができる)であり、DBマイグレーションが必要な変更は承認前に手動で`sql/migrate_*.sql`をphpMyAdminで実行しておく運用と組み合わせている
+- DBマイグレーション自体はSSHが無いため今後も手動(phpMyAdminでSQLを実行)。ファイル転送だけが自動化の対象
 
 ## ライセンス
 
