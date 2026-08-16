@@ -36,7 +36,7 @@ export function renderSharedRecipe(container: HTMLElement, token: string): void 
               <li>
                 <span>
                   ${escapeHtml(item.food.name)} ${item.quantity_g}g
-                  <span class="field-note">${kcal}kcal / P${protein}g F${fat}g C${carb}g</span>
+                  <span class="field-note">${kcal}kcal / C${carb}g P${protein}g F${fat}g</span>
                 </span>
               </li>
             `;

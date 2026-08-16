@@ -75,12 +75,12 @@ export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem)
         <div class="food-result-info">
           <span class="food-result-name">${escapeHtml(f.name)}</span>
           <span class="food-result-detail">
-            ${f.kcal_per_100g}kcal / P${f.protein_g_per_100g ?? '—'}g F${f.fat_g_per_100g ?? '—'}g C${f.carb_g_per_100g ?? '—'}g (100gあたり)
+            ${f.kcal_per_100g}kcal / C${f.carb_g_per_100g ?? '—'}g P${f.protein_g_per_100g ?? '—'}g F${f.fat_g_per_100g ?? '—'}g (100gあたり)
             ${f.source === 'custom' ? '<span class="badge">独自食材</span>' : ''}
           </span>
         </div>
         <input type="number" class="food-result-qty" value="100" min="1" step="1" />
-        <button type="button" class="add-food-btn">追加</button>
+        <button type="button" class="add-food-btn link-button">追加</button>
       </div>
     `
       )

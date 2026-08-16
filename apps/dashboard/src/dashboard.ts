@@ -1,15 +1,17 @@
-import { getBoard, getCycles, getLogs } from './api';
-import { renderAccount } from './account';
+import { getBoard, getCycles, getLogs, logout } from './api';
 import { renderBoard } from './board';
 import { renderBoardEdit } from './boardEdit';
 import { renderBodyWeight } from './bodyWeight';
+import { renderBodyWeightGraph } from './bodyWeightGraph';
 import { renderCycleManagement } from './cycleManagement';
 import { renderDataExport } from './dataExport';
+import { renderGoalSettings } from './goalSettings';
 import { renderGraph } from './graph';
 import { renderHome } from './home';
 import { renderNutrition } from './nutrition';
 import { renderProfileEdit } from './profileEdit';
 import { renderProfileSummary } from './profileSummary';
+import { renderRecentBodyWeights } from './recentBodyWeights';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
 import { initScreenNav } from './screenNav';
@@ -17,15 +19,20 @@ import { escapeHtml } from 'shared';
 
 // design.md §3「ログイン後(通常時)」対応。ロゴタップで開くホーム+3タブ(運動・食事・
 // プロフィール)のシェル。運動・食事・プロフィールの各タブはランディング(サマリー+
-// 日常的な入力)+詳細画面(管理・設定系)の構成(§3.1〜3.2、UI再設計フェーズ2でランディング/
-// 詳細分割)。プロフィールタブの詳細画面はプロフィール編集・データのエクスポート・アカウント
-// (2026-08-15、旧・体重タブ+設定タブを再編)。ホーム画面はUI再設計フェーズ2で追加(2026-08-15)。
+// 日常的な入力+直近の履歴)+詳細画面(グラフ確認・管理・設定系)の構成
+// (§3.1〜3.2、UI再設計フェーズ2でランディング/詳細分割、2026-08-16に運動タブと同じ
+// 構成へ統一)。プロフィールタブの詳細画面はプロフィール(テーマ・アカウント削除を含む)・
+// 目標・エクスポート(2026-08-16、アカウント画面を廃止しプロフィールへ統合。
+// ログアウトは常にヘッダーに表示)。ホーム画面はUI再設計フェーズ2で追加(2026-08-15)。
 export function renderDashboard(container: HTMLElement, displayName: string, onLoggedOut: () => void): void {
   container.innerHTML = `
     <header class="site-header">
       <div class="header-inner">
         <button type="button" class="logo" id="logo-home">からだ手帳</button>
-        <p class="welcome">ようこそ、${escapeHtml(displayName)}さん</p>
+        <div class="header-right">
+          <button type="button" class="welcome" id="welcome-profile-link">ようこそ、${escapeHtml(displayName)}さん</button>
+          <button type="button" class="header-logout-btn" id="header-logout-btn">ログアウト</button>
+        </div>
       </div>
     </header>
     <nav class="tabs tabs-standalone">
@@ -42,32 +49,32 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
             <div id="board-view"><p>読み込み中...</p></div>
           </div>
           <div class="card">
-            <h2>運動を記録する</h2>
+            <h2>運動を記録</h2>
             <div id="record-form"><p>読み込み中...</p></div>
           </div>
           <div class="card">
-            <h2>直近の記録</h2>
+            <h2>直近の履歴</h2>
             <div id="recent-logs"></div>
           </div>
           <div class="link-list">
-            <button type="button" class="link-card" data-goto="board">
-              <span>
-                <span class="link-title">種目を管理する</span>
-                <span class="link-desc">目標値の変更・種目の追加や廃止</span>
-              </span>
-              <span class="chev">→</span>
-            </button>
             <button type="button" class="link-card" data-goto="graph">
               <span>
-                <span class="link-title">グラフを見る</span>
+                <span class="link-title">グラフ確認</span>
                 <span class="link-desc">重量・回数・総作業量の推移</span>
               </span>
               <span class="chev">→</span>
             </button>
             <button type="button" class="link-card" data-goto="cycles">
               <span>
-                <span class="link-title">サイクルを管理する</span>
+                <span class="link-title">サイクル管理</span>
                 <span class="link-desc">分割(Push/Pull/Legsなど)の追加・変更</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+            <button type="button" class="link-card" data-goto="board">
+              <span>
+                <span class="link-title">種目管理</span>
+                <span class="link-desc">目標値の変更・種目の追加や廃止</span>
               </span>
               <span class="chev">→</span>
             </button>
@@ -76,14 +83,14 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
         <div data-screen="board" hidden>
           <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
           <div class="card">
-            <h2>種目を管理する</h2>
+            <h2>種目管理</h2>
             <div id="board-edit"><p>読み込み中...</p></div>
           </div>
         </div>
         <div data-screen="graph" hidden>
           <button type="button" class="link-button" data-goto="landing">← 運動に戻る</button>
           <div class="card">
-            <h2>グラフ</h2>
+            <h2>グラフ確認</h2>
             <div id="graph-view"><p>読み込み中...</p></div>
           </div>
         </div>
@@ -106,49 +113,67 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
             <h2>体重を記録する</h2>
             <div id="body-weight"><p>読み込み中...</p></div>
           </div>
+          <div class="card">
+            <h2>直近の履歴</h2>
+            <div id="recent-body-weights"></div>
+          </div>
           <div class="link-list">
+            <button type="button" class="link-card" data-goto="graph">
+              <span>
+                <span class="link-title">グラフ確認</span>
+                <span class="link-desc">体重の推移</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
             <button type="button" class="link-card" data-goto="edit">
               <span>
-                <span class="link-title">プロフィールを編集する</span>
-                <span class="link-desc">表示名・生年月日・性別・身長・活動レベル</span>
+                <span class="link-title">アカウント設定</span>
+                <span class="link-desc">表示名・生年月日・性別・身長・活動レベル・テーマ・アカウント削除</span>
+              </span>
+              <span class="chev">→</span>
+            </button>
+            <button type="button" class="link-card" data-goto="goals">
+              <span>
+                <span class="link-title">目標</span>
+                <span class="link-desc">目標体重・達成期日・PFC配分方式</span>
               </span>
               <span class="chev">→</span>
             </button>
             <button type="button" class="link-card" data-goto="export">
               <span>
-                <span class="link-title">データのエクスポート</span>
+                <span class="link-title">エクスポート</span>
                 <span class="link-desc">記録・体重データをCSVでダウンロード</span>
               </span>
               <span class="chev">→</span>
             </button>
-            <button type="button" class="link-card" data-goto="account">
-              <span>
-                <span class="link-title">アカウント</span>
-                <span class="link-desc">テーマ切替・ログアウト・アカウントの削除</span>
-              </span>
-              <span class="chev">→</span>
-            </button>
+          </div>
+        </div>
+        <div data-screen="graph" hidden>
+          <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
+          <div class="card">
+            <h2>グラフ確認</h2>
+            <div id="body-weight-graph"><p>読み込み中...</p></div>
           </div>
         </div>
         <div data-screen="edit" hidden>
           <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
           <div class="card">
-            <h2>プロフィール編集</h2>
+            <h2>アカウント設定</h2>
             <div id="profile-edit"><p>読み込み中...</p></div>
+          </div>
+        </div>
+        <div data-screen="goals" hidden>
+          <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
+          <div class="card">
+            <h2>目標</h2>
+            <div id="goal-settings"><p>読み込み中...</p></div>
           </div>
         </div>
         <div data-screen="export" hidden>
           <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
           <div class="card">
-            <h2>データのエクスポート</h2>
+            <h2>エクスポート</h2>
             <div id="data-export"><p>読み込み中...</p></div>
-          </div>
-        </div>
-        <div data-screen="account" hidden>
-          <button type="button" class="link-button" data-goto="landing">← プロフィールに戻る</button>
-          <div class="card">
-            <h2>アカウント</h2>
-            <div id="account"><p>読み込み中...</p></div>
           </div>
         </div>
       </section>
@@ -173,9 +198,11 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
 
   const profileSummaryEl = container.querySelector<HTMLElement>('#profile-summary')!;
   const profileEditEl = container.querySelector<HTMLElement>('#profile-edit')!;
+  const goalSettingsEl = container.querySelector<HTMLElement>('#goal-settings')!;
   const bodyWeightEl = container.querySelector<HTMLElement>('#body-weight')!;
+  const recentBodyWeightsEl = container.querySelector<HTMLElement>('#recent-body-weights')!;
+  const bodyWeightGraphEl = container.querySelector<HTMLElement>('#body-weight-graph')!;
   const dataExportEl = container.querySelector<HTMLElement>('#data-export')!;
-  const accountEl = container.querySelector<HTMLElement>('#account')!;
 
   let exerciseRendered = false;
   let nutritionRendered = false;
@@ -204,17 +231,29 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
     if (tab === 'profile' && !profileRendered) {
       profileRendered = true;
       renderProfileSummary(profileSummaryEl);
-      renderProfileEdit(profileEditEl);
-      renderBodyWeight(bodyWeightEl);
+      renderProfileEdit(profileEditEl, onLoggedOut);
+      renderGoalSettings(goalSettingsEl);
+      renderBodyWeight(bodyWeightEl, onBodyWeightSaved);
+      void renderRecentBodyWeights(recentBodyWeightsEl);
+      renderBodyWeightGraph(bodyWeightGraphEl);
       renderDataExport(dataExportEl);
-      renderAccount(accountEl, onLoggedOut);
     }
+  }
+
+  function onBodyWeightSaved(): void {
+    void renderRecentBodyWeights(recentBodyWeightsEl);
+    renderBodyWeightGraph(bodyWeightGraphEl);
   }
 
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', () => activateTab(btn.dataset.tab!));
   });
   container.querySelector('#logo-home')!.addEventListener('click', () => showPanel('home'));
+  container.querySelector('#welcome-profile-link')!.addEventListener('click', () => activateTab('profile'));
+  container.querySelector('#header-logout-btn')!.addEventListener('click', async () => {
+    await logout();
+    window.location.reload();
+  });
 
   const recordFormEl = container.querySelector<HTMLElement>('#record-form')!;
   const recentLogsEl = container.querySelector<HTMLElement>('#recent-logs')!;

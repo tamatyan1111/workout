@@ -1,21 +1,24 @@
-import { addNutritionGoal, getNutritionSummary } from './api';
-import type { NutritionSummary, PfcMode } from './types';
+import { getNutritionSummary } from './api';
+import type { NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-const PFC_MODE_LABELS: Record<PfcMode, string> = {
-  standard: '標準(P15% / F25% / C60%)',
-  bulk: '筋トレ向き(タンパク質 体重×1.8g/kg)',
-  cut: '減量向き(タンパク質 体重×2.0g/kg)',
-  custom: 'カスタム(グラム数を直接指定)',
-};
+type Metric = { label: string; target: number | null; today: number; unit: 'kcal' | 'g' };
 
-// design.md §2.16・2.17対応。BMI・TDEE・目標カロリー・PFC・達成日超過バナー・
-// 進捗マイルストーンの表示と、目標体重・達成日・PFC配分方式の設定フォーム。
-export function renderNutritionSummary(container: HTMLElement, onGoalChanged: () => void): void {
+function formatValue(value: number, unit: 'kcal' | 'g'): string {
+  return unit === 'kcal' ? `${Math.round(value)}kcal` : `${Math.round(value * 10) / 10}g`;
+}
+
+// design.md §2.16・2.17対応。カロリー・炭水化物・タンパク質・脂質を、「目標」「本日の摂取」
+// 「残り摂取可能」の3枚のカードにまとめて見るだけの表示専用(2026-08-16、
+// stat-cardが12枚に増えて分かりづらいとの指摘を受け、種別ごとに1枚(3枚)へ再構成。
+// AskUserQuestionで複数案を提示しユーザーが選択。表記順は炭水化物→タンパク質→脂質で統一)。
+// 体重は完全にプロフィールタブへ委ねる。目標の設定・変更はプロフィールタブの
+// 「目標」に分離してある。
+export function renderNutritionSummary(container: HTMLElement): void {
   container.innerHTML = '<p>読み込み中...</p>';
 
   void getNutritionSummary()
@@ -24,8 +27,33 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
       container.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
     });
 
+  function cardHtml(title: string, metrics: Metric[], valueOf: (m: Metric) => number | null): string {
+    return `
+      <div class="stat-card stat-card-multi">
+        <span class="stat-label">${escapeHtml(title)}</span>
+        <dl class="stat-multi-list">
+          ${metrics
+            .map((m) => {
+              const value = valueOf(m);
+              return `<div><dt>${escapeHtml(m.label)}</dt><dd>${value !== null ? formatValue(value, m.unit) : '—'}</dd></div>`;
+            })
+            .join('')}
+        </dl>
+      </div>
+    `;
+  }
+
   function draw(summary: NutritionSummary): void {
     const goal = summary.goal;
+    const targetCalories = goal?.target_calories ?? null;
+    const pfc = goal?.pfc ?? null;
+
+    const metrics: Metric[] = [
+      { label: 'カロリー', target: targetCalories, today: summary.today_kcal, unit: 'kcal' },
+      { label: '炭水化物', target: pfc?.carb_g ?? null, today: summary.today_carb_g, unit: 'g' },
+      { label: 'タンパク質', target: pfc?.protein_g ?? null, today: summary.today_protein_g, unit: 'g' },
+      { label: '脂質', target: pfc?.fat_g ?? null, today: summary.today_fat_g, unit: 'g' },
+    ];
 
     container.innerHTML = `
       ${goal?.overdue ? '<p class="banner banner-warning">目標達成日を過ぎています。目標を見直しましょう。</p>' : ''}
@@ -35,127 +63,20 @@ export function renderNutritionSummary(container: HTMLElement, onGoalChanged: ()
           : ''
       }
       <div class="nutrition-stats">
-        <div class="stat-card">
-          <span class="stat-label">維持カロリー</span>
-          <span class="stat-value">${summary.tdee !== null ? `${summary.tdee}kcal` : '—'}</span>
-          ${
-            summary.tdee !== null && summary.bmr !== null
-              ? `<span class="stat-sub">基礎代謝${summary.bmr}kcal+活動量${summary.tdee - summary.bmr}kcal</span>`
-              : summary.tdee === null
-                ? '<span class="stat-sub">プロフィールタブで身長・活動レベルを入力してください</span>'
-                : ''
-          }
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">目標カロリー</span>
-          <span class="stat-value">${summary.goal?.target_calories !== null && summary.goal?.target_calories !== undefined ? `${summary.goal.target_calories}kcal` : '—'}</span>
-        </div>
+        ${cardHtml('目標', metrics, (m) => m.target)}
+        ${cardHtml('本日の摂取', metrics, (m) => m.today)}
+        ${cardHtml('残り摂取可能', metrics, (m) => (m.target !== null ? m.target - m.today : null))}
       </div>
-
-      <div id="goal-section"></div>
-    `;
-
-    renderGoalSection(container.querySelector<HTMLElement>('#goal-section')!, summary);
-  }
-
-  function renderGoalSection(el: HTMLElement, summary: NutritionSummary): void {
-    const goal = summary.goal;
-
-    el.innerHTML = `
       ${
         goal
-          ? `
-        <div class="nutrition-stats">
-          <div class="stat-card">
-            <span class="stat-label">目標体重</span>
-            <span class="stat-value">${goal.target_weight.toFixed(1)}kg</span>
-            <span class="stat-sub">${escapeHtml(goal.target_date)}まで(残り${goal.days_remaining}日)</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">進捗</span>
-            <span class="stat-value">${goal.progress_percent !== null ? `${goal.progress_percent.toFixed(1)}%` : '—'}</span>
-          </div>
-        </div>
-        ${
-          goal.pfc
-            ? `
-          <table class="pfc-table">
-            <thead><tr><th>タンパク質</th><th>脂質</th><th>炭水化物</th></tr></thead>
-            <tbody><tr>
-              <td>${goal.pfc.protein_g !== null ? `${goal.pfc.protein_g}g` : '—'}</td>
-              <td>${goal.pfc.fat_g !== null ? `${goal.pfc.fat_g}g` : '—'}</td>
-              <td>${goal.pfc.carb_g !== null ? `${goal.pfc.carb_g}g` : '—'}</td>
-            </tr></tbody>
-          </table>
-          ${goal.pfc.warning ? `<p class="error">${escapeHtml(goal.pfc.warning)}</p>` : ''}
-        `
-            : '<p>身長・活動レベルが未設定のため、目標カロリー・PFCを計算できません(プロフィールタブから入力してください)</p>'
-        }
-        <button type="button" id="edit-goal-btn" class="link-button">目標を変更する</button>
-      `
-          : '<p>目標がまだ設定されていません</p><button type="button" id="edit-goal-btn">目標を設定する</button>'
+          ? pfc === null
+            ? '<p>身長・活動レベルが未設定のため、目標カロリー・PFCを計算できません(プロフィールタブから入力してください)</p>'
+            : pfc.warning
+              ? `<p class="error">${escapeHtml(pfc.warning)}</p>`
+              : ''
+          : '<p>目標がまだ設定されていません。プロフィールタブの「目標」から設定できます。</p>'
       }
-      <div id="goal-form-wrap"></div>
+      <p class="field-note">目標の変更はプロフィールタブの「目標」から</p>
     `;
-
-    el.querySelector('#edit-goal-btn')!.addEventListener('click', () => {
-      renderGoalForm(el.querySelector<HTMLElement>('#goal-form-wrap')!, goal?.pfc_mode ?? 'standard');
-    });
-  }
-
-  function renderGoalForm(el: HTMLElement, currentMode: PfcMode): void {
-    el.innerHTML = `
-      <form id="goal-form">
-        <div class="field-row">
-          <label class="field">目標体重(kg) <input type="number" step="0.1" id="goal-weight" required /></label>
-          <label class="field">目標体脂肪率(%)<span class="field-note">任意</span> <input type="number" step="0.1" id="goal-body-fat" /></label>
-        </div>
-        <div class="field-row">
-          <label class="field">達成期日 <input type="date" id="goal-date" required /></label>
-          <label class="field">PFC配分方式
-            <select id="goal-pfc-mode">
-              ${(Object.keys(PFC_MODE_LABELS) as PfcMode[])
-                .map((m) => `<option value="${m}" ${m === currentMode ? 'selected' : ''}>${escapeHtml(PFC_MODE_LABELS[m])}</option>`)
-                .join('')}
-            </select>
-          </label>
-        </div>
-        <div id="custom-pfc-fields" class="field-row" hidden>
-          <label class="field">タンパク質(g) <input type="number" step="0.1" id="goal-custom-protein" /></label>
-          <label class="field">脂質(g) <input type="number" step="0.1" id="goal-custom-fat" /></label>
-          <label class="field">炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" /></label>
-        </div>
-        <button type="submit">保存</button>
-        <p id="goal-status"></p>
-      </form>
-    `;
-
-    const modeSelect = el.querySelector<HTMLSelectElement>('#goal-pfc-mode')!;
-    const customFields = el.querySelector<HTMLElement>('#custom-pfc-fields')!;
-    const syncCustomFieldsVisibility = () => {
-      customFields.hidden = modeSelect.value !== 'custom';
-    };
-    syncCustomFieldsVisibility();
-    modeSelect.addEventListener('change', syncCustomFieldsVisibility);
-
-    el.querySelector<HTMLFormElement>('#goal-form')!.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const statusEl = el.querySelector<HTMLParagraphElement>('#goal-status')!;
-      const targetWeight = el.querySelector<HTMLInputElement>('#goal-weight')!.value;
-      const targetBodyFatPercentage = el.querySelector<HTMLInputElement>('#goal-body-fat')!.value;
-      const targetDate = el.querySelector<HTMLInputElement>('#goal-date')!.value;
-      const pfcMode = modeSelect.value as PfcMode;
-      const customProtein = el.querySelector<HTMLInputElement>('#goal-custom-protein')!.value;
-      const customFat = el.querySelector<HTMLInputElement>('#goal-custom-fat')!.value;
-      const customCarb = el.querySelector<HTMLInputElement>('#goal-custom-carb')!.value;
-      statusEl.textContent = '保存中...';
-      try {
-        await addNutritionGoal(targetWeight, targetDate, pfcMode, customProtein, customFat, customCarb, targetBodyFatPercentage);
-        onGoalChanged();
-        void getNutritionSummary().then((summary) => draw(summary));
-      } catch (err) {
-        statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
-      }
-    });
   }
 }

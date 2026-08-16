@@ -34,7 +34,7 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
   let sets: SetInput[] = buildSetsFromCurrent(firstExercise());
 
   if (selectable.length === 0) {
-    container.innerHTML = '<p>まだ種目が登録されていません。「種目を管理する」から追加してください。</p>';
+    container.innerHTML = '<p>まだ種目が登録されていません。「種目管理」から追加してください。</p>';
     return;
   }
 
@@ -95,8 +95,10 @@ export function renderRecordForm(container: HTMLElement, exercises: Exercise[], 
             )
             .join('')}
         </div>
-        <button type="button" id="add-set">セットを追加</button>
-        <button type="submit">記録を送信</button>
+        <div class="board-edit-actions">
+          <button type="button" id="add-set" class="link-button">+ セットを追加</button>
+          <button type="submit">記録</button>
+        </div>
         <p id="record-status"></p>
       </form>
     `;

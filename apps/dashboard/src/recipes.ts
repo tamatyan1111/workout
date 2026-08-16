@@ -62,7 +62,7 @@ export function renderRecipes(container: HTMLElement, onChanged: () => void): vo
   function draw(): void {
     container.innerHTML = `
       <div id="recipe-list"></div>
-      ${editingId === null ? '<button type="button" id="new-recipe-btn">新しいレシピを作る</button>' : '<div id="recipe-editor"></div>'}
+      ${editingId === null ? '<button type="button" id="new-recipe-btn" class="link-button">+ 新しいレシピを作る</button>' : '<div id="recipe-editor"></div>'}
     `;
 
     if (editingId === null) {

@@ -1,18 +1,20 @@
-import { Chart, registerables } from 'chart.js';
+import { Chart } from './chartDefaults';
 import type { Exercise, LogRow } from './types';
 import { escapeHtml } from 'shared';
-
-Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
 
 const SET_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#64748b'];
+// 複数セットが同じ重量・回数だと線が完全に重なって奥のセットが見えなくなるため、
+// 色だけでなく点の形と線種(実線/破線)でも見分けられるようにする
+const POINT_STYLES = ['circle', 'triangle', 'rect', 'rectRot', 'star', 'cross', 'rectRounded', 'crossRot'];
+const BORDER_DASHES: number[][] = [[], [6, 3], [2, 2], [8, 3, 2, 3], [1, 3], [10, 4], [4, 2, 1, 2], [3, 3, 8, 3]];
 
 // exercises・allLogs は呼び出し元(dashboard.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
 // 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
 export function renderGraph(container: HTMLElement, exercises: Exercise[], allLogs: LogRow[]): void {
   if (exercises.length === 0) {
-    container.innerHTML = '<p>種目が登録されていません</p>';
+    container.innerHTML = '<p>まだ種目が登録されていません。「種目管理」から追加してください。</p>';
     return;
   }
 
@@ -94,12 +96,16 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
     weightChart = buildSetSeriesChart(weightCanvas, labels, weightSeries, {
       title: '重量推移(セットごと)',
       yLabel: '重量(kg)',
+      targetValue: exercise.target.weight,
+      targetLabel: '目標重量(kg)',
     });
 
     repsChart?.destroy();
     repsChart = buildSetSeriesChart(repsCanvas, labels, repsSeries, {
       title: '回数推移(セットごと)',
       yLabel: '回数',
+      targetValue: exercise.target.reps,
+      targetLabel: '目標回数',
     });
 
     volumeChart?.destroy();
@@ -148,22 +154,41 @@ function buildSetSeriesChart(
   canvas: HTMLCanvasElement,
   labels: string[],
   series: { setNumber: number; data: (number | null)[] }[],
-  opts: { title: string; yLabel: string }
+  opts: { title: string; yLabel: string; targetValue?: number | null; targetLabel?: string }
 ): Chart {
   return new Chart(canvas, {
     type: 'line',
     data: {
       labels,
-      datasets: series.map((s, i) => ({
-        label: `セット${s.setNumber}`,
-        data: s.data,
-        borderColor: SET_COLORS[i % SET_COLORS.length],
-        spanGaps: false,
-      })),
+      datasets: [
+        ...series.map((s, i) => ({
+          label: `セット${s.setNumber}`,
+          data: s.data,
+          borderColor: SET_COLORS[i % SET_COLORS.length],
+          pointStyle: POINT_STYLES[i % POINT_STYLES.length],
+          borderDash: BORDER_DASHES[i % BORDER_DASHES.length],
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          spanGaps: false,
+        })),
+        // 種目の目標値は現在の値を常に一定線で表示する(過去に目標を変更していても遡って
+        // 再現はしない。「今の目標に対して実績はどうだったか」の参考線という位置づけ)
+        ...(opts.targetValue !== null && opts.targetValue !== undefined
+          ? [
+              {
+                label: opts.targetLabel ?? '目標',
+                data: labels.map(() => opts.targetValue as number),
+                borderColor: '#f59e0b',
+                borderDash: [6, 4],
+                pointRadius: 2,
+              },
+            ]
+          : []),
+      ],
     },
     options: {
       responsive: true,
-      plugins: { title: { display: true, text: opts.title } },
+      plugins: { title: { display: true, text: opts.title, font: { size: 14 } } },
       scales: {
         x: { title: { display: true, text: '日付' } },
         y: { title: { display: true, text: opts.yLabel }, beginAtZero: true },
@@ -184,7 +209,7 @@ function buildLineChart(
     options: {
       responsive: true,
       plugins: {
-        title: { display: true, text: opts.title },
+        title: { display: true, text: opts.title, font: { size: 14 } },
       },
       scales: {
         x: { title: { display: true, text: '日付' } },

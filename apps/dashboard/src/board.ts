@@ -13,7 +13,7 @@ function renderCycles(exercises: Exercise[]): string {
   const cycleIds = [...new Set(active.map((e) => e.cycle.id))].sort((a, b) => a - b);
 
   if (cycleIds.length === 0) {
-    return '<p>まだ種目が登録されていません。「種目を管理する」から追加してください。</p>';
+    return '<p>まだ種目が登録されていません。「種目管理」から追加してください。</p>';
   }
 
   return cycleIds
@@ -34,19 +34,19 @@ function renderTable(exercises: Exercise[]): string {
   return `
     <table class="board-table">
       <colgroup>
-        <col class="col-name" />
-        <col class="col-value" /><col class="col-value" /><col class="col-value" />
-        <col class="col-value" /><col class="col-value" /><col class="col-value" />
+        <col />
+        <col class="col-weight" /><col class="col-count" /><col class="col-count-sets" />
+        <col class="col-weight col-group-target" /><col class="col-count col-group-target" /><col class="col-count-sets col-group-target" />
       </colgroup>
       <thead>
         <tr>
           <th rowspan="2">種目名</th>
           <th colspan="3">現在</th>
-          <th colspan="3">目標</th>
+          <th colspan="3" class="col-group-target col-group-target-start col-group-target-end">目標</th>
         </tr>
         <tr>
-          <th>重量(kg)</th><th>回数</th><th>セット</th>
-          <th>重量(kg)</th><th>回数</th><th>セット</th>
+          <th>重量(kg)</th><th>回数</th><th class="col-group-end">セット</th>
+          <th class="col-group-target col-group-target-start">重量(kg)</th><th class="col-group-target">回数</th><th class="col-group-target col-group-target-end">セット</th>
         </tr>
       </thead>
       <tbody>
@@ -78,9 +78,9 @@ function renderRowGroup(e: Exercise): string {
       const targetCells =
         i === 0
           ? `
-            <td rowspan="${lineCount}">${escapeHtml(targetWeight)}</td>
-            <td rowspan="${lineCount}">${escapeHtml(targetReps)}</td>
-            <td rowspan="${lineCount}">${escapeHtml(targetSets)}</td>
+            <td rowspan="${lineCount}" class="col-group-target col-group-target-start">${escapeHtml(targetWeight)}</td>
+            <td rowspan="${lineCount}" class="col-group-target">${escapeHtml(targetReps)}</td>
+            <td rowspan="${lineCount}" class="col-group-target col-group-target-end">${escapeHtml(targetSets)}</td>
           `
           : '';
       return `
@@ -88,7 +88,7 @@ function renderRowGroup(e: Exercise): string {
           ${nameCell}
           <td>${escapeHtml(line.weight)}</td>
           <td>${escapeHtml(line.reps)}</td>
-          <td>${escapeHtml(line.sets)}</td>
+          <td class="col-group-end">${escapeHtml(line.sets)}</td>
           ${targetCells}
         </tr>
       `;

@@ -95,10 +95,13 @@ CREATE TABLE nutrition_goals (
   target_weight               DECIMAL(5,2) NOT NULL,
   target_body_fat_percentage  DECIMAL(4,1) NULL,       -- 任意項目。未入力可(UI再設計フェーズ2)
   target_date                 DATE NOT NULL,
-  pfc_mode                    ENUM('standard', 'bulk', 'cut', 'custom') NOT NULL DEFAULT 'standard',
+  pfc_mode                    ENUM('standard', 'bulk', 'cut', 'custom', 'custom_ratio') NOT NULL DEFAULT 'standard',
   custom_protein_g            DECIMAL(6,1) NULL,       -- pfc_mode='custom' のときのみ使用
   custom_fat_g                DECIMAL(6,1) NULL,
   custom_carb_g               DECIMAL(6,1) NULL,
+  custom_protein_percent      DECIMAL(4,1) NULL,       -- pfc_mode='custom_ratio' のときのみ使用(3つ合計100%)
+  custom_fat_percent          DECIMAL(4,1) NULL,
+  custom_carb_percent         DECIMAL(4,1) NULL,
   created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_nutrition_goals_user_id_created_at (user_id, created_at),

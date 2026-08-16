@@ -121,6 +121,19 @@ final class NutritionCalcTest extends TestCase
         $this->assertSame(200.0, $pfc['carb_g']);
     }
 
+    // custom_ratio: standardと同じく目標カロリーを起点に、ユーザー指定の比率でグラム数へ換算する
+    public function testCalculatePfcGramsCustomRatioConvertsPercentToGrams(): void
+    {
+        $pfc = calculate_pfc_grams('custom_ratio', 2000, 70, null, null, null, 20.0, 30.0, 50.0);
+        // タンパク質: 2000 * 0.20 / 4 = 100.0
+        $this->assertSame(100.0, $pfc['protein_g']);
+        // 脂質: 2000 * 0.30 / 9 = 66.7
+        $this->assertEqualsWithDelta(66.7, $pfc['fat_g'], 0.01);
+        // 炭水化物: 2000 * 0.50 / 4 = 250.0
+        $this->assertSame(250.0, $pfc['carb_g']);
+        $this->assertNull($pfc['warning']);
+    }
+
     public function testCalculateProgressPercent(): void
     {
         $this->assertEqualsWithDelta(50.0, calculate_progress_percent(80, 75, 70), 0.01);

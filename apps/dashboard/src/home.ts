@@ -1,4 +1,4 @@
-import { getMeals, getNutritionSummary, getRecentLogs } from './api';
+import { getMeals, getNutritionSummary } from './api';
 import { todayStr } from './date';
 import { itemKcal } from './mealLog';
 import { escapeHtml } from 'shared';
@@ -21,22 +21,22 @@ export function renderHome(container: HTMLElement, onGoto: (tab: TabKey) => void
     <div class="link-list">
       <button type="button" class="link-card" data-goto="exercise">
         <span>
-          <span class="link-title">運動を記録する</span>
-          <span class="link-desc">今日のトレーニングを入力</span>
+          <span class="link-title">運動を記録</span>
+          <span class="link-desc">トレーニングを入力</span>
         </span>
         <span class="chev">→</span>
       </button>
       <button type="button" class="link-card" data-goto="nutrition">
         <span>
           <span class="link-title">食事を記録する</span>
-          <span class="link-desc">食べたものを追加</span>
+          <span class="link-desc">食べたものを入力</span>
         </span>
         <span class="chev">→</span>
       </button>
       <button type="button" class="link-card" data-goto="profile">
         <span>
           <span class="link-title">体重を記録する</span>
-          <span class="link-desc">今日の体重を入力</span>
+          <span class="link-desc">体重を入力</span>
         </span>
         <span class="chev">→</span>
       </button>
@@ -51,24 +51,14 @@ export function renderHome(container: HTMLElement, onGoto: (tab: TabKey) => void
   const statsEl = container.querySelector<HTMLElement>('#home-stats')!;
   const today = todayStr();
 
-  void Promise.all([getRecentLogs(1), getMeals(today, today), getNutritionSummary()])
-    .then(([recentLogs, meals, summary]) => {
-      const latestLog = recentLogs[0] ?? null;
+  void Promise.all([getMeals(today, today), getNutritionSummary()])
+    .then(([meals, summary]) => {
       const todayKcal = Math.round(
         meals.reduce((sum, meal) => sum + meal.items.reduce((s, item) => s + itemKcal(item), 0), 0)
       );
       const targetCalories = summary.goal?.target_calories ?? null;
 
       statsEl.innerHTML = `
-        <div class="stat-card">
-          <span class="stat-label">運動</span>
-          ${
-            latestLog
-              ? `<span class="stat-value">${escapeHtml(latestLog.exercise_name)}</span>
-                 <span class="stat-sub">${latestLog.weight !== null ? `${latestLog.weight}kg ` : ''}${latestLog.reps}回</span>`
-              : '<span class="stat-value">記録なし</span>'
-          }
-        </div>
         <div class="stat-card">
           <span class="stat-label">食事(摂取カロリー)</span>
           <span class="stat-value">${todayKcal}kcal</span>
@@ -83,7 +73,11 @@ export function renderHome(container: HTMLElement, onGoto: (tab: TabKey) => void
         <div class="stat-card">
           <span class="stat-label">体重</span>
           <span class="stat-value">${summary.current_weight !== null ? `${summary.current_weight.toFixed(1)}kg` : '記録なし'}</span>
-          ${summary.bmi !== null ? `<span class="stat-sub">BMI ${summary.bmi.toFixed(1)}${summary.bmi_category ? `(${escapeHtml(summary.bmi_category)})` : ''}</span>` : ''}
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">BMI</span>
+          <span class="stat-value">${summary.bmi !== null ? summary.bmi.toFixed(1) : '—'}</span>
+          ${summary.bmi !== null && summary.bmi_category ? `<span class="stat-sub">${escapeHtml(summary.bmi_category)}</span>` : ''}
         </div>
       `;
     })

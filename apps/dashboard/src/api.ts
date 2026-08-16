@@ -165,6 +165,8 @@ export const addExercise = (
 
 export const editExercise = (
   id: number,
+  name: string,
+  cycleId: number,
   targetWeight: string,
   targetReps: string,
   targetSets: string,
@@ -172,6 +174,8 @@ export const editExercise = (
 ): Promise<void> =>
   callPost('edit_exercise.php', {
     id,
+    name,
+    cycle_id: cycleId,
     target_weight: targetWeight || undefined,
     target_reps: targetReps || undefined,
     target_sets: targetSets || undefined,
@@ -207,10 +211,11 @@ export const deleteLog = (id: number): Promise<void> => callPost('delete_log.php
 
 // ==== 体重の推移(design.md §2.6) ====
 
-export const getBodyWeightLogs = (from?: string, to?: string): Promise<BodyWeightLog[]> =>
+export const getBodyWeightLogs = (from?: string, to?: string, limit?: number): Promise<BodyWeightLog[]> =>
   callGet<{ logs: BodyWeightLog[] }>('get_body_weight_logs.php', {
     date_from: from ?? '',
     date_to: to ?? '',
+    limit: limit ? String(limit) : '',
   }).then((d) => d.logs);
 
 export const addBodyWeightLog = (loggedDate: string, weight: string, bodyFatPercentage?: string): Promise<void> =>
@@ -250,7 +255,10 @@ export const addNutritionGoal = (
   customProteinG: string,
   customFatG: string,
   customCarbG: string,
-  targetBodyFatPercentage?: string
+  targetBodyFatPercentage?: string,
+  customProteinPercent?: string,
+  customFatPercent?: string,
+  customCarbPercent?: string
 ): Promise<{ id: number }> =>
   callPost('add_nutrition_goal.php', {
     target_weight: targetWeight,
@@ -259,6 +267,9 @@ export const addNutritionGoal = (
     custom_protein_g: pfcMode === 'custom' ? customProteinG : undefined,
     custom_fat_g: pfcMode === 'custom' ? customFatG : undefined,
     custom_carb_g: pfcMode === 'custom' ? customCarbG : undefined,
+    custom_protein_percent: pfcMode === 'custom_ratio' ? customProteinPercent : undefined,
+    custom_fat_percent: pfcMode === 'custom_ratio' ? customFatPercent : undefined,
+    custom_carb_percent: pfcMode === 'custom_ratio' ? customCarbPercent : undefined,
     target_body_fat_percentage: targetBodyFatPercentage || undefined,
   });
 
@@ -331,8 +342,12 @@ export const unshareRecipe = (id: number): Promise<void> => callPost('unshare_re
 export const getSharedRecipe = (token: string): Promise<SharedRecipe> =>
   callGet<SharedRecipe>('get_shared_recipe.php', { token });
 
-export const getMeals = (from?: string, to?: string): Promise<Meal[]> =>
-  callGet<{ meals: Meal[] }>('get_meals.php', { date_from: from ?? '', date_to: to ?? '' }).then((d) => d.meals);
+export const getMeals = (from?: string, to?: string, limit?: number): Promise<Meal[]> =>
+  callGet<{ meals: Meal[] }>('get_meals.php', {
+    date_from: from ?? '',
+    date_to: to ?? '',
+    limit: limit ? String(limit) : '',
+  }).then((d) => d.meals);
 
 export const addMeal = (
   loggedDate: string,

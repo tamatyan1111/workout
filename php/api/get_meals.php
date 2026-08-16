@@ -8,9 +8,10 @@ try {
     $userId = require_login();
     $dateFrom = $_GET['date_from'] ?? null;
     $dateTo = $_GET['date_to'] ?? null;
+    $limit = isset($_GET['limit']) && $_GET['limit'] !== '' ? (int) $_GET['limit'] : null;
 
     $pdo = get_pdo();
-    json_ok(['meals' => fetch_meals($pdo, $userId, $dateFrom ?: null, $dateTo ?: null)]);
+    json_ok(['meals' => fetch_meals($pdo, $userId, $dateFrom ?: null, $dateTo ?: null, $limit)]);
 } catch (Throwable $e) {
     handle_unexpected_error($e);
 }
