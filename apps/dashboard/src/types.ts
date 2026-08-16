@@ -37,7 +37,7 @@ export interface SetInput {
 
 // design.md §7・§2.11〜2.17「食事記録機能」対応
 
-export type PfcMode = 'standard' | 'bulk' | 'cut' | 'custom';
+export type PfcMode = 'standard' | 'bulk' | 'cut' | 'custom' | 'custom_ratio';
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -52,6 +52,9 @@ export interface NutritionGoal {
   custom_protein_g: number | null;
   custom_fat_g: number | null;
   custom_carb_g: number | null;
+  custom_protein_percent: number | null;
+  custom_fat_percent: number | null;
+  custom_carb_percent: number | null;
 }
 
 export interface Pfc {
@@ -72,6 +75,7 @@ export interface GoalSummary {
   progress_percent: number | null;
   newly_reached_milestone: number | null;
   target_bmi: number | null;
+  target_bmi_category: string | null;
   target_body_fat_percentage: number | null;
 }
 
@@ -85,6 +89,10 @@ export interface NutritionSummary {
   bmi_category: string | null;
   bmr: number | null;
   tdee: number | null;
+  today_kcal: number;
+  today_protein_g: number;
+  today_fat_g: number;
+  today_carb_g: number;
   goal: GoalSummary | null;
 }
 

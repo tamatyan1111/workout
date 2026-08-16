@@ -13,7 +13,7 @@ try {
     $targetWeight = require_positive_number($body, 'target_weight');
     $targetBodyFatPercentage = optional_number($body, 'target_body_fat_percentage');
     $targetDate = require_date($body, 'target_date');
-    $pfcMode = require_enum($body, 'pfc_mode', ['standard', 'bulk', 'cut', 'custom']);
+    $pfcMode = require_enum($body, 'pfc_mode', ['standard', 'bulk', 'cut', 'custom', 'custom_ratio']);
 
     $customProteinG = null;
     $customFatG = null;
@@ -22,6 +22,19 @@ try {
         $customProteinG = require_non_negative_number($body, 'custom_protein_g');
         $customFatG = require_non_negative_number($body, 'custom_fat_g');
         $customCarbG = require_non_negative_number($body, 'custom_carb_g');
+    }
+
+    $customProteinPercent = null;
+    $customFatPercent = null;
+    $customCarbPercent = null;
+    if ($pfcMode === 'custom_ratio') {
+        $customProteinPercent = require_non_negative_number($body, 'custom_protein_percent');
+        $customFatPercent = require_non_negative_number($body, 'custom_fat_percent');
+        $customCarbPercent = require_non_negative_number($body, 'custom_carb_percent');
+        $sum = $customProteinPercent + $customFatPercent + $customCarbPercent;
+        if (abs($sum - 100.0) > 0.5) {
+            json_error('タンパク質・脂質・炭水化物の比率の合計が100%になるようにしてください(現在の合計: ' . round($sum, 1) . '%)', 400);
+        }
     }
 
     $pdo = get_pdo();
@@ -34,7 +47,10 @@ try {
         $customProteinG,
         $customFatG,
         $customCarbG,
-        $targetBodyFatPercentage
+        $targetBodyFatPercentage,
+        $customProteinPercent,
+        $customFatPercent,
+        $customCarbPercent
     );
 
     json_ok(['id' => $id]);

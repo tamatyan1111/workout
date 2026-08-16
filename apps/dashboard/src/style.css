@@ -85,6 +85,12 @@
   box-sizing: border-box;
 }
 
+/* タブによって縦スクロールバーの有無が変わり、コンテンツの横位置がわずかにずれて
+   見えていたため、スクロールバー分の余白を常に確保しておく */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* .stack等のdisplay指定がhidden属性より強くなってしまう(同じ要素にdata-screen+class="stack"が
    付くケースがある)のを防ぐため、hidden属性を常に最優先させる */
 [hidden] {
@@ -102,7 +108,13 @@ body {
   margin: 0 auto;
 }
 
+/* #appのmax-width(720px)を突き破って背景色だけ画面幅いっぱいに広げる定番テクニック。
+   中身(.header-inner)は720px幅のまま中央寄せする(2026-08-16) */
 .site-header {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
   padding: 1rem;
   background: var(--accent);
   border-bottom: none;
@@ -113,6 +125,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .logo {
@@ -131,11 +145,47 @@ body {
   opacity: 0.85;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ヘッダーの名前(タップでプロフィールタブへ、2026-08-16) */
 .welcome {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
   margin: 0;
+  font-family: inherit;
   font-size: 0.9rem;
   color: var(--accent-contrast);
   opacity: 0.85;
+  cursor: pointer;
+}
+
+.welcome:hover {
+  opacity: 1;
+}
+
+/* 常時表示のログアウトボタン(2026-08-16、アカウント画面から移動)。ヘッダーの
+   濃い背景に馴染むよう、枠線のみの控えめなボタンにする */
+.header-logout-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--accent-contrast);
+  color: var(--accent-contrast);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.header-logout-btn:hover {
+  opacity: 1;
 }
 
 .tabs {
@@ -321,6 +371,30 @@ form select {
   border-radius: var(--radius-sm);
 }
 
+/* 日付・種目の行とセット欄の間が他の余白より広く見えたため詰める */
+#record-form .field-row {
+  margin-bottom: 0.1rem;
+}
+
+/* 日付・種目の入力欄の高さを、種目管理画面の入力欄と揃える */
+#record-form .field input,
+#record-form .field select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+/* 食事を記録するの入力欄も同じ高さに揃える(日付・区分・食品検索・数量など全部) */
+#meal-log input,
+#meal-log select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+/* 「+セットを追加」の上の余白を、「+種目を追加」(boardEdit.ts)の上の余白と揃える */
+#set-rows {
+  padding-bottom: 1rem;
+}
+
 .set-row {
   display: flex;
   gap: 0.4rem;
@@ -335,8 +409,16 @@ form select {
   font-size: 0.85rem;
 }
 
+/* 入力欄の大きさは種目管理画面(boardEdit.ts)の入力欄に揃える */
 .set-row input {
-  flex: 1;
+  flex: 0 0 auto;
+  width: 4.4rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+.set-row input[data-field='reps'] {
+  width: 2.8rem;
 }
 
 .set-row button {
@@ -347,7 +429,16 @@ form select {
   margin: 0;
 }
 
-.remove-set {
+/* まだ保存していない行の削除(セット欄・種目/サイクル追加行)は、保存済みデータの削除より
+   軽い操作なので、danger(赤)ではなく控えめな配色にする */
+/* 保存前の下書き(セット・行・カート・レシピ食材)を取り消すだけの操作は、保存済みデータの
+   削除(danger/赤)と区別するため中立色にする(2026-08-16、remove-cart-entry・
+   remove-draft-itemも同じ扱いに統一) */
+.remove-set,
+.remove-new-row-btn,
+.remove-cart-entry,
+.remove-draft-item,
+.remove-photo-btn {
   background: transparent;
   color: var(--text);
   border-color: var(--border);
@@ -430,7 +521,7 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 
-td input,
+td input:not([type='checkbox']),
 td select {
   width: 4.5rem;
   padding: 0.35rem 0.4rem;
@@ -440,6 +531,21 @@ td select {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* 幅の狭い入力欄(テーブルのセルやセット欄)では、ブラウザ標準のスピナー矢印が数字を
+   圧迫して見えなくなってしまうため非表示にする(2桁までの入力なので無くても困らない) */
+td input[type='number']::-webkit-outer-spin-button,
+td input[type='number']::-webkit-inner-spin-button,
+.set-row input[type='number']::-webkit-outer-spin-button,
+.set-row input[type='number']::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+td input[type='number'],
+.set-row input[type='number'] {
+  appearance: textfield;
 }
 
 td select {
@@ -459,86 +565,203 @@ td select {
 }
 
 .cycle-block {
-  padding-top: 1rem;
+  padding: 0.9rem 1rem;
   margin-top: 1rem;
-  border-top: 1px solid var(--border);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
 }
 
 .cycle-block:first-child {
-  padding-top: 0;
   margin-top: 0;
-  border-top: none;
 }
 
 .cycle-block h3 {
-  color: var(--accent);
-  margin-top: 0;
+  display: inline-block;
+  margin: 0 0 0.6rem;
+  padding: 0.15rem 0.6rem;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: 999px;
+  font-size: 0.78rem;
 }
 
-.board-table {
+/* 重量・回数(セット数含む)の列幅は、どのテーブルでも同じ値に揃える
+   (重量は最大 XXX.X の4桁、回数・セット数は最大2桁を表示できれば十分なため) */
+.col-weight {
+  width: 4.4rem;
+}
+
+.col-count {
+  width: 2.8rem;
+}
+
+/* 「セット」列は隣に区切り(枠線・背景)があり余白を多めに取っているため、
+   「回数」よりわずかに広げる */
+.col-count-sets {
+  width: 4rem;
+}
+
+.board-table,
+.board-edit-table,
+.cycle-table,
+.recent-logs-table {
   width: 100%;
   table-layout: fixed;
   font-size: 0.85rem;
 }
 
-.board-table .col-name {
-  width: 30%;
-}
-
-.board-table .col-value {
-  width: 11.67%;
-}
-
-.board-table td:first-child {
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-.board-edit-table {
-  width: 100%;
-  table-layout: fixed;
-  font-size: 0.85rem;
-}
-
-.board-edit-table th {
+.board-edit-table th,
+.recent-logs-table th {
   white-space: nowrap;
 }
 
+/* board-tableは列数が多く、画面幅によっては見出しが一行に収まりきらないため、
+   常に折り返し可能にする(nowrapで無理に一行に収めようとすると、
+   はみ出した文字が区切り枠に重なって見えてしまうため) */
+.board-table th {
+  white-space: normal;
+}
+
+.board-table td:first-child {
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+/* 「現在」「目標」の列グループの境目を分かりやすくする。「目標」側を白背景+枠線で
+   1枚のパネルのように囲み、単なる縦線より境目をはっきりさせる。狭い列で文字が枠に
+   近づきすぎないよう、直前の列(セット数)にも右側の余白を足す */
+td.col-group-target,
+th.col-group-target {
+  background: var(--surface);
+  border-top: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+}
+
+td.col-group-target-start,
+th.col-group-target-start {
+  border-left: 1px solid var(--accent);
+}
+
+td.col-group-target-end,
+th.col-group-target-end {
+  border-right: 1px solid var(--accent);
+}
+
+td.col-group-end,
+th.col-group-end {
+  padding-right: 0.7rem;
+}
+
 .board-edit-table .col-cycle {
-  width: 14%;
-}
-
-.board-edit-table .col-name {
-  width: 30%;
-}
-
-.board-edit-table .col-target {
-  width: 11%;
+  width: 6rem;
 }
 
 .board-edit-table .col-discontinued {
-  width: 9%;
+  width: 3.6rem;
 }
 
 .board-edit-table .col-actions {
-  width: 14%;
+  width: 4.6rem;
 }
 
-.cycle-table {
+.board-edit-table td input:not([type='checkbox']),
+.board-edit-table td select {
   width: 100%;
-  table-layout: fixed;
 }
 
-.cycle-table .col-label {
-  width: 78%;
+.board-edit-table .discontinued-cell {
+  text-align: center;
+}
+
+.board-edit-table td button,
+.recent-logs-table td button,
+.cycle-table td button {
+  white-space: nowrap;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.board-edit-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.board-edit-actions .link-button {
+  margin-bottom: 0;
 }
 
 .cycle-table .col-actions {
-  width: 22%;
+  width: 4.4rem;
 }
 
 .cycle-table td input {
   width: 100%;
+}
+
+.recent-logs-table .col-date {
+  width: 8.2rem;
+}
+
+.recent-logs-table td input {
+  width: 100%;
+}
+
+.recent-logs-table .col-actions {
+  width: 4.6rem;
+}
+
+.recent-logs-table .actions {
+  white-space: nowrap;
+}
+
+/* 直近の履歴(食事タブ)の食材テーブル。列が多いので運動タブの各テーブルより列幅を
+   詰め、操作列(保存・削除・食材を変更)はボタンを縦に積んで幅を抑える */
+.meal-items-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+/* 「タンパク質」等の見出しがnowrapだと列幅に収まらず隣の列に重なって見えるため
+   (board-tableの「セット数」で判明した問題と同じ)、折り返し可能にしておく */
+.meal-items-table th {
+  white-space: normal;
+}
+
+.meal-items-table .col-qty {
+  width: 4rem;
+}
+
+.meal-items-table .col-macro {
+  width: 3.8rem;
+}
+
+.meal-items-table .col-item-actions {
+  width: 5.6rem;
+}
+
+.meal-items-table td input[type='number'] {
+  width: 100%;
+}
+
+.meal-items-table .item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.meal-items-table .item-actions button {
+  white-space: nowrap;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.72rem;
+}
+
+.meal-items-table .change-food-row td {
+  background: var(--surface-2);
 }
 
 .graph-controls {
@@ -569,6 +792,7 @@ td select {
 
 .period-toggle button,
 .theme-toggle button {
+  margin: 0;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -588,7 +812,48 @@ td select {
 .chart-wrap {
   position: relative;
   width: 100%;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+/* PFCグラフの独自凡例。1行目=実績、2行目=目標を固定するため、Chart.js標準の凡例
+   (幅次第で折り返し行に実績・目標が混ざる)の代わりに使う(2026-08-16) */
+.chart-legend-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.chart-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.9rem;
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-muted);
+}
+
+.chart-legend-swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 0.15rem;
+  border-radius: 2px;
+}
+
+.chart-legend-swatch-dashed {
+  width: 1rem;
+  height: 0;
+  border-top: 2px dashed;
+  border-radius: 0;
 }
 
 /* 未ログイン画面(ログイン・サインアップ・パスワードリセット) */
@@ -692,8 +957,27 @@ td select {
 }
 
 @media (max-width: 480px) {
-  .board-table {
+  .board-table,
+  .board-edit-table,
+  .recent-logs-table,
+  .meal-items-table {
     font-size: 0.75rem;
+  }
+
+  /* 種目名列が横スクロール無しで読める幅を確保するため、狭い画面では数値列とパディングを詰める。
+     ヘッダーも折り返し可にする(6列分の見出しが1行に収まりきらないため) */
+  .board-table .col-weight {
+    width: 3rem;
+  }
+
+  .board-table .col-count,
+  .board-table .col-count-sets {
+    width: 2.2rem;
+  }
+
+  .board-table th,
+  .board-table td {
+    padding: 0.4rem 0.2rem;
   }
 }
 
@@ -703,6 +987,27 @@ td select {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: normal;
+}
+
+/* 「任意」のような短い注記をラベルの右側に収める場合はこちら(2026-08-16)。
+   通常のfield-noteはdisplay:blockで説明文を独立した行にするためのもので、
+   短い注記に使うと折り返してヘッダーの高さが揃わなくなる。項目名の一部に見えないよう、
+   ラベル本体より一段小さく・薄くして「補足」であることが分かるようにする */
+.field-note-inline {
+  display: inline;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  opacity: 0.8;
+  font-weight: normal;
+  white-space: nowrap;
+  margin-left: 0.2rem;
+}
+
+/* PFC比率の合計が100%からずれている警告など、field-noteを赤色にしたい場合(2026-08-16)。
+   単純に.errorを併用すると.field-noteの方が後に定義されているため上書きされてしまうため、
+   詳細度を明示的に上げておく */
+.field-note.error {
+  color: var(--danger);
 }
 
 .banner {
@@ -740,6 +1045,39 @@ td select {
   flex: 1;
 }
 
+/* 食事タブサマリーの「目標/本日の摂取/残り摂取可能」カード。1枚に
+   カロリー・炭水化物・タンパク質・脂質の4項目をまとめる(2026-08-16) */
+.stat-card-multi {
+  min-width: 9.5rem;
+  gap: 0.5rem;
+}
+
+.stat-multi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.stat-multi-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.stat-multi-list dt {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.stat-multi-list dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .stat-label {
   font-size: 0.72rem;
   color: var(--text-muted);
@@ -753,6 +1091,16 @@ td select {
 .stat-sub {
   font-size: 0.7rem;
   color: var(--text-muted);
+}
+
+/* BMI等、値の右側に区分を補足表示するための行ラッパー。.stat-cardは
+   flex-direction:columnのため、直接の子は全て別行になってしまう
+   (2026-08-16) */
+.stat-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .pfc-table {
@@ -885,6 +1233,22 @@ td select {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   cursor: pointer;
+}
+
+/* 食事を記録するフォームで選択した(まだ保存前の)写真のプレビュー(2026-08-16) */
+.photo-draft-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.photo-draft-thumb {
+  width: 2.6rem;
+  height: 2.6rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
 }
 
 .upload-photo-label {

@@ -1,5 +1,5 @@
 import { getNutritionSummary } from './api';
-import { ACTIVITY_LEVEL_LABELS } from './profileEdit';
+import { ACTIVITY_LEVEL_LABELS, ACTIVITY_LEVEL_SHORT_LABELS } from './profileEdit';
 import type { NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
 import type { ActivityLevel } from 'shared';
@@ -9,8 +9,9 @@ function errorMessage(err: unknown): string {
 }
 
 // プロフィールタブのランディング用サマリー。身長・活動レベルと、体重・BMIを現在/目標で
-// 並べて表示する。目標体重・目標達成日はnutrition_goals(食事タブの目標設定)を読み取り
-// 専用で表示するのみで、編集は食事タブに委ねる(design.md未記載、UI再設計フェーズ2)。
+// 並べて表示する。目標体重・目標達成日はnutrition_goalsを読み取り専用で表示するのみで、
+// 編集は同タブの「目標」に委ねる(design.md未記載、UI再設計フェーズ2。
+// 2026-08-16、編集フォームを食事タブからプロフィールタブに移動)。
 export function renderProfileSummary(container: HTMLElement): void {
   container.innerHTML = '<p>読み込み中...</p>';
 
@@ -26,6 +27,10 @@ export function renderProfileSummary(container: HTMLElement): void {
       summary.activity_level !== null
         ? (ACTIVITY_LEVEL_LABELS[summary.activity_level as ActivityLevel] ?? summary.activity_level)
         : '未設定';
+    const activityShortLabel =
+      summary.activity_level !== null
+        ? (ACTIVITY_LEVEL_SHORT_LABELS[summary.activity_level as ActivityLevel] ?? summary.activity_level)
+        : '未設定';
 
     container.innerHTML = `
       <div class="nutrition-stats">
@@ -35,7 +40,7 @@ export function renderProfileSummary(container: HTMLElement): void {
         </div>
         <div class="stat-card">
           <span class="stat-label">活動レベル</span>
-          <span class="stat-value" style="font-size: 0.85rem;">${escapeHtml(activityLabel)}</span>
+          <span class="stat-value" title="${escapeHtml(activityLabel)}">${escapeHtml(activityShortLabel)}</span>
         </div>
       </div>
       <div class="nutrition-stats">
@@ -51,12 +56,17 @@ export function renderProfileSummary(container: HTMLElement): void {
       <div class="nutrition-stats">
         <div class="stat-card">
           <span class="stat-label">BMI</span>
-          <span class="stat-value">${summary.bmi !== null ? summary.bmi.toFixed(1) : '—'}</span>
-          ${summary.bmi_category ? `<span class="stat-sub">${escapeHtml(summary.bmi_category)}</span>` : ''}
+          <span class="stat-value-row">
+            <span class="stat-value">${summary.bmi !== null ? summary.bmi.toFixed(1) : '—'}</span>
+            ${summary.bmi_category ? `<span class="stat-sub">${escapeHtml(summary.bmi_category)}</span>` : ''}
+          </span>
         </div>
         <div class="stat-card">
           <span class="stat-label">目標BMI</span>
-          <span class="stat-value">${goal?.target_bmi !== null && goal?.target_bmi !== undefined ? goal.target_bmi.toFixed(1) : '—'}</span>
+          <span class="stat-value-row">
+            <span class="stat-value">${goal?.target_bmi !== null && goal?.target_bmi !== undefined ? goal.target_bmi.toFixed(1) : '—'}</span>
+            ${goal?.target_bmi_category ? `<span class="stat-sub">${escapeHtml(goal.target_bmi_category)}</span>` : ''}
+          </span>
         </div>
       </div>
       <div class="nutrition-stats">
@@ -71,8 +81,8 @@ export function renderProfileSummary(container: HTMLElement): void {
       </div>
       ${
         goal
-          ? `<p class="field-note">目標達成日: ${escapeHtml(goal.target_date)}(目標の変更は食事タブから)</p>`
-          : '<p class="field-note">目標体重・目標達成日は食事タブから設定できます</p>'
+          ? `<p class="field-note">目標達成日: ${escapeHtml(goal.target_date)}(目標の変更は「目標」から)</p>`
+          : '<p class="field-note">目標体重・目標達成日は「目標」から設定できます</p>'
       }
     `;
   }

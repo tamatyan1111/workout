@@ -393,7 +393,9 @@ function exercise_has_logs(PDO $pdo, int $exerciseId): bool
 
 // ==== 体重の推移 ====
 
-function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo): array
+// $limitを指定すると、直近(logged_date, id 降順)の$limit件だけを日付昇順で返す
+// (「直近の履歴」用。グラフの期間指定とは独立して使う。fetch_meals()と同じパターン)
+function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, ?int $limit = null): array
 {
     $sql = 'SELECT id, logged_date, weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id';
     $params = ['user_id' => $userId];
@@ -405,10 +407,26 @@ function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?strin
         $sql .= ' AND logged_date <= :date_to';
         $params['date_to'] = $dateTo;
     }
-    $sql .= ' ORDER BY logged_date';
+    if ($limit !== null) {
+        $sql .= ' ORDER BY logged_date DESC, id DESC LIMIT :limit';
+    } else {
+        $sql .= ' ORDER BY logged_date';
+    }
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    if ($limit !== null) {
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+    } else {
+        $stmt->execute($params);
+    }
+    $rows = $stmt->fetchAll();
+    if ($limit !== null) {
+        $rows = array_reverse($rows);
+    }
 
     return array_map(function ($r) {
         return [
@@ -417,7 +435,7 @@ function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?strin
             'weight' => (float) $r['weight'],
             'body_fat_percentage' => $r['body_fat_percentage'] !== null ? (float) $r['body_fat_percentage'] : null,
         ];
-    }, $stmt->fetchAll());
+    }, $rows);
 }
 
 // design.md §2.6: 同じ日に再送信した場合は既存行を上書きする。体脂肪率は任意項目(UI再設計フェーズ2)
@@ -522,7 +540,8 @@ function fetch_latest_nutrition_goal(PDO $pdo, int $userId): ?array
 {
     $stmt = $pdo->prepare(
         'SELECT id, start_weight, target_weight, target_body_fat_percentage, target_date, pfc_mode,
-                custom_protein_g, custom_fat_g, custom_carb_g
+                custom_protein_g, custom_fat_g, custom_carb_g,
+                custom_protein_percent, custom_fat_percent, custom_carb_percent
          FROM nutrition_goals WHERE user_id = :user_id ORDER BY created_at DESC, id DESC LIMIT 1'
     );
     $stmt->execute(['user_id' => $userId]);
@@ -540,6 +559,9 @@ function fetch_latest_nutrition_goal(PDO $pdo, int $userId): ?array
         'custom_protein_g' => $row['custom_protein_g'] !== null ? (float) $row['custom_protein_g'] : null,
         'custom_fat_g' => $row['custom_fat_g'] !== null ? (float) $row['custom_fat_g'] : null,
         'custom_carb_g' => $row['custom_carb_g'] !== null ? (float) $row['custom_carb_g'] : null,
+        'custom_protein_percent' => $row['custom_protein_percent'] !== null ? (float) $row['custom_protein_percent'] : null,
+        'custom_fat_percent' => $row['custom_fat_percent'] !== null ? (float) $row['custom_fat_percent'] : null,
+        'custom_carb_percent' => $row['custom_carb_percent'] !== null ? (float) $row['custom_carb_percent'] : null,
     ];
 }
 
@@ -554,7 +576,10 @@ function create_nutrition_goal(
     ?float $customProteinG,
     ?float $customFatG,
     ?float $customCarbG,
-    ?float $targetBodyFatPercentage = null
+    ?float $targetBodyFatPercentage = null,
+    ?float $customProteinPercent = null,
+    ?float $customFatPercent = null,
+    ?float $customCarbPercent = null
 ): int {
     $weights = fetch_latest_two_body_weights($pdo, $userId);
     if ($weights['current'] === null) {
@@ -563,10 +588,12 @@ function create_nutrition_goal(
     $stmt = $pdo->prepare(
         'INSERT INTO nutrition_goals
             (user_id, start_weight, target_weight, target_body_fat_percentage, target_date, pfc_mode,
-             custom_protein_g, custom_fat_g, custom_carb_g)
+             custom_protein_g, custom_fat_g, custom_carb_g,
+             custom_protein_percent, custom_fat_percent, custom_carb_percent)
          VALUES
             (:user_id, :start_weight, :target_weight, :target_body_fat_percentage, :target_date, :pfc_mode,
-             :custom_protein_g, :custom_fat_g, :custom_carb_g)'
+             :custom_protein_g, :custom_fat_g, :custom_carb_g,
+             :custom_protein_percent, :custom_fat_percent, :custom_carb_percent)'
     );
     $stmt->execute([
         'user_id' => $userId,
@@ -578,6 +605,9 @@ function create_nutrition_goal(
         'custom_protein_g' => $customProteinG,
         'custom_fat_g' => $customFatG,
         'custom_carb_g' => $customCarbG,
+        'custom_protein_percent' => $customProteinPercent,
+        'custom_fat_percent' => $customFatPercent,
+        'custom_carb_percent' => $customCarbPercent,
     ]);
     return (int) $pdo->lastInsertId();
 }
@@ -592,6 +622,20 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
     }
     $weights = fetch_latest_two_body_weights($pdo, $userId);
     $goal = fetch_latest_nutrition_goal($pdo, $userId);
+
+    // サマリー(食事タブ)の「本日の摂取カロリー・PFC」用。$todayの食事をitemsごと合算する
+    $todayKcal = 0.0;
+    $todayProtein = 0.0;
+    $todayFat = 0.0;
+    $todayCarb = 0.0;
+    foreach (fetch_meals($pdo, $userId, $today, $today) as $meal) {
+        foreach ($meal['items'] as $item) {
+            $todayKcal += $item['kcal_per_100g'] * $item['quantity_g'] / 100;
+            $todayProtein += $item['protein_g_per_100g'] * $item['quantity_g'] / 100;
+            $todayFat += $item['fat_g_per_100g'] * $item['quantity_g'] / 100;
+            $todayCarb += $item['carb_g_per_100g'] * $item['quantity_g'] / 100;
+        }
+    }
 
     $heightCm = $user['height_cm'] !== null ? (int) $user['height_cm'] : null;
     $activityLevel = $user['activity_level'];
@@ -627,9 +671,20 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
                 $targetCalories = $pfc['protein_g'] * 4 + $pfc['fat_g'] * 9 + $pfc['carb_g'] * 4;
             }
         } elseif (!$overdue && $tdee !== null) {
+            // custom_ratioはstandard/bulk/cutと同じく、目標カロリーを起点にグラム数へ換算する
             $targetCalories = calculate_target_calories($tdee, $currentWeight, $goal['target_weight'], $daysRemaining);
             if ($targetCalories !== null) {
-                $pfc = calculate_pfc_grams($goal['pfc_mode'], $targetCalories, $currentWeight, null, null, null);
+                $pfc = calculate_pfc_grams(
+                    $goal['pfc_mode'],
+                    $targetCalories,
+                    $currentWeight,
+                    null,
+                    null,
+                    null,
+                    $goal['custom_protein_percent'],
+                    $goal['custom_fat_percent'],
+                    $goal['custom_carb_percent']
+                );
             }
         }
 
@@ -653,6 +708,7 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
             'newly_reached_milestone' => $milestone,
             // プロフィールタブのサマリー(現在のBMI・体脂肪率と並べて表示)向け。design.md未記載、UI再設計フェーズ2
             'target_bmi' => $heightCm !== null ? round(calculate_bmi($goal['target_weight'], $heightCm), 1) : null,
+            'target_bmi_category' => $heightCm !== null ? bmi_category_label(calculate_bmi($goal['target_weight'], $heightCm)) : null,
             'target_body_fat_percentage' => $goal['target_body_fat_percentage'],
         ];
     }
@@ -666,6 +722,10 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
         'bmi_category' => $bmiCategory,
         'bmr' => $bmr !== null ? round($bmr) : null,
         'tdee' => $tdee !== null ? round($tdee) : null,
+        'today_kcal' => round($todayKcal),
+        'today_protein_g' => round($todayProtein, 1),
+        'today_fat_g' => round($todayFat, 1),
+        'today_carb_g' => round($todayCarb, 1),
         'goal' => $goalSummary,
     ];
 }
@@ -1041,7 +1101,9 @@ function parse_recipe_items(PDO $pdo, int $userId, $rawItems): array
 
 // ==== 食事ログ(meals/meal_items) ====
 
-function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo): array
+// $limitを指定すると、直近(logged_date, id 降順)の$limit件だけを日付昇順で返す
+// (「最近の記録」用。実績グラフの期間指定とは独立して使う)
+function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, ?int $limit = null): array
 {
     $sql = 'SELECT id, logged_date, meal_type, photo_path FROM meals WHERE user_id = :user_id';
     $params = ['user_id' => $userId];
@@ -1053,10 +1115,22 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo):
         $sql .= ' AND logged_date <= :date_to';
         $params['date_to'] = $dateTo;
     }
-    $sql .= ' ORDER BY logged_date, id';
+    if ($limit !== null) {
+        $sql .= ' ORDER BY logged_date DESC, id DESC LIMIT :limit';
+    } else {
+        $sql .= ' ORDER BY logged_date, id';
+    }
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $meals = $stmt->fetchAll();
+    if ($limit !== null) {
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+    } else {
+        $stmt->execute($params);
+    }
+    $meals = $limit !== null ? array_reverse($stmt->fetchAll()) : $stmt->fetchAll();
     if (count($meals) === 0) {
         return [];
     }

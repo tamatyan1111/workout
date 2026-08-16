@@ -9,6 +9,7 @@ import { escapeHtml } from 'shared';
 // 目標値の変更は行ごとの保存ボタンを持たず、最後に1つだけ置いた「保存」ボタンで
 // 変更のあった行だけをまとめて送信する。種目の追加も別フォームにはせず、「種目を追加」で
 // 同じテーブルに空の行を増やしていく(セット欄の「セットを追加」と同じ考え方)。
+// サイクル・種目名も既存行からその場で変更できる(サイクルはプルダウン、種目名は自由入力)。
 export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], cycles: Cycle[], onChanged: () => void): void {
   let newRowKeys: number[] = [];
   let nextKey = 0;
@@ -21,26 +22,28 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
         <table class="board-edit-table">
           <colgroup>
             <col class="col-cycle" />
-            <col class="col-name" />
-            <col class="col-target" /><col class="col-target" /><col class="col-target" />
+            <col />
+            <col class="col-weight" /><col class="col-count" /><col class="col-count-sets" />
             <col class="col-discontinued" />
             <col class="col-actions" />
           </colgroup>
           <thead>
-            <tr><th>サイクル</th><th>種目名</th><th>目標重量(kg)</th><th>目標回数</th><th>目標セット</th><th>廃止</th><th></th></tr>
+            <tr><th>サイクル</th><th>種目名</th><th>重量(kg)</th><th>回数</th><th>セット</th><th class="discontinued-cell">廃止</th><th></th></tr>
           </thead>
           <tbody>
-            ${exercises.map((e) => renderEditRow(e)).join('')}
+            ${exercises.map((e) => renderEditRow(e, cycles)).join('')}
             ${newRowKeys.map((key) => renderNewRow(key, cycles)).join('')}
           </tbody>
         </table>
       </div>
-      ${
-        cycles.length === 0
-          ? '<p>サイクルがありません。先に設定画面からサイクルを作成してください。</p>'
-          : '<button type="button" id="add-exercise-row-btn" class="link-button">+ 種目を追加</button>'
-      }
-      <button type="button" id="save-all-btn">保存</button>
+      <div class="board-edit-actions">
+        ${
+          cycles.length === 0
+            ? '<p>まだサイクルが登録されていません。「サイクル管理」から追加してください。</p>'
+            : '<button type="button" id="add-exercise-row-btn" class="link-button">+ 種目を追加</button>'
+        }
+        <button type="button" id="save-all-btn">保存</button>
+      </div>
       <p id="board-edit-status"></p>
     `;
 
@@ -83,6 +86,8 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
     exercises.forEach((e) => {
       const row = container.querySelector<HTMLTableRowElement>(`tr[data-id="${e.id}"]`);
       if (!row) return;
+      const cycleId = Number(row.querySelector<HTMLSelectElement>('.cycle-select')!.value);
+      const name = row.querySelector<HTMLInputElement>('.name-input')!.value;
       const targetWeight = row.querySelector<HTMLInputElement>('.target-weight')!.value;
       const targetReps = row.querySelector<HTMLInputElement>('.target-reps')!.value;
       const targetSets = row.querySelector<HTMLInputElement>('.target-sets')!.value;
@@ -91,12 +96,14 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
       const originalReps = e.target.reps === null ? '' : String(e.target.reps);
       const originalSets = e.target.sets === null ? '' : String(e.target.sets);
       if (
+        cycleId !== e.cycle.id ||
+        name !== e.name ||
         targetWeight !== originalWeight ||
         targetReps !== originalReps ||
         targetSets !== originalSets ||
         discontinued !== e.is_discontinued
       ) {
-        editTasks.push(() => editExercise(e.id, targetWeight, targetReps, targetSets, discontinued));
+        editTasks.push(() => editExercise(e.id, name, cycleId, targetWeight, targetReps, targetSets, discontinued));
       }
     });
 
@@ -113,7 +120,7 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
       // 何も入力していない追加行は無視する(セット欄の未使用行と同じ扱い)
       if (name === '' && targetWeight === '' && targetReps === '' && targetSets === '') return;
       if (name === '' || targetReps === '' || targetSets === '') {
-        validationError = '追加する種目は、種目名・目標回数・目標セットを入力してください';
+        validationError = '追加する種目は、種目名・目標回数・目標セット数を入力してください';
         return;
       }
       addTasks.push(() => addExercise(cycleId, name, targetWeight, targetReps, targetSets));
@@ -145,17 +152,21 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
   }
 }
 
-function renderEditRow(e: Exercise): string {
+function renderEditRow(e: Exercise, cycles: Cycle[]): string {
   return `
     <tr data-id="${e.id}">
-      <td>${escapeHtml(e.cycle.label)}</td>
-      <td>${escapeHtml(e.name)}</td>
+      <td>
+        <select class="cycle-select">
+          ${cycles.map((c) => `<option value="${c.id}" ${c.id === e.cycle.id ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" class="name-input" value="${escapeHtml(e.name)}" /></td>
       <td><input type="number" step="0.01" class="target-weight" value="${escapeHtml(e.target.weight === null ? '' : String(e.target.weight))}" /></td>
       <td><input type="number" class="target-reps" value="${escapeHtml(e.target.reps === null ? '' : String(e.target.reps))}" /></td>
       <td><input type="number" class="target-sets" value="${escapeHtml(e.target.sets === null ? '' : String(e.target.sets))}" /></td>
-      <td><input type="checkbox" class="discontinued" ${e.is_discontinued ? 'checked' : ''} /></td>
+      <td class="discontinued-cell"><input type="checkbox" class="discontinued" ${e.is_discontinued ? 'checked' : ''} /></td>
       <td>
-        <button type="button" class="delete-exercise-btn">削除</button>
+        <button type="button" class="delete-exercise-btn danger">削除</button>
       </td>
     </tr>
   `;
@@ -173,7 +184,7 @@ function renderNewRow(key: number, cycles: Cycle[]): string {
       <td><input type="number" step="0.01" class="new-target-weight" /></td>
       <td><input type="number" class="new-target-reps" /></td>
       <td><input type="number" class="new-target-sets" /></td>
-      <td></td>
+      <td class="discontinued-cell"></td>
       <td>
         <button type="button" class="remove-new-row-btn">削除</button>
       </td>

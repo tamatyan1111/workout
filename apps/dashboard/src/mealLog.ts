@@ -1,28 +1,8 @@
-import { Chart, registerables } from 'chart.js';
-import {
-  addMeal,
-  addMealFromRecipe,
-  addMealItemFromRecipe,
-  deleteMeal,
-  deleteMealItem,
-  deleteMealItemGroup,
-  deleteMealPhoto,
-  editMealItem,
-  getMeals,
-  getNutritionSummary,
-  getRecipes,
-  mealPhotoUrl,
-  uploadMealPhoto,
-} from './api';
+import { addMeal, addMealFromRecipe, addMealItemFromRecipe, getRecipes, uploadMealPhoto } from './api';
 import { todayStr } from './date';
 import { renderFoodSearch } from './foodSearch';
-import { periodRange } from './graph';
-import type { CartItem, Meal, MealItem, MealType, NutritionSummary, Recipe } from './types';
+import type { CartItem, MealItem, MealType, Recipe } from './types';
 import { escapeHtml } from 'shared';
-
-Chart.register(...registerables);
-
-type Period = '30d' | '3mo' | 'all';
 
 type CartEntry = { kind: 'item'; item: CartItem } | { kind: 'recipe'; recipeId: number; recipeName: string };
 
@@ -30,16 +10,7 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// 写真サムネイルのクリック時に、画面全体に原寸大表示するためのオーバーレイ(クリックで閉じる)
-function openLightbox(src: string): void {
-  const overlay = document.createElement('div');
-  overlay.className = 'lightbox-overlay';
-  overlay.innerHTML = `<img src="${src}" alt="食事の写真(拡大)" />`;
-  overlay.addEventListener('click', () => overlay.remove());
-  document.body.appendChild(overlay);
-}
-
-const MEAL_TYPE_LABELS: Record<MealType, string> = {
+export const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: '朝食',
   lunch: '昼食',
   dinner: '夕食',
@@ -51,25 +22,21 @@ export function itemKcal(item: MealItem): number {
 }
 
 // design.md §2.15「meals/meal_items」・§3「食事タブ」対応。
-// 食事区分を選び、食品・レシピを検索してカートに追加していき、まとめて保存する。
-export function renderMealLog(container: HTMLElement, onChanged: () => void): void {
+// 食事区分を選び、食品・レシピを検索して選択リストに追加していき、まとめて保存する
+// (グラフ・直近の履歴は運動タブと同じ構成にするため、mealGraph.ts・recentMeals.tsに分離)。
+export function renderMealLog(container: HTMLElement, onSaved: () => void): void {
   let recipes: Recipe[] = [];
   let cart: CartEntry[] = [];
   let loggedDate = todayStr();
   let mealType: MealType = 'breakfast';
-  let currentPeriod: Period = '30d';
-  let meals: Meal[] = [];
-  let summary: NutritionSummary | null = null;
-  let calorieChart: Chart | null = null;
-  let pfcChart: Chart | null = null;
-  let editingItemId: number | null = null;
+  let photoFile: File | null = null;
+  let photoPreviewUrl: string | null = null;
 
   container.innerHTML = '<p>読み込み中...</p>';
 
-  void Promise.all([getRecipes(), getNutritionSummary()])
-    .then(([r, s]) => {
+  void getRecipes()
+    .then((r) => {
       recipes = r;
-      summary = s;
       draw();
     })
     .catch((err) => {
@@ -88,6 +55,7 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
                 .join('')}
             </select>
           </label>
+          <div class="field" id="meal-photo-field">${photoFieldInnerHtml()}</div>
         </div>
       </form>
 
@@ -102,28 +70,17 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
           <select id="meal-recipe-select">
             ${recipes.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}
           </select>
-          <button type="button" id="add-recipe-to-cart-btn">追加</button>
+          <button type="button" id="add-recipe-to-cart-btn" class="link-button">追加</button>
         </div>
       `
           : ''
       }
 
-      <h4>カート</h4>
+      <h4>選択リスト</h4>
       <ul id="meal-cart-list"></ul>
+      <p id="meal-cart-total"></p>
       <button type="button" id="save-meal-btn">この内容で保存</button>
       <p id="meal-save-status"></p>
-
-      <h3>実績</h3>
-      <div class="period-toggle" role="group">
-        <button type="button" data-period="30d" class="active">直近30日</button>
-        <button type="button" data-period="3mo">直近3ヶ月</button>
-        <button type="button" data-period="all">全期間</button>
-      </div>
-      <div class="chart-wrap"><canvas id="calorie-chart"></canvas></div>
-      <div class="chart-wrap"><canvas id="pfc-chart"></canvas></div>
-
-      <h3>最近の記録</h3>
-      <div id="meal-list"><p>読み込み中...</p></div>
     `;
 
     container.querySelector<HTMLInputElement>('#meal-date')!.addEventListener('change', (ev) => {
@@ -149,31 +106,64 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
     }
 
     renderCart();
+    wirePhotoField();
 
     container.querySelector('#save-meal-btn')!.addEventListener('click', saveCart);
+  }
 
-    container.querySelectorAll<HTMLButtonElement>('.period-toggle button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        container.querySelectorAll('.period-toggle button').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentPeriod = btn.dataset.period as Period;
-        void refreshMeals();
-      });
+  function photoFieldInnerHtml(): string {
+    return `
+      <span>&nbsp;</span>
+      ${
+        photoFile
+          ? `
+        <div class="photo-draft-preview">
+          <img class="photo-draft-thumb" src="${photoPreviewUrl}" alt="選択した写真のプレビュー" />
+          <label class="link-button upload-photo-label">変更<input type="file" id="meal-photo-input" accept="image/jpeg,image/png,image/webp" hidden /></label>
+          <button type="button" id="remove-photo-btn" class="remove-photo-btn">取り消す</button>
+        </div>
+      `
+          : `
+        <label class="link-button upload-photo-label">写真を追加<input type="file" id="meal-photo-input" accept="image/jpeg,image/png,image/webp" hidden /></label>
+      `
+      }
+    `;
+  }
+
+  function wirePhotoField(): void {
+    container.querySelector<HTMLInputElement>('#meal-photo-input')!.addEventListener('change', (ev) => {
+      setPhotoFile((ev.target as HTMLInputElement).files?.[0] ?? null);
     });
+    container.querySelector('#remove-photo-btn')?.addEventListener('click', () => {
+      setPhotoFile(null);
+    });
+  }
 
-    void refreshMeals();
+  // 選択中の写真を差し替える(取り消す場合はnullを渡す)。プレビュー用のobject URLは
+  // 差し替え/取り消しのたびに古いものを解放する
+  function setPhotoFile(file: File | null): void {
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+      photoPreviewUrl = null;
+    }
+    photoFile = file;
+    photoPreviewUrl = file ? URL.createObjectURL(file) : null;
+    container.querySelector<HTMLElement>('#meal-photo-field')!.innerHTML = photoFieldInnerHtml();
+    wirePhotoField();
   }
 
   function renderCart(): void {
     const listEl = container.querySelector<HTMLElement>('#meal-cart-list')!;
+    const totalEl = container.querySelector<HTMLElement>('#meal-cart-total')!;
     if (cart.length === 0) {
-      listEl.innerHTML = '<li>カートは空です</li>';
+      listEl.innerHTML = '<li>選択リストは空です</li>';
+      totalEl.textContent = '';
       return;
     }
     listEl.innerHTML = cart
       .map((entry, i) =>
         entry.kind === 'item'
-          ? `<li>${escapeHtml(entry.item.name)} ${entry.item.quantityG}g (${Math.round((entry.item.kcalPer100g * entry.item.quantityG) / 100)}kcal) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
+          ? `<li>${escapeHtml(entry.item.name)} ${entry.item.quantityG}g (${Math.round((entry.item.kcalPer100g * entry.item.quantityG) / 100)}kcal, C${((entry.item.carbPer100g * entry.item.quantityG) / 100).toFixed(1)}g / P${((entry.item.proteinPer100g * entry.item.quantityG) / 100).toFixed(1)}g / F${((entry.item.fatPer100g * entry.item.quantityG) / 100).toFixed(1)}g) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
           : `<li>${escapeHtml(entry.recipeName)}(レシピ) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
       )
       .join('');
@@ -183,12 +173,28 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
         renderCart();
       });
     });
+
+    const itemEntries = cart.filter((e): e is { kind: 'item'; item: CartItem } => e.kind === 'item').map((e) => e.item);
+    if (itemEntries.length > 0) {
+      const totals = itemEntries.reduce(
+        (sum, item) => ({
+          kcal: sum.kcal + (item.kcalPer100g * item.quantityG) / 100,
+          carb: sum.carb + (item.carbPer100g * item.quantityG) / 100,
+          protein: sum.protein + (item.proteinPer100g * item.quantityG) / 100,
+          fat: sum.fat + (item.fatPer100g * item.quantityG) / 100,
+        }),
+        { kcal: 0, carb: 0, protein: 0, fat: 0 }
+      );
+      totalEl.textContent = `合計: ${Math.round(totals.kcal)}kcal (C${totals.carb.toFixed(1)}g / P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g)`;
+    } else {
+      totalEl.textContent = '';
+    }
   }
 
   async function saveCart(): Promise<void> {
     const statusEl = container.querySelector<HTMLParagraphElement>('#meal-save-status')!;
     if (cart.length === 0) {
-      statusEl.textContent = 'カートが空です';
+      statusEl.textContent = '選択リストが空です';
       return;
     }
     statusEl.textContent = '保存中...';
@@ -206,289 +212,17 @@ export function renderMealLog(container: HTMLElement, onChanged: () => void): vo
       for (const r of recipeEntries) {
         await addMealItemFromRecipe(mealId, r.recipeId);
       }
+      if (photoFile) {
+        await uploadMealPhoto(mealId, photoFile);
+      }
 
       cart = [];
-      statusEl.textContent = '保存しました';
       renderCart();
-      await refreshMeals();
-      onChanged();
+      setPhotoFile(null);
+      statusEl.textContent = '保存しました';
+      onSaved();
     } catch (err) {
       statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
     }
-  }
-
-  async function refreshMeals(): Promise<void> {
-    const listEl = container.querySelector<HTMLElement>('#meal-list');
-    if (!listEl) return;
-    const { from, to } = periodRange(currentPeriod);
-    try {
-      meals = await getMeals(from, to);
-    } catch (err) {
-      listEl.innerHTML = `<p class="error">食事ログの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
-      return;
-    }
-    renderCharts();
-    renderMealList(listEl);
-  }
-
-  function renderCharts(): void {
-    const calorieCanvas = container.querySelector<HTMLCanvasElement>('#calorie-chart');
-    const pfcCanvas = container.querySelector<HTMLCanvasElement>('#pfc-chart');
-    if (!calorieCanvas || !pfcCanvas) return;
-
-    const byDate = new Map<string, MealItem[]>();
-    meals.forEach((m) => {
-      const items = byDate.get(m.logged_date) ?? [];
-      byDate.set(m.logged_date, [...items, ...m.items]);
-    });
-    const labels = [...byDate.keys()].sort();
-    const kcalData = labels.map((d) => Math.round(byDate.get(d)!.reduce((sum, i) => sum + itemKcal(i), 0)));
-    const proteinData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.protein_g_per_100g * i.quantity_g) / 100, 0));
-    const fatData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.fat_g_per_100g * i.quantity_g) / 100, 0));
-    const carbData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.carb_g_per_100g * i.quantity_g) / 100, 0));
-
-    const targetCalories = summary?.goal?.target_calories ?? null;
-
-    calorieChart?.destroy();
-    calorieChart = new Chart(calorieCanvas, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          { label: '摂取カロリー実績(kcal)', data: kcalData, borderColor: '#3b82f6' },
-          ...(targetCalories !== null
-            ? [
-                {
-                  label: '目標カロリー(kcal)',
-                  data: labels.map(() => targetCalories),
-                  borderColor: '#f59e0b',
-                  borderDash: [6, 4],
-                  // pointRadius 0だと、記録が1日分しかない(点が1つだけ)ときに線を描く2点目が無く、
-                  // 目標ラインが完全に見えなくなってしまうため、小さな点を常に表示する
-                  pointRadius: 2,
-                },
-              ]
-            : []),
-        ],
-      },
-      options: {
-        responsive: true,
-        plugins: { title: { display: true, text: '摂取カロリーの推移' } },
-        scales: { y: { beginAtZero: true, title: { display: true, text: 'kcal' } } },
-      },
-    });
-
-    const targetPfc = summary?.goal?.pfc ?? null;
-
-    pfcChart?.destroy();
-    pfcChart = new Chart(pfcCanvas, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          { label: 'タンパク質(g)', data: proteinData, borderColor: '#22c55e' },
-          { label: '脂質(g)', data: fatData, borderColor: '#ef4444' },
-          { label: '炭水化物(g)', data: carbData, borderColor: '#a855f7' },
-          ...(targetPfc?.protein_g !== null && targetPfc?.protein_g !== undefined
-            ? [{ label: '目標タンパク質(g)', data: labels.map(() => targetPfc.protein_g), borderColor: '#22c55e', borderDash: [6, 4], pointRadius: 2 }]
-            : []),
-        ],
-      },
-      options: {
-        responsive: true,
-        plugins: { title: { display: true, text: 'PFC実績の推移' } },
-        scales: { y: { beginAtZero: true, title: { display: true, text: 'g' } } },
-      },
-    });
-  }
-
-  function renderMealList(listEl: HTMLElement): void {
-    if (meals.length === 0) {
-      listEl.innerHTML = '<p>記録がありません</p>';
-      return;
-    }
-    const sorted = [...meals].sort((a, b) => (a.logged_date < b.logged_date ? 1 : -1));
-    listEl.innerHTML = sorted
-      .map((m) => {
-        const groups = new Map<string, MealItem[]>();
-        const ungrouped: MealItem[] = [];
-        m.items.forEach((item) => {
-          if (item.recipe_batch_id) {
-            const g = groups.get(item.recipe_batch_id) ?? [];
-            groups.set(item.recipe_batch_id, [...g, item]);
-          } else {
-            ungrouped.push(item);
-          }
-        });
-        const totalKcal = Math.round(m.items.reduce((sum, i) => sum + itemKcal(i), 0));
-
-        return `
-        <div class="meal-card" data-meal-id="${m.id}">
-          <div class="meal-card-header">
-            <strong>${escapeHtml(m.logged_date)} ${escapeHtml(MEAL_TYPE_LABELS[m.meal_type])}</strong>
-            <span>${totalKcal}kcal</span>
-            <button type="button" class="delete-meal-btn danger">記録ごと削除</button>
-          </div>
-          <div class="meal-photo">
-            ${m.photo_path ? `<img class="meal-photo-thumb" src="${mealPhotoUrl(m.id)}" alt="食事の写真" />` : ''}
-            <label class="link-button upload-photo-label">
-              ${m.photo_path ? '写真を差し替え' : '写真を追加'}
-              <input type="file" class="upload-photo-input" accept="image/jpeg,image/png,image/webp" hidden />
-            </label>
-            ${m.photo_path ? '<button type="button" class="delete-photo-btn danger">写真を削除</button>' : ''}
-            <p class="photo-status"></p>
-          </div>
-          <ul class="meal-item-list">
-            ${[...groups.entries()]
-              .map(
-                ([batchId, items]) => `
-              <li class="meal-item-group" data-batch-id="${escapeHtml(batchId)}">
-                <span>${escapeHtml(items[0].recipe_name ?? '')}(${items.map((i) => escapeHtml(i.food_name)).join('・')})</span>
-                <button type="button" class="delete-group-btn">まとめて削除</button>
-              </li>
-            `
-              )
-              .join('')}
-            ${ungrouped
-              .map((item) =>
-                item.id === editingItemId
-                  ? `
-              <li class="meal-item-edit" data-item-id="${item.id}">
-                <div class="meal-item-edit-qty">
-                  ${escapeHtml(item.food_name)}
-                  <input type="number" class="edit-item-qty" value="${item.quantity_g}" min="1" step="1" />g
-                  <button type="button" class="save-item-qty-btn">分量を保存</button>
-                  <button type="button" class="cancel-item-edit-btn">キャンセル</button>
-                </div>
-                <p class="field-note">食材そのものを変更する場合は、下で検索して選び直してください</p>
-                <div class="edit-item-food-search"></div>
-                <p class="edit-item-status"></p>
-              </li>
-            `
-                  : `
-              <li class="meal-item-single" data-item-id="${item.id}">
-                <span>${escapeHtml(item.food_name)} ${item.quantity_g}g (${Math.round(itemKcal(item))}kcal)</span>
-                <span>
-                  <button type="button" class="edit-item-btn">編集</button>
-                  <button type="button" class="delete-item-btn">削除</button>
-                </span>
-              </li>
-            `
-              )
-              .join('')}
-          </ul>
-        </div>
-      `;
-      })
-      .join('');
-
-    listEl.querySelectorAll<HTMLElement>('.meal-card').forEach((card) => {
-      const mealId = Number(card.dataset.mealId);
-      card.querySelector('.delete-meal-btn')!.addEventListener('click', async () => {
-        if (!confirm('この食事記録をまとめて削除しますか?')) return;
-        try {
-          await deleteMeal(mealId);
-          await refreshMeals();
-          onChanged();
-        } catch (err) {
-          alert(`削除に失敗しました: ${errorMessage(err)}`);
-        }
-      });
-
-      const photoStatusEl = card.querySelector<HTMLParagraphElement>('.photo-status')!;
-      card.querySelector<HTMLImageElement>('.meal-photo-thumb')?.addEventListener('click', () => {
-        openLightbox(mealPhotoUrl(mealId));
-      });
-      card.querySelector<HTMLInputElement>('.upload-photo-input')!.addEventListener('change', async (ev) => {
-        const file = (ev.target as HTMLInputElement).files?.[0];
-        if (!file) return;
-        photoStatusEl.textContent = 'アップロード中...';
-        try {
-          await uploadMealPhoto(mealId, file);
-          await refreshMeals();
-        } catch (err) {
-          photoStatusEl.textContent = `アップロードに失敗しました: ${errorMessage(err)}`;
-        }
-      });
-      card.querySelector('.delete-photo-btn')?.addEventListener('click', async () => {
-        if (!confirm('写真を削除しますか?')) return;
-        try {
-          await deleteMealPhoto(mealId);
-          await refreshMeals();
-        } catch (err) {
-          photoStatusEl.textContent = `削除に失敗しました: ${errorMessage(err)}`;
-        }
-      });
-
-      card.querySelectorAll<HTMLElement>('.meal-item-group').forEach((groupEl) => {
-        groupEl.querySelector('.delete-group-btn')!.addEventListener('click', async () => {
-          const batchId = groupEl.dataset.batchId!;
-          try {
-            await deleteMealItemGroup(batchId);
-            await refreshMeals();
-            onChanged();
-          } catch (err) {
-            alert(`削除に失敗しました: ${errorMessage(err)}`);
-          }
-        });
-      });
-      card.querySelectorAll<HTMLElement>('.meal-item-single').forEach((itemEl) => {
-        const itemId = Number(itemEl.dataset.itemId);
-        itemEl.querySelector('.edit-item-btn')!.addEventListener('click', () => {
-          editingItemId = itemId;
-          renderMealList(listEl);
-        });
-        itemEl.querySelector('.delete-item-btn')!.addEventListener('click', async () => {
-          try {
-            await deleteMealItem(itemId);
-            await refreshMeals();
-            onChanged();
-          } catch (err) {
-            alert(`削除に失敗しました: ${errorMessage(err)}`);
-          }
-        });
-      });
-      card.querySelectorAll<HTMLElement>('.meal-item-edit').forEach((itemEl) => {
-        const itemId = Number(itemEl.dataset.itemId);
-        const meal = meals.find((mm) => mm.id === mealId)!;
-        const item = meal.items.find((i) => i.id === itemId)!;
-        const statusEl = itemEl.querySelector<HTMLParagraphElement>('.edit-item-status')!;
-
-        itemEl.querySelector('.cancel-item-edit-btn')!.addEventListener('click', () => {
-          editingItemId = null;
-          renderMealList(listEl);
-        });
-        itemEl.querySelector('.save-item-qty-btn')!.addEventListener('click', async () => {
-          const qty = itemEl.querySelector<HTMLInputElement>('.edit-item-qty')!.value;
-          const ref =
-            item.master_food_id !== null
-              ? { source: 'master' as const, id: item.master_food_id }
-              : { source: 'custom' as const, id: item.custom_food_id! };
-          statusEl.textContent = '保存中...';
-          try {
-            await editMealItem(itemId, ref, qty);
-            editingItemId = null;
-            await refreshMeals();
-            onChanged();
-          } catch (err) {
-            statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
-          }
-        });
-
-        renderFoodSearch(itemEl.querySelector<HTMLElement>('.edit-item-food-search')!, (newItem) => {
-          void (async () => {
-            statusEl.textContent = '保存中...';
-            try {
-              await editMealItem(itemId, newItem.ref, String(newItem.quantityG));
-              editingItemId = null;
-              await refreshMeals();
-              onChanged();
-            } catch (err) {
-              statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
-            }
-          })();
-        });
-      });
-    });
   }
 }

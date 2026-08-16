@@ -232,6 +232,20 @@ final class QueriesTest extends TestCase
         $this->assertCount(1, fetch_body_weight_logs(self::$pdo, 1, null, null));
     }
 
+    // 「直近の履歴」用。直近$limit件だけを日付昇順(古い→新しい)で返す
+    public function testFetchBodyWeightLogsWithLimitReturnsMostRecentInAscendingOrder(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-02', 69.5);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-03', 69.0);
+
+        $logs = fetch_body_weight_logs(self::$pdo, 1, null, null, 2);
+
+        $this->assertCount(2, $logs);
+        $this->assertSame('2026-08-02', $logs[0]['logged_date']);
+        $this->assertSame('2026-08-03', $logs[1]['logged_date']);
+    }
+
     public function testDeleteBodyWeightLogRemovesRow(): void
     {
         upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 68.5);
@@ -711,6 +725,31 @@ final class QueriesTest extends TestCase
         $this->assertSame('普通体重', $summary['bmi_category']);
         $this->assertNotNull($summary['tdee']);
         $this->assertNull($summary['goal']);
+        $this->assertSame(0.0, $summary['today_kcal']);
+    }
+
+    // 食事タブのサマリー「本日の食事カロリー」用。$today以外の日付の食事は合算に含めない
+    public function testBuildNutritionSummaryComputesTodayKcal(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-14', 'lunch', null);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 200.0,
+             'food' => ['name' => '白米', 'kcal_per_100g' => 342.0, 'protein_g_per_100g' => 6.1, 'fat_g_per_100g' => 0.9, 'carb_g_per_100g' => 77.6]],
+        ], null, null);
+        $otherDayMealId = create_meal(self::$pdo, 1, '2026-08-13', 'dinner', null);
+        insert_meal_items(self::$pdo, 1, $otherDayMealId, [
+            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0,
+             'food' => ['name' => '白米', 'kcal_per_100g' => 342.0, 'protein_g_per_100g' => 6.1, 'fat_g_per_100g' => 0.9, 'carb_g_per_100g' => 77.6]],
+        ], null, null);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        // 342kcal/100g * 200g = 684kcal(前日分は含まれない)
+        $this->assertSame(684.0, $summary['today_kcal']);
+        // 6.1g/100g * 200g = 12.2g
+        $this->assertSame(12.2, $summary['today_protein_g']);
+        $this->assertSame(1.8, $summary['today_fat_g']);
+        $this->assertSame(155.2, $summary['today_carb_g']);
     }
 
     public function testBuildNutritionSummaryOmitsBmiWithoutHeight(): void
@@ -741,6 +780,29 @@ final class QueriesTest extends TestCase
         $this->assertSame(1895.0, $summary['goal']['target_calories']);
     }
 
+    // custom_ratio: standardと同じくTDEE(身長・活動レベル)が必要。目標カロリーを
+    // ユーザー指定の比率で按分する(2026-08-16)
+    public function testBuildNutritionSummaryCustomRatioConvertsPercentToGrams(): void
+    {
+        self::$pdo->exec(
+            "UPDATE users SET height_cm = 175, activity_level = 'sedentary', birth_date = '1996-01-01', gender = 'male' WHERE id = 1"
+        );
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 80.0);
+        create_nutrition_goal(self::$pdo, 1, 70.0, '2026-12-01', 'custom_ratio', null, null, null, null, 20.0, 30.0, 50.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertNotNull($summary['tdee']);
+        $this->assertNotNull($summary['goal']);
+        $this->assertNotNull($summary['goal']['target_calories']);
+        // target_caloriesは表示用に整数へ丸めた値のため、内部計算(丸め前のカロリー)との
+        // 誤差を吸収できるよう許容差を少し広めに取る
+        $targetCalories = $summary['goal']['target_calories'];
+        $this->assertEqualsWithDelta(round($targetCalories * 0.20 / 4, 1), $summary['goal']['pfc']['protein_g'], 0.2);
+        $this->assertEqualsWithDelta(round($targetCalories * 0.30 / 9, 1), $summary['goal']['pfc']['fat_g'], 0.2);
+        $this->assertEqualsWithDelta(round($targetCalories * 0.50 / 4, 1), $summary['goal']['pfc']['carb_g'], 0.2);
+    }
+
     public function testBuildNutritionSummaryIncludesTargetBmiAndBodyFatPercentage(): void
     {
         self::$pdo->exec("UPDATE users SET height_cm = 175 WHERE id = 1");
@@ -753,6 +815,7 @@ final class QueriesTest extends TestCase
         $this->assertNotNull($summary['goal']);
         // 70 / (1.75*1.75) = 22.857...
         $this->assertEqualsWithDelta(22.9, $summary['goal']['target_bmi'], 0.1);
+        $this->assertSame('普通体重', $summary['goal']['target_bmi_category']);
         $this->assertSame(18.0, $summary['goal']['target_body_fat_percentage']);
     }
 

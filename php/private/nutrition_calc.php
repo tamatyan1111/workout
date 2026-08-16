@@ -92,6 +92,8 @@ function calculate_target_calories(float $tdee, float $currentWeight, float $tar
 }
 
 // design.md §2.16 手順5。pfc_modeごとにPFCグラム数を算出する。
+// custom_ratioは「standardの15/25/60%を、ユーザー指定の比率に置き換えたもの」という位置づけのため、
+// (standardと同じく)目標カロリーを起点にグラム数へ換算する(2026-08-16)。
 // 戻り値: ['protein_g' => float|null, 'fat_g' => float|null, 'carb_g' => float|null, 'warning' => string|null]
 function calculate_pfc_grams(
     string $pfcMode,
@@ -99,13 +101,25 @@ function calculate_pfc_grams(
     float $currentWeight,
     ?float $customProteinG,
     ?float $customFatG,
-    ?float $customCarbG
+    ?float $customCarbG,
+    ?float $customProteinPercent = null,
+    ?float $customFatPercent = null,
+    ?float $customCarbPercent = null
 ): array {
     if ($pfcMode === 'custom') {
         return [
             'protein_g' => $customProteinG,
             'fat_g' => $customFatG,
             'carb_g' => $customCarbG,
+            'warning' => null,
+        ];
+    }
+
+    if ($pfcMode === 'custom_ratio') {
+        return [
+            'protein_g' => $customProteinPercent !== null ? round($targetCalories * $customProteinPercent / 100 / 4, 1) : null,
+            'fat_g' => $customFatPercent !== null ? round($targetCalories * $customFatPercent / 100 / 9, 1) : null,
+            'carb_g' => $customCarbPercent !== null ? round($targetCalories * $customCarbPercent / 100 / 4, 1) : null,
             'warning' => null,
         ];
     }
