@@ -6,6 +6,8 @@ Chart.register(...registerables);
 
 type Period = '30d' | '3mo' | 'all';
 
+const SET_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#64748b'];
+
 // exercises・allLogs は呼び出し元(dashboard.ts)でページ読み込み時に1回だけ取得済みのものを受け取る。
 // 種目・期間の切り替えはAPIを呼び直さず、ブラウザ側でallLogsをフィルタするだけで完結させる。
 export function renderGraph(container: HTMLElement, exercises: Exercise[], allLogs: LogRow[]): void {
@@ -49,6 +51,7 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
     </div>
     <p id="graph-status"></p>
     <div class="chart-wrap"><canvas id="weight-chart"></canvas></div>
+    <div class="chart-wrap"><canvas id="reps-chart"></canvas></div>
     <div class="chart-wrap"><canvas id="volume-chart"></canvas></div>
   `;
 
@@ -56,9 +59,11 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
   const periodButtons = container.querySelectorAll<HTMLButtonElement>('.period-toggle button');
   const statusEl = container.querySelector<HTMLParagraphElement>('#graph-status')!;
   const weightCanvas = container.querySelector<HTMLCanvasElement>('#weight-chart')!;
+  const repsCanvas = container.querySelector<HTMLCanvasElement>('#reps-chart')!;
   const volumeCanvas = container.querySelector<HTMLCanvasElement>('#volume-chart')!;
 
   let weightChart: Chart | null = null;
+  let repsChart: Chart | null = null;
   let volumeChart: Chart | null = null;
   let currentPeriod: Period = '30d';
 
@@ -81,22 +86,27 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
 
     const byDate = groupByDate(logs);
     const labels = Object.keys(byDate).sort();
-    const weightData = labels.map((d) => Math.max(...byDate[d].map((l) => l.weight ?? 0)));
+    const weightSeries = buildSetSeries(labels, byDate, (l) => l.weight);
+    const repsSeries = buildSetSeries(labels, byDate, (l) => l.reps);
     const volumeData = labels.map((d) => byDate[d].reduce((sum, l) => sum + (l.weight ?? 0) * l.reps, 0));
 
     weightChart?.destroy();
-    weightChart = buildLineChart(weightCanvas, labels, weightData, {
-      datasetLabel: '重量(kg)',
-      color: '#3b82f6',
-      title: `${exercise.name} - 重量推移(その日の最大重量)`,
+    weightChart = buildSetSeriesChart(weightCanvas, labels, weightSeries, {
+      title: '重量推移(セットごと)',
       yLabel: '重量(kg)',
+    });
+
+    repsChart?.destroy();
+    repsChart = buildSetSeriesChart(repsCanvas, labels, repsSeries, {
+      title: '回数推移(セットごと)',
+      yLabel: '回数',
     });
 
     volumeChart?.destroy();
     volumeChart = buildLineChart(volumeCanvas, labels, volumeData, {
       datasetLabel: '総作業量(kg)',
       color: '#22c55e',
-      title: `${exercise.name} - 総作業量推移(重量×回数の合計)`,
+      title: '総作業量推移(重量×回数の合計)',
       yLabel: '総作業量(kg)',
     });
   }
@@ -112,6 +122,54 @@ export function renderGraph(container: HTMLElement, exercises: Exercise[], allLo
   });
 
   update();
+}
+
+// 同じ日に複数セットこなした種目で「何セット目が何kg/何回だったか」を追えるよう、
+// セット番号ごとに1系列(その日のセット番号が無ければnullで欠損させる)を作る。
+function buildSetSeries(
+  labels: string[],
+  byDate: Record<string, LogRow[]>,
+  valueOf: (l: LogRow) => number | null
+): { setNumber: number; data: (number | null)[] }[] {
+  const maxSetNumber = Math.max(0, ...Object.values(byDate).flatMap((rows) => rows.map((l) => l.set_number)));
+  return Array.from({ length: maxSetNumber }, (_, i) => {
+    const setNumber = i + 1;
+    return {
+      setNumber,
+      data: labels.map((d) => {
+        const entry = (byDate[d] ?? []).find((l) => l.set_number === setNumber);
+        return entry ? valueOf(entry) : null;
+      }),
+    };
+  });
+}
+
+function buildSetSeriesChart(
+  canvas: HTMLCanvasElement,
+  labels: string[],
+  series: { setNumber: number; data: (number | null)[] }[],
+  opts: { title: string; yLabel: string }
+): Chart {
+  return new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: series.map((s, i) => ({
+        label: `セット${s.setNumber}`,
+        data: s.data,
+        borderColor: SET_COLORS[i % SET_COLORS.length],
+        spanGaps: false,
+      })),
+    },
+    options: {
+      responsive: true,
+      plugins: { title: { display: true, text: opts.title } },
+      scales: {
+        x: { title: { display: true, text: '日付' } },
+        y: { title: { display: true, text: opts.yLabel }, beginAtZero: true },
+      },
+    },
+  });
 }
 
 function buildLineChart(

@@ -430,7 +430,8 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 
-td input {
+td input,
+td select {
   width: 4.5rem;
   padding: 0.35rem 0.4rem;
   font-family: inherit;
@@ -439,6 +440,10 @@ td input {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+td select {
+  width: 100%;
 }
 
 .error {
@@ -454,12 +459,20 @@ td input {
 }
 
 .cycle-block {
-  margin-bottom: 1.5rem;
+  padding-top: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
 }
 
-.cycle-block h2 {
-  font-size: 1rem;
-  margin-bottom: 0.5rem;
+.cycle-block:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.cycle-block h3 {
+  color: var(--accent);
+  margin-top: 0;
 }
 
 .board-table {
@@ -469,16 +482,63 @@ td input {
 }
 
 .board-table .col-name {
-  width: 22%;
+  width: 30%;
 }
 
 .board-table .col-value {
-  width: 13%;
+  width: 11.67%;
 }
 
 .board-table td:first-child {
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+.board-edit-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 0.85rem;
+}
+
+.board-edit-table th {
+  white-space: nowrap;
+}
+
+.board-edit-table .col-cycle {
+  width: 14%;
+}
+
+.board-edit-table .col-name {
+  width: 30%;
+}
+
+.board-edit-table .col-target {
+  width: 11%;
+}
+
+.board-edit-table .col-discontinued {
+  width: 9%;
+}
+
+.board-edit-table .col-actions {
+  width: 14%;
+}
+
+.cycle-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.cycle-table .col-label {
+  width: 78%;
+}
+
+.cycle-table .col-actions {
+  width: 22%;
+}
+
+.cycle-table td input {
+  width: 100%;
 }
 
 .graph-controls {
@@ -490,8 +550,13 @@ td input {
 }
 
 .graph-controls select {
-  padding: 0.4rem;
-  font-size: 1rem;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   width: auto;
 }
 

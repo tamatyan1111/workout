@@ -60,7 +60,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
             <button type="button" class="link-card" data-goto="graph">
               <span>
                 <span class="link-title">グラフを見る</span>
-                <span class="link-desc">重量推移・総作業量の推移</span>
+                <span class="link-desc">重量・回数・総作業量の推移</span>
               </span>
               <span class="chev">→</span>
             </button>
