@@ -28,7 +28,7 @@
 
 ```
 apps/
-  dashboard/       ログイン必須のダッシュボード(管理表・グラフ・体重・食事・設定タブ)
+  dashboard/       ログイン必須のダッシュボード(ホーム画面+運動・食事・プロフィールの3タブ)
     e2e/           Playwright E2Eテスト
 packages/
   shared/          型定義・ユーティリティ
