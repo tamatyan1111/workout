@@ -22,7 +22,7 @@ function renderCycles(exercises: Exercise[]): string {
       const label = cycleExercises[0].cycle.label;
       return `
         <section class="cycle-block">
-          <h2>${escapeHtml(label)}</h2>
+          <h3>${escapeHtml(label)}</h3>
           ${renderTable(cycleExercises)}
         </section>
       `;

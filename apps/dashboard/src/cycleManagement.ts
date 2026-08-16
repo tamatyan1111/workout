@@ -12,6 +12,7 @@ function errorMessage(err: unknown): string {
 export function renderCycleManagement(container: HTMLElement, cycles: Cycle[], onChanged: () => void): void {
   container.innerHTML = `
     <table class="cycle-table">
+      <colgroup><col class="col-label" /><col class="col-actions" /></colgroup>
       <thead><tr><th>サイクル名</th><th></th></tr></thead>
       <tbody>
         ${cycles
@@ -20,7 +21,6 @@ export function renderCycleManagement(container: HTMLElement, cycles: Cycle[], o
           <tr data-id="${c.id}">
             <td><input type="text" class="cycle-label" value="${escapeHtml(c.label)}" /></td>
             <td>
-              <button type="button" class="save-cycle-btn">保存</button>
               <button type="button" class="delete-cycle-btn">削除</button>
             </td>
           </tr>
@@ -29,6 +29,7 @@ export function renderCycleManagement(container: HTMLElement, cycles: Cycle[], o
           .join('')}
       </tbody>
     </table>
+    ${cycles.length > 0 ? '<button type="button" id="save-cycles-btn">保存</button>' : ''}
     <form id="add-cycle-form">
       <label>新しいサイクル名 <input type="text" id="new-cycle-label" required /></label>
       <button type="submit">追加</button>
@@ -40,15 +41,6 @@ export function renderCycleManagement(container: HTMLElement, cycles: Cycle[], o
 
   cycles.forEach((c) => {
     const row = container.querySelector<HTMLTableRowElement>(`tr[data-id="${c.id}"]`)!;
-    row.querySelector('.save-cycle-btn')!.addEventListener('click', async () => {
-      const label = row.querySelector<HTMLInputElement>('.cycle-label')!.value;
-      try {
-        await editCycle(c.id, label);
-        statusEl.textContent = '保存しました';
-      } catch (err) {
-        statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
-      }
-    });
     row.querySelector('.delete-cycle-btn')!.addEventListener('click', async () => {
       if (!confirm(`サイクル「${c.label}」を削除しますか?`)) return;
       try {
@@ -61,6 +53,34 @@ export function renderCycleManagement(container: HTMLElement, cycles: Cycle[], o
         alert(message);
       }
     });
+  });
+
+  container.querySelector('#save-cycles-btn')?.addEventListener('click', async () => {
+    const saveBtn = container.querySelector<HTMLButtonElement>('#save-cycles-btn')!;
+    const tasks = cycles
+      .map((c) => {
+        const row = container.querySelector<HTMLTableRowElement>(`tr[data-id="${c.id}"]`)!;
+        const label = row.querySelector<HTMLInputElement>('.cycle-label')!.value;
+        return label !== c.label ? { id: c.id, label } : null;
+      })
+      .filter((t): t is { id: number; label: string } => t !== null);
+
+    if (tasks.length === 0) {
+      statusEl.textContent = '変更はありません';
+      return;
+    }
+
+    saveBtn.disabled = true;
+    statusEl.textContent = '保存中...';
+    const results = await Promise.allSettled(tasks.map((t) => editCycle(t.id, t.label)));
+    const failedCount = results.filter((r) => r.status === 'rejected').length;
+    if (failedCount > 0) {
+      statusEl.textContent = `${failedCount}件の保存に失敗しました`;
+      saveBtn.disabled = false;
+    } else {
+      statusEl.textContent = '保存しました';
+      saveBtn.disabled = false;
+    }
   });
 
   container.querySelector<HTMLFormElement>('#add-cycle-form')!.addEventListener('submit', async (ev) => {
