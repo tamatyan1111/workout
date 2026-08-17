@@ -7,6 +7,7 @@ function makeItem(overrides: Partial<MealItem> = {}): MealItem {
     id: 1,
     master_food_id: 1,
     custom_food_id: null,
+    eating_out_meal_id: null,
     food_name: '白米',
     kcal_per_100g: 342,
     protein_g_per_100g: 6.1,

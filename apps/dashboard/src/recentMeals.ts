@@ -291,16 +291,33 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
 
   function renderItemRow(item: MealItem, editing: boolean, changingFood: boolean): string {
     const m = itemMacros(item);
+    const isEatingOut = item.eating_out_meal_id !== null;
     if (!editing) {
       return `
         <tr class="item-row" data-item-id="${item.id}">
           <td>${escapeHtml(item.food_name)}</td>
-          <td>${item.quantity_g}g</td>
+          <td>${isEatingOut ? '1食分' : `${item.quantity_g}g`}</td>
           <td>${Math.round(m.kcal)}kcal</td>
           <td>${m.carb.toFixed(1)}g</td>
           <td>${m.protein.toFixed(1)}g</td>
           <td>${m.fat.toFixed(1)}g</td>
           <td></td>
+        </tr>
+      `;
+    }
+    // 外食は「1食分固定」(レシピと同じ考え方)のため、分量編集・食材の差し替えUIは出さず削除のみ許可する
+    if (isEatingOut) {
+      return `
+        <tr class="item-row" data-item-id="${item.id}">
+          <td>${escapeHtml(item.food_name)}</td>
+          <td>1食分</td>
+          <td>${Math.round(m.kcal)}kcal</td>
+          <td>${m.carb.toFixed(1)}g</td>
+          <td>${m.protein.toFixed(1)}g</td>
+          <td>${m.fat.toFixed(1)}g</td>
+          <td class="item-actions">
+            <button type="button" class="delete-item-btn danger">削除</button>
+          </td>
         </tr>
       `;
     }

@@ -828,19 +828,29 @@ function search_foods(PDO $pdo, int $userId, ?string $q, ?string $foodGroupCode,
 // meal_items・recipe_items追加時に、指定された食品(全ユーザー共通マスタ or 自分の独自食材)の
 // 現在の栄養値を取得する。custom_foodは呼び出し中のuser_idのものであることを検証する。
 // foodsのprotein/fat/carbが「-」(未測定)でNULLの場合は0として扱う(スナップショット列はNOT NULLのため)。
-function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $customFoodId): ?array
+// $eatingOutMealId指定時は、eating_out_meals(1食分の実値)をそのまま「100gあたり」の
+// スナップショット値として返す。呼び出し側がquantity_gを常に100固定で渡すことで、
+// per_100g × quantity_g / 100 という既存の計算式をそのまま使い回せる(design.md §2.20)。
+function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $customFoodId, ?int $eatingOutMealId = null): ?array
 {
     if ($masterFoodId !== null) {
         $stmt = $pdo->prepare(
             'SELECT name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g FROM foods WHERE id = :id'
         );
         $stmt->execute(['id' => $masterFoodId]);
-    } else {
+    } elseif ($customFoodId !== null) {
         $stmt = $pdo->prepare(
             'SELECT name, kcal_per_100g, protein_g_per_100g, fat_g_per_100g, carb_g_per_100g FROM custom_foods
              WHERE id = :id AND user_id = :user_id'
         );
         $stmt->execute(['id' => $customFoodId, 'user_id' => $userId]);
+    } else {
+        $stmt = $pdo->prepare(
+            'SELECT name, kcal AS kcal_per_100g, protein_g AS protein_g_per_100g,
+                    fat_g AS fat_g_per_100g, carb_g AS carb_g_per_100g
+             FROM eating_out_meals WHERE id = :id AND user_id = :user_id'
+        );
+        $stmt->execute(['id' => $eatingOutMealId, 'user_id' => $userId]);
     }
     $row = $stmt->fetch();
     if (!$row) {
@@ -853,6 +863,75 @@ function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $cu
         'fat_g_per_100g' => $row['fat_g_per_100g'] !== null ? (float) $row['fat_g_per_100g'] : 0.0,
         'carb_g_per_100g' => $row['carb_g_per_100g'] !== null ? (float) $row['carb_g_per_100g'] : 0.0,
     ];
+}
+
+// ==== 外食(eating_out_meals) ====
+
+function fetch_eating_out_meals(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, name, kcal, protein_g, fat_g, carb_g FROM eating_out_meals WHERE user_id = :user_id ORDER BY name'
+    );
+    $stmt->execute(['user_id' => $userId]);
+    return array_map(function ($r) {
+        return [
+            'id' => (int) $r['id'],
+            'name' => $r['name'],
+            'kcal' => (float) $r['kcal'],
+            'protein_g' => (float) $r['protein_g'],
+            'fat_g' => (float) $r['fat_g'],
+            'carb_g' => (float) $r['carb_g'],
+        ];
+    }, $stmt->fetchAll());
+}
+
+function find_eating_out_meal(PDO $pdo, int $userId, int $id): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, name, kcal, protein_g, fat_g, carb_g FROM eating_out_meals WHERE id = :id AND user_id = :user_id'
+    );
+    $stmt->execute(['id' => $id, 'user_id' => $userId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return null;
+    }
+    return [
+        'id' => (int) $row['id'],
+        'name' => $row['name'],
+        'kcal' => (float) $row['kcal'],
+        'protein_g' => (float) $row['protein_g'],
+        'fat_g' => (float) $row['fat_g'],
+        'carb_g' => (float) $row['carb_g'],
+    ];
+}
+
+function create_eating_out_meal(PDO $pdo, int $userId, string $name, float $kcal, float $protein, float $fat, float $carb): int
+{
+    $stmt = $pdo->prepare(
+        'INSERT INTO eating_out_meals (user_id, name, kcal, protein_g, fat_g, carb_g)
+         VALUES (:user_id, :name, :kcal, :protein, :fat, :carb)'
+    );
+    $stmt->execute([
+        'user_id' => $userId, 'name' => $name, 'kcal' => $kcal, 'protein' => $protein, 'fat' => $fat, 'carb' => $carb,
+    ]);
+    return (int) $pdo->lastInsertId();
+}
+
+function update_eating_out_meal(PDO $pdo, int $id, string $name, float $kcal, float $protein, float $fat, float $carb): void
+{
+    $stmt = $pdo->prepare(
+        'UPDATE eating_out_meals SET name = :name, kcal = :kcal, protein_g = :protein,
+            fat_g = :fat, carb_g = :carb WHERE id = :id'
+    );
+    $stmt->execute(['name' => $name, 'kcal' => $kcal, 'protein' => $protein, 'fat' => $fat, 'carb' => $carb, 'id' => $id]);
+}
+
+function delete_eating_out_meal(PDO $pdo, int $id): void
+{
+    // meal_items.eating_out_meal_idはON DELETE SET NULLのため、custom_foodsと違い
+    // 使用中チェックは不要(過去の記録はfood_name_snapshot等で既に自己完結している)
+    $stmt = $pdo->prepare('DELETE FROM eating_out_meals WHERE id = :id');
+    $stmt->execute(['id' => $id]);
 }
 
 // ==== 独自食材(custom_foods) ====
@@ -1136,7 +1215,7 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, 
     }
 
     $itemsStmt = $pdo->prepare(
-        'SELECT id, meal_id, master_food_id, custom_food_id, food_name_snapshot, kcal_per_100g_snapshot,
+        'SELECT id, meal_id, master_food_id, custom_food_id, eating_out_meal_id, food_name_snapshot, kcal_per_100g_snapshot,
                 protein_g_per_100g_snapshot, fat_g_per_100g_snapshot, carb_g_per_100g_snapshot,
                 quantity_g, recipe_batch_id, recipe_name_snapshot
          FROM meal_items WHERE user_id = :user_id ORDER BY id'
@@ -1148,6 +1227,7 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, 
             'id' => (int) $row['id'],
             'master_food_id' => $row['master_food_id'] !== null ? (int) $row['master_food_id'] : null,
             'custom_food_id' => $row['custom_food_id'] !== null ? (int) $row['custom_food_id'] : null,
+            'eating_out_meal_id' => $row['eating_out_meal_id'] !== null ? (int) $row['eating_out_meal_id'] : null,
             'food_name' => $row['food_name_snapshot'],
             'kcal_per_100g' => (float) $row['kcal_per_100g_snapshot'],
             'protein_g_per_100g' => (float) $row['protein_g_per_100g_snapshot'],
@@ -1199,7 +1279,7 @@ function create_meal(PDO $pdo, int $userId, string $loggedDate, string $mealType
 }
 
 // design.md §2.15: 追加した瞬間の栄養値をスナップショットする。
-// $items: [['master_food_id' => ?int, 'custom_food_id' => ?int, 'quantity_g' => float, 'food' => resolve_food_source()の戻り値], ...]
+// $items: [['master_food_id' => ?int, 'custom_food_id' => ?int, 'eating_out_meal_id' => ?int, 'quantity_g' => float, 'food' => resolve_food_source()の戻り値], ...]
 function insert_meal_items(
     PDO $pdo,
     int $userId,
@@ -1210,11 +1290,11 @@ function insert_meal_items(
 ): array {
     $stmt = $pdo->prepare(
         'INSERT INTO meal_items
-            (meal_id, user_id, master_food_id, custom_food_id, food_name_snapshot,
+            (meal_id, user_id, master_food_id, custom_food_id, eating_out_meal_id, food_name_snapshot,
              kcal_per_100g_snapshot, protein_g_per_100g_snapshot, fat_g_per_100g_snapshot, carb_g_per_100g_snapshot,
              quantity_g, recipe_batch_id, recipe_name_snapshot)
          VALUES
-            (:meal_id, :user_id, :master_food_id, :custom_food_id, :food_name_snapshot,
+            (:meal_id, :user_id, :master_food_id, :custom_food_id, :eating_out_meal_id, :food_name_snapshot,
              :kcal, :protein, :fat, :carb, :quantity_g, :recipe_batch_id, :recipe_name_snapshot)'
     );
     $ids = [];
@@ -1224,6 +1304,7 @@ function insert_meal_items(
             'user_id' => $userId,
             'master_food_id' => $item['master_food_id'],
             'custom_food_id' => $item['custom_food_id'],
+            'eating_out_meal_id' => $item['eating_out_meal_id'],
             'food_name_snapshot' => $item['food']['name'],
             'kcal' => $item['food']['kcal_per_100g'],
             'protein' => $item['food']['protein_g_per_100g'],
@@ -1254,6 +1335,7 @@ function expand_recipe_items(PDO $pdo, int $userId, int $recipeId): array
         $items[] = [
             'master_food_id' => $masterFoodId,
             'custom_food_id' => $customFoodId,
+            'eating_out_meal_id' => null, // レシピの構成食材は材料が分かるものに限るため、外食は使わない
             'quantity_g' => (float) $row['quantity_g'],
             'food' => $food,
         ];
@@ -1287,17 +1369,19 @@ function resolve_items_for_meal(PDO $pdo, int $userId, ?int $recipeId, $rawItems
         }
         $masterFoodId = optional_int($rawItem, 'master_food_id');
         $customFoodId = optional_int($rawItem, 'custom_food_id');
-        if (($masterFoodId === null) === ($customFoodId === null)) {
-            json_error('master_food_idかcustom_food_idのどちらか一方を指定してください', 400);
+        $eatingOutMealId = optional_int($rawItem, 'eating_out_meal_id');
+        if (count(array_filter([$masterFoodId, $customFoodId, $eatingOutMealId], fn ($v) => $v !== null)) !== 1) {
+            json_error('master_food_id・custom_food_id・eating_out_meal_idのいずれか1つだけを指定してください', 400);
         }
         $quantity = require_positive_number($rawItem, 'quantity_g');
-        $food = resolve_food_source($pdo, $userId, $masterFoodId, $customFoodId);
+        $food = resolve_food_source($pdo, $userId, $masterFoodId, $customFoodId, $eatingOutMealId);
         if ($food === null) {
             json_error('食品が見つかりません', 404);
         }
         $items[] = [
             'master_food_id' => $masterFoodId,
             'custom_food_id' => $customFoodId,
+            'eating_out_meal_id' => $eatingOutMealId,
             'quantity_g' => $quantity,
             'food' => $food,
         ];
