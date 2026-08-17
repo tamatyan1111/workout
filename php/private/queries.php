@@ -1279,7 +1279,8 @@ function create_meal(PDO $pdo, int $userId, string $loggedDate, string $mealType
 }
 
 // design.md §2.15: 追加した瞬間の栄養値をスナップショットする。
-// $items: [['master_food_id' => ?int, 'custom_food_id' => ?int, 'eating_out_meal_id' => ?int, 'quantity_g' => float, 'food' => resolve_food_source()の戻り値], ...]
+// $items: [['master_food_id' => ?int, 'custom_food_id' => ?int, 'eating_out_meal_id' => ?int,
+//           'quantity_g' => float, 'food' => resolve_food_source()の戻り値], ...]
 function insert_meal_items(
     PDO $pdo,
     int $userId,
