@@ -1,4 +1,5 @@
 import { renderCustomFoods } from './customFoods';
+import { renderEatingOut } from './eatingOut';
 import { renderMealGraph } from './mealGraph';
 import { renderMealLog } from './mealLog';
 import { renderNutritionSummary } from './nutritionSummary';
@@ -7,7 +8,7 @@ import { renderRecipes } from './recipes';
 import { initScreenNav } from './screenNav';
 
 // design.md §3「食事タブ」対応。ランディング(サマリー・食事を記録する・直近の履歴)+
-// 詳細画面(グラフ確認・レシピ管理・食材管理)の構成。運動タブと同じ画面構成・名称に
+// 詳細画面(グラフ確認・レシピ管理・食材管理・外食管理)の構成。運動タブと同じ画面構成・名称に
 // 統一するため、実績グラフと直近の履歴をmealLog.tsから分離してある(2026-08-16)。
 export function renderNutrition(container: HTMLElement): void {
   container.innerHTML = `
@@ -46,6 +47,13 @@ export function renderNutrition(container: HTMLElement): void {
           </span>
           <span class="chev">→</span>
         </button>
+        <button type="button" class="link-card" data-goto="eating-out">
+          <span>
+            <span class="link-title">外食管理</span>
+            <span class="link-desc">材料は分からないが名前とカロリーが分かる食事を登録</span>
+          </span>
+          <span class="chev">→</span>
+        </button>
       </div>
     </div>
     <div data-screen="graph" hidden>
@@ -69,6 +77,13 @@ export function renderNutrition(container: HTMLElement): void {
         <div id="custom-foods"><p>読み込み中...</p></div>
       </div>
     </div>
+    <div data-screen="eating-out" hidden>
+      <button type="button" class="link-button" data-goto="landing">← 食事に戻る</button>
+      <div class="card">
+        <h2>外食管理</h2>
+        <div id="eating-out"><p>読み込み中...</p></div>
+      </div>
+    </div>
   `;
 
   initScreenNav(container, 'landing');
@@ -79,6 +94,7 @@ export function renderNutrition(container: HTMLElement): void {
   const mealGraphEl = container.querySelector<HTMLElement>('#meal-graph')!;
   const recipesEl = container.querySelector<HTMLElement>('#recipes')!;
   const customFoodsEl = container.querySelector<HTMLElement>('#custom-foods')!;
+  const eatingOutEl = container.querySelector<HTMLElement>('#eating-out')!;
 
   function refreshSummary(): void {
     renderNutritionSummary(summaryEl);
@@ -113,4 +129,5 @@ export function renderNutrition(container: HTMLElement): void {
   refreshGraph();
   renderRecipes(recipesEl, onFoodDataChanged);
   renderCustomFoods(customFoodsEl, onFoodDataChanged);
+  renderEatingOut(eatingOutEl, onFoodDataChanged);
 }

@@ -4,6 +4,7 @@ import type {
   CartItem,
   Cycle,
   CustomFood,
+  EatingOutMeal,
   Exercise,
   FoodRef,
   FoodSearchResult,
@@ -238,9 +239,12 @@ export const deleteBodyWeightLog = (id: number): Promise<void> => callPost('dele
 
 // ==== 食事記録機能(design.md §2.11〜2.17、§7対応) ====
 
-// FoodRef(source/id)を、API側が期待するmaster_food_id/custom_food_idの排他ペアに変換する
-function foodRefParams(ref: FoodRef): { master_food_id?: number; custom_food_id?: number } {
-  return ref.source === 'master' ? { master_food_id: ref.id } : { custom_food_id: ref.id };
+// FoodRef(source/id)を、API側が期待するmaster_food_id/custom_food_id/eating_out_meal_idの
+// 排他パラメータに変換する
+function foodRefParams(ref: FoodRef): { master_food_id?: number; custom_food_id?: number; eating_out_meal_id?: number } {
+  if (ref.source === 'master') return { master_food_id: ref.id };
+  if (ref.source === 'custom') return { custom_food_id: ref.id };
+  return { eating_out_meal_id: ref.id };
 }
 
 export const getNutritionSummary = (): Promise<NutritionSummary> => callGet<NutritionSummary>('get_nutrition_summary.php');
@@ -315,6 +319,30 @@ export const editCustomFood = (
   });
 
 export const deleteCustomFood = (id: number): Promise<void> => callPost('delete_custom_food.php', { id });
+
+export const getEatingOutMeals = (): Promise<EatingOutMeal[]> =>
+  callGet<{ meals: EatingOutMeal[] }>('get_eating_out_meals.php').then((d) => d.meals);
+
+export const addEatingOutMeal = (
+  name: string,
+  kcal: string,
+  protein: string,
+  fat: string,
+  carb: string
+): Promise<{ id: number }> =>
+  callPost('add_eating_out_meal.php', { name, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
+
+export const editEatingOutMeal = (
+  id: number,
+  name: string,
+  kcal: string,
+  protein: string,
+  fat: string,
+  carb: string
+): Promise<void> =>
+  callPost('edit_eating_out_meal.php', { id, name, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
+
+export const deleteEatingOutMeal = (id: number): Promise<void> => callPost('delete_eating_out_meal.php', { id });
 
 export const getRecipes = (): Promise<Recipe[]> => callGet<{ recipes: Recipe[] }>('get_recipes.php').then((d) => d.recipes);
 

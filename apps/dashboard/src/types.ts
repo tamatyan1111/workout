@@ -121,8 +121,20 @@ export interface CustomFood {
 
 // 食材の指定は、food_group_code等を持たないよう source を明示した形でAPIに送る
 export interface FoodRef {
-  source: 'master' | 'custom';
+  source: 'master' | 'custom' | 'eating_out';
   id: number;
+}
+
+// design.md §2.20「eating_out_meals テーブル」に対応。材料は分からないが名前と総量の
+// 栄養値だけ分かる食事(外食・コンビニ惣菜等)。custom_foodsと違い「100gあたり」ではなく
+// 「1食分の実値」をそのまま持つ
+export interface EatingOutMeal {
+  id: number;
+  name: string;
+  kcal: number;
+  protein_g: number;
+  fat_g: number;
+  carb_g: number;
 }
 
 export interface RecipeItem {
@@ -162,6 +174,7 @@ export interface MealItem {
   id: number;
   master_food_id: number | null;
   custom_food_id: number | null;
+  eating_out_meal_id: number | null;
   food_name: string;
   kcal_per_100g: number;
   protein_g_per_100g: number;

@@ -137,6 +137,23 @@ CREATE TABLE custom_foods (
   CONSTRAINT fk_custom_foods_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 材料は分からないが名前と総量の栄養値だけ分かる食事(外食・コンビニ惣菜等)。
+-- custom_foodsと違い「100gあたり」ではなく「1食分の実値」をそのまま持つ(レシピと同じく
+-- 1人分固定で登録する運用、量の調整はしない)。food_name_snapshot等と同じ理由でレシピの
+-- 構成食材(recipe_items)としては使えない(材料不明という前提と矛盾するため)。
+CREATE TABLE eating_out_meals (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     INT UNSIGNED NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  kcal        DECIMAL(6,1) NOT NULL,
+  protein_g   DECIMAL(6,2) NOT NULL,
+  fat_g       DECIMAL(6,2) NOT NULL,
+  carb_g      DECIMAL(6,2) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_eating_out_meals_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE recipes (
   id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id           INT UNSIGNED NOT NULL,
@@ -183,6 +200,7 @@ CREATE TABLE meal_items (
   user_id                     INT UNSIGNED NOT NULL,
   master_food_id              INT UNSIGNED NULL,
   custom_food_id              INT UNSIGNED NULL,
+  eating_out_meal_id          INT UNSIGNED NULL,
   food_name_snapshot          VARCHAR(255) NOT NULL,
   kcal_per_100g_snapshot      DECIMAL(6,1) NOT NULL,
   protein_g_per_100g_snapshot DECIMAL(6,2) NOT NULL,
@@ -198,7 +216,8 @@ CREATE TABLE meal_items (
   CONSTRAINT fk_meal_items_meal_id FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
   CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
-  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL
-  -- master_food_id・custom_food_idの排他制約はCHECK制約では表現しない(recipe_itemsと同じ理由、上記参照)。
+  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
+  CONSTRAINT fk_meal_items_eating_out_meal_id FOREIGN KEY (eating_out_meal_id) REFERENCES eating_out_meals(id) ON DELETE SET NULL
+  -- master_food_id・custom_food_id・eating_out_meal_idの排他制約はCHECK制約では表現しない(recipe_itemsと同じ理由、上記参照)。
   -- resolve_items_for_meal()(php/private/queries.php)で担保する
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

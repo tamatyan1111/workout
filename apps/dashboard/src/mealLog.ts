@@ -1,8 +1,13 @@
-import { addMeal, addMealFromRecipe, addMealItemFromRecipe, getRecipes, uploadMealPhoto } from './api';
+import { addMeal, addMealFromRecipe, addMealItemFromRecipe, getEatingOutMeals, getRecipes, uploadMealPhoto } from './api';
 import { todayStr } from './date';
 import { renderFoodSearch } from './foodSearch';
-import type { CartItem, MealItem, MealType, Recipe } from './types';
+import type { CartItem, EatingOutMeal, MealItem, MealType, Recipe } from './types';
 import { escapeHtml } from 'shared';
+
+// 外食メニューは「材料が分からない、1食分の実値のみ」なので、quantity_gは常にこの固定値
+// (100)で送る。100gあたり×quantity_g/100という既存の計算式をそのまま使い回すための内部的な
+// 取り決めで、ユーザーには「1食分」としてのみ見せる(php/private/queries.phpのresolve_food_source参照)。
+const EATING_OUT_FIXED_QUANTITY_G = 100;
 
 type CartEntry = { kind: 'item'; item: CartItem } | { kind: 'recipe'; recipeId: number; recipeName: string };
 
@@ -26,6 +31,7 @@ export function itemKcal(item: MealItem): number {
 // (グラフ・直近の履歴は運動タブと同じ構成にするため、mealGraph.ts・recentMeals.tsに分離)。
 export function renderMealLog(container: HTMLElement, onSaved: () => void): void {
   let recipes: Recipe[] = [];
+  let eatingOutMeals: EatingOutMeal[] = [];
   let cart: CartEntry[] = [];
   let loggedDate = todayStr();
   let mealType: MealType = 'breakfast';
@@ -34,9 +40,10 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
 
   container.innerHTML = '<p>読み込み中...</p>';
 
-  void getRecipes()
-    .then((r) => {
+  void Promise.all([getRecipes(), getEatingOutMeals()])
+    .then(([r, e]) => {
       recipes = r;
+      eatingOutMeals = e;
       draw();
     })
     .catch((err) => {
@@ -76,6 +83,20 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
           : ''
       }
 
+      ${
+        eatingOutMeals.length > 0
+          ? `
+        <h4>外食から追加</h4>
+        <div class="recipe-quick-add">
+          <select id="meal-eating-out-select">
+            ${eatingOutMeals.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
+          </select>
+          <button type="button" id="add-eating-out-to-cart-btn" class="link-button">追加</button>
+        </div>
+      `
+          : ''
+      }
+
       <h4>選択リスト</h4>
       <ul id="meal-cart-list"></ul>
       <p id="meal-cart-total"></p>
@@ -101,6 +122,27 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
         const recipe = recipes.find((r) => r.id === Number(select.value));
         if (!recipe) return;
         cart.push({ kind: 'recipe', recipeId: recipe.id, recipeName: recipe.name });
+        renderCart();
+      });
+    }
+
+    if (eatingOutMeals.length > 0) {
+      container.querySelector('#add-eating-out-to-cart-btn')!.addEventListener('click', () => {
+        const select = container.querySelector<HTMLSelectElement>('#meal-eating-out-select')!;
+        const meal = eatingOutMeals.find((m) => m.id === Number(select.value));
+        if (!meal) return;
+        cart.push({
+          kind: 'item',
+          item: {
+            ref: { source: 'eating_out', id: meal.id },
+            name: meal.name,
+            quantityG: EATING_OUT_FIXED_QUANTITY_G,
+            kcalPer100g: meal.kcal,
+            proteinPer100g: meal.protein_g,
+            fatPer100g: meal.fat_g,
+            carbPer100g: meal.carb_g,
+          },
+        });
         renderCart();
       });
     }
@@ -163,7 +205,7 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
     listEl.innerHTML = cart
       .map((entry, i) =>
         entry.kind === 'item'
-          ? `<li>${escapeHtml(entry.item.name)} ${entry.item.quantityG}g (${Math.round((entry.item.kcalPer100g * entry.item.quantityG) / 100)}kcal, C${((entry.item.carbPer100g * entry.item.quantityG) / 100).toFixed(1)}g / P${((entry.item.proteinPer100g * entry.item.quantityG) / 100).toFixed(1)}g / F${((entry.item.fatPer100g * entry.item.quantityG) / 100).toFixed(1)}g) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
+          ? `<li>${escapeHtml(entry.item.name)} ${entry.item.ref.source === 'eating_out' ? '1食分' : `${entry.item.quantityG}g`} (${Math.round((entry.item.kcalPer100g * entry.item.quantityG) / 100)}kcal, C${((entry.item.carbPer100g * entry.item.quantityG) / 100).toFixed(1)}g / P${((entry.item.proteinPer100g * entry.item.quantityG) / 100).toFixed(1)}g / F${((entry.item.fatPer100g * entry.item.quantityG) / 100).toFixed(1)}g) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
           : `<li>${escapeHtml(entry.recipeName)}(レシピ) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
       )
       .join('');

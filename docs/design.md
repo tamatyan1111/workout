@@ -472,6 +472,7 @@ CREATE TABLE meal_items (
   user_id                     INT UNSIGNED NOT NULL,
   master_food_id              INT UNSIGNED NULL,
   custom_food_id              INT UNSIGNED NULL,
+  eating_out_meal_id          INT UNSIGNED NULL,   -- §2.20参照(2026-08-18追加)
   food_name_snapshot          VARCHAR(255) NOT NULL,
   kcal_per_100g_snapshot      DECIMAL(6,1) NOT NULL,
   protein_g_per_100g_snapshot DECIMAL(6,2) NOT NULL,
@@ -487,11 +488,12 @@ CREATE TABLE meal_items (
   CONSTRAINT fk_meal_items_meal_id FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
   CONSTRAINT fk_meal_items_user_id FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_meal_items_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE SET NULL,
-  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL
+  CONSTRAINT fk_meal_items_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE SET NULL,
+  CONSTRAINT fk_meal_items_eating_out_meal_id FOREIGN KEY (eating_out_meal_id) REFERENCES eating_out_meals(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-- `meal_items`も`recipe_items`と同じ理由(MariaDBの制限、上記参照)で、`master_food_id`・`custom_food_id`の排他性はCHECK制約では表現せず、`resolve_items_for_meal()`(`php/private/queries.php`)で担保する
+- `meal_items`も`recipe_items`と同じ理由(MariaDBの制限、上記参照)で、`master_food_id`・`custom_food_id`・`eating_out_meal_id`の排他性はCHECK制約では表現せず、`resolve_items_for_meal()`(`php/private/queries.php`)で担保する
 - `meal_items`は`recipe_items`と違い、追加した**瞬間の栄養値をスナップショットする**(`*_snapshot`列)。理由は§2.14と対称: ログは「その時食べたものの記録」という不変の事実であるべきで、後から`foods`のマスタ改訂や`custom_foods`の編集があっても、過去のログの計算結果が遡って変わってはならない(§2.9で確立した「記録は記録として固定する」方針と同じ考え方)
 - `master_food_id`・`custom_food_id`は表示・再検索の手がかりとして残すのみで、栄養計算には使わない(計算は常に`*_snapshot`列を使う)。そのため参照先が削除されても`SET NULL`で構わない(`exercises`/`logs`のような`RESTRICT`は不要)
 - レシピをカートに追加した瞬間、`recipe_items`をJOINして展開し、`meal_items`に食材ごとの行としてスナップショット付きで`INSERT`する。同じ操作で追加された行には共通の`recipe_batch_id`(UUID)を振り、`recipe_name_snapshot`にレシピ名を記録する。これにより、カート画面・保存後の編集画面の両方で「同じ`recipe_batch_id`を持つ行をまとめて1回の操作で削除する」UIが実現できる(個別行だけを`recipe_batch_id`を残したまま削除することも可能)
@@ -514,6 +516,30 @@ CREATE TABLE meal_items (
 - **閲覧**: `get_shared_recipe.php`(GET、**意図的にログイン不要**、§1.1参照)は`token`パラメータのハッシュで`recipes`を検索し、見つかったレシピのオーナーの`user_id`を使って`expand_recipe_items()`(§2.14と同じ、常にライブ解決)を呼び出し、レシピ名・構成食材・現在の栄養値を返す。閲覧側はセッションを持たないため、オーナーの`user_id`は常にトークンの検索結果から得る(リクエストパラメータのuser_idは信用しない、という§1.2の方針と矛盾しない)
 - **フロント**: 専用のパス(`/shared-recipe`等)ではなく、パスワードリセットと同じくルート直下のクエリパラメータ方式(`/?share_recipe=...`)にする(§1.1・§3参照、ルートは常に実ファイルの`index.html`でありService Workerのフォールバック設定変更が不要なため)。`apps/dashboard/src/sharedRecipe.ts`がログイン画面と同じ`.auth-screen`の体裁で、ダッシュボードのUIに一切依存せずレンダリングする
 - **スコープ外**(変更なし、[requirements.md](requirements.md) §7参照): 共有レシピの公開ディレクトリでの検索・閲覧、共有された側が「自分のレシピとしてコピーする」機能。今回はリンクを知っている相手への閲覧のみ
+
+### 2.20 `eating_out_meals` テーブル — 外食(材料不明の食事)の記録(新規、2026-08-18)
+
+```sql
+CREATE TABLE eating_out_meals (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     INT UNSIGNED NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  kcal        DECIMAL(6,1) NOT NULL,
+  protein_g   DECIMAL(6,2) NOT NULL,
+  fat_g       DECIMAL(6,2) NOT NULL,
+  carb_g      DECIMAL(6,2) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_eating_out_meals_user_id FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+- **背景**: 食事の記録手段は「食材」(単品)と「レシピ」(食材の組み合わせ、自炊)の2つがあったが、いずれも材料が分かっていることが前提だった。外食・コンビニ惣菜のように材料は分からないが名前と総量の栄養値だけ分かる食事を記録する第3の手段として追加する
+- `custom_foods`と違い「100gあたり」ではなく**1食分の実値をそのまま**持つ。レシピと同じく「1人前固定で登録し、1人前食べるように調整する」という運用のため、量のスケーリングは持たない(design.mdの他のテーブルと違い`_per_100g`という列名にしていないのはこのため)
+- レシピの構成食材(`recipe_items`)としては使えない(材料不明という前提と矛盾するため)。`recipes.ts`側の食品検索には出てこない
+- `meal_items.eating_out_meal_id`で参照する。`resolve_food_source()`(`php/private/queries.php`)がこのテーブルの`kcal`等をそのまま「100gあたり」のスナップショット値として返し、呼び出し側は`quantity_g`に常に固定値100を渡すことで、`per_100g × quantity_g / 100`という既存の計算式をそのまま使い回す(専用の計算パスを作らない)。UI上は常に「1食分」とだけ表示し、`quantity_g`という内部表現はユーザーに見せない
+- `custom_foods`と違い、削除時の使用中チェックは行わない(`meal_items.eating_out_meal_id`は`ON DELETE SET NULL`のため、削除しても過去の記録は`*_snapshot`列で自己完結しており壊れない)
+- 直近の履歴(`recentMeals.ts`)の編集モードでは、量の編集・食材の差し替えUIは出さず、削除のみ許可する(レシピと同じ「1人前固定」という考え方のため)
 
 ### 2.16 BMI・TDEE・目標カロリー・PFCグラム数の算出ロジック(読み取り時に計算、§7対応)
 
@@ -606,6 +632,7 @@ CREATE TABLE meal_items (
 [詳細画面]
   レシピ管理: 作成・編集・削除・共有リンクの発行/停止(2026-08-15、§2.19)
   独自食材を管理する: 登録・編集・削除
+  外食管理: 材料は分からないが名前と総量の栄養値だけ分かる食事(外食・コンビニ惣菜等)の登録・編集・削除(2026-08-18、§2.20)
 
 --- プロフィールタブ ---
 [ランディング]

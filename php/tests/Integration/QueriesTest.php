@@ -29,6 +29,7 @@ final class QueriesTest extends TestCase
         self::$pdo->exec('TRUNCATE TABLE recipe_items');
         self::$pdo->exec('TRUNCATE TABLE recipes');
         self::$pdo->exec('TRUNCATE TABLE custom_foods');
+        self::$pdo->exec('TRUNCATE TABLE eating_out_meals');
         self::$pdo->exec('TRUNCATE TABLE nutrition_goals');
         self::$pdo->exec('TRUNCATE TABLE foods');
         self::$pdo->exec('TRUNCATE TABLE users');
@@ -322,7 +323,7 @@ final class QueriesTest extends TestCase
         ]);
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'lunch', null);
         insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0,
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 100.0,
              'food' => ['name' => '白米', 'kcal_per_100g' => 342.0, 'protein_g_per_100g' => 6.1, 'fat_g_per_100g' => 0.9, 'carb_g_per_100g' => 77.6]],
         ], null, null);
         create_nutrition_goal(self::$pdo, 1, 65.0, '2026-12-01', 'standard', null, null, null);
@@ -436,6 +437,63 @@ final class QueriesTest extends TestCase
         ]);
 
         $this->assertTrue(custom_food_in_use(self::$pdo, $customFoodId));
+    }
+
+    // ==== 外食(eating_out_meals) ====
+
+    public function testCreateEatingOutMealThenFindIt(): void
+    {
+        $id = create_eating_out_meal(self::$pdo, 1, 'ラーメン(豚骨)', 650.0, 25.0, 20.0, 90.0);
+        $meal = find_eating_out_meal(self::$pdo, 1, $id);
+        $this->assertSame('ラーメン(豚骨)', $meal['name']);
+        $this->assertSame(650.0, $meal['kcal']);
+        $this->assertSame(90.0, $meal['carb_g']);
+    }
+
+    // design.md §1.2: 外食メニューは他ユーザーから見えない
+    public function testFetchEatingOutMealsIsScopedPerUser(): void
+    {
+        create_eating_out_meal(self::$pdo, 1, 'ユーザー1の外食', 500.0, 20.0, 15.0, 60.0);
+        create_eating_out_meal(self::$pdo, 2, 'ユーザー2の外食', 500.0, 20.0, 15.0, 60.0);
+
+        $meals = fetch_eating_out_meals(self::$pdo, 1);
+        $this->assertCount(1, $meals);
+        $this->assertSame('ユーザー1の外食', $meals[0]['name']);
+        $this->assertNull(find_eating_out_meal(self::$pdo, 1, 999));
+    }
+
+    public function testUpdateEatingOutMeal(): void
+    {
+        $id = create_eating_out_meal(self::$pdo, 1, '牛丼(並)', 700.0, 22.0, 25.0, 95.0);
+        update_eating_out_meal(self::$pdo, $id, '牛丼(大盛り)', 900.0, 28.0, 30.0, 120.0);
+
+        $meal = find_eating_out_meal(self::$pdo, 1, $id);
+        $this->assertSame('牛丼(大盛り)', $meal['name']);
+        $this->assertSame(900.0, $meal['kcal']);
+    }
+
+    public function testDeleteEatingOutMealRemovesIt(): void
+    {
+        $id = create_eating_out_meal(self::$pdo, 1, 'コンビニ弁当', 600.0, 18.0, 22.0, 75.0);
+        delete_eating_out_meal(self::$pdo, $id);
+        $this->assertNull(find_eating_out_meal(self::$pdo, 1, $id));
+    }
+
+    // 外食は「材料不明・1食分固定」のため、quantity_g=100固定でper_100g相当のスナップショットに
+    // そのまま入る(design.md §2.20)
+    public function testResolveItemsForMealAcceptsEatingOutMealId(): void
+    {
+        $eatingOutId = create_eating_out_meal(self::$pdo, 1, 'ラーメン(豚骨)', 650.0, 25.0, 20.0, 90.0);
+
+        [$items] = resolve_items_for_meal(self::$pdo, 1, null, [
+            ['eating_out_meal_id' => $eatingOutId, 'quantity_g' => 100.0],
+        ]);
+
+        $this->assertSame($eatingOutId, $items[0]['eating_out_meal_id']);
+        $this->assertNull($items[0]['master_food_id']);
+        $this->assertNull($items[0]['custom_food_id']);
+        $this->assertSame('ラーメン(豚骨)', $items[0]['food']['name']);
+        $this->assertSame(650.0, $items[0]['food']['kcal_per_100g']);
     }
 
     public function testCreateRecipeThenFetchRecipesIncludesItems(): void
@@ -569,7 +627,7 @@ final class QueriesTest extends TestCase
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'snack', null);
         $food = resolve_food_source(self::$pdo, 1, null, $customFoodId);
         insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'quantity_g' => 50.0, 'food' => $food],
+            ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'eating_out_meal_id' => null, 'quantity_g' => 50.0, 'food' => $food],
         ], null, null);
 
         // ログ後にカロリーを大きく変更する
@@ -591,7 +649,7 @@ final class QueriesTest extends TestCase
         // レシピ経由ではない単品追加(グループなし)
         $plainFood = resolve_food_source(self::$pdo, 1, 1, null);
         insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 10.0, 'food' => $plainFood],
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 10.0, 'food' => $plainFood],
         ], null, null);
 
         $this->assertCount(1, $ids);
@@ -609,7 +667,7 @@ final class QueriesTest extends TestCase
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'dinner', null);
         $food = resolve_food_source(self::$pdo, 1, 1, null);
         insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0, 'food' => $food],
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 100.0, 'food' => $food],
         ], 'shared-batch-id', 'テスト');
 
         $deletedCount = delete_meal_item_group(self::$pdo, 2, 'shared-batch-id');
@@ -623,7 +681,7 @@ final class QueriesTest extends TestCase
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
         $food = resolve_food_source(self::$pdo, 1, 1, null);
         insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0, 'food' => $food],
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 100.0, 'food' => $food],
         ], null, null);
 
         delete_meal(self::$pdo, $mealId);
@@ -640,7 +698,7 @@ final class QueriesTest extends TestCase
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
         $food = resolve_food_source(self::$pdo, 1, 1, null);
         $ids = insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0, 'food' => $food],
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 100.0, 'food' => $food],
         ], null, null);
 
         // 食材(白米→にわとり むね)・分量を仮の値から直す
@@ -658,7 +716,7 @@ final class QueriesTest extends TestCase
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'dinner', null);
         $food = resolve_food_source(self::$pdo, 1, 1, null);
         $ids = insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 200.0, 'food' => $food],
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 200.0, 'food' => $food],
         ], 'batch-uuid-edit', 'カレーライス');
 
         update_meal_item(self::$pdo, 1, $ids[0], 1, null, 250.0);
@@ -733,12 +791,12 @@ final class QueriesTest extends TestCase
     {
         $mealId = create_meal(self::$pdo, 1, '2026-08-14', 'lunch', null);
         insert_meal_items(self::$pdo, 1, $mealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 200.0,
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 200.0,
              'food' => ['name' => '白米', 'kcal_per_100g' => 342.0, 'protein_g_per_100g' => 6.1, 'fat_g_per_100g' => 0.9, 'carb_g_per_100g' => 77.6]],
         ], null, null);
         $otherDayMealId = create_meal(self::$pdo, 1, '2026-08-13', 'dinner', null);
         insert_meal_items(self::$pdo, 1, $otherDayMealId, [
-            ['master_food_id' => 1, 'custom_food_id' => null, 'quantity_g' => 100.0,
+            ['master_food_id' => 1, 'custom_food_id' => null, 'eating_out_meal_id' => null, 'quantity_g' => 100.0,
              'food' => ['name' => '白米', 'kcal_per_100g' => 342.0, 'protein_g_per_100g' => 6.1, 'fat_g_per_100g' => 0.9, 'carb_g_per_100g' => 77.6]],
         ], null, null);
 
