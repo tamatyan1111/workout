@@ -231,7 +231,7 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
       <div class="meal-card" data-meal-id="${m.id}">
         <div class="meal-card-header">
           <strong>${escapeHtml(m.logged_date)} ${escapeHtml(MEAL_TYPE_LABELS[m.meal_type])}</strong>
-          <span>${Math.round(totals.kcal)}kcal (C${totals.carb.toFixed(1)}g / P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g)</span>
+          <span>${Math.round(totals.kcal)}kcal (P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g / C${totals.carb.toFixed(1)}g)</span>
           <span>
             <button type="button" class="toggle-edit-meal-btn">${editing ? '閉じる' : '編集'}</button>
             <button type="button" class="delete-meal-btn danger">記録ごと削除</button>
@@ -254,7 +254,7 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
               <col class="col-item-actions" />
             </colgroup>
             <thead>
-              <tr><th>食材名</th><th>重量(g)</th><th>カロリー</th><th>炭水化物</th><th>タンパク質</th><th>脂質</th><th></th></tr>
+              <tr><th>食材名</th><th>重量(g)</th><th>カロリー</th><th>タンパク質</th><th>脂質</th><th>炭水化物</th><th></th></tr>
             </thead>
             <tbody>
               ${[...groups.entries()]
@@ -298,9 +298,9 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
           <td>${escapeHtml(item.food_name)}</td>
           <td>${isEatingOut ? '1食分' : `${item.quantity_g}g`}</td>
           <td>${Math.round(m.kcal)}kcal</td>
-          <td>${m.carb.toFixed(1)}g</td>
           <td>${m.protein.toFixed(1)}g</td>
           <td>${m.fat.toFixed(1)}g</td>
+          <td>${m.carb.toFixed(1)}g</td>
           <td></td>
         </tr>
       `;
@@ -312,9 +312,9 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
           <td>${escapeHtml(item.food_name)}</td>
           <td>1食分</td>
           <td>${Math.round(m.kcal)}kcal</td>
-          <td>${m.carb.toFixed(1)}g</td>
           <td>${m.protein.toFixed(1)}g</td>
           <td>${m.fat.toFixed(1)}g</td>
+          <td>${m.carb.toFixed(1)}g</td>
           <td class="item-actions">
             <button type="button" class="delete-item-btn danger">削除</button>
           </td>
@@ -326,9 +326,9 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
         <td>${escapeHtml(item.food_name)}</td>
         <td><input type="number" class="edit-item-qty" value="${item.quantity_g}" min="1" step="1" /></td>
         <td>${Math.round(m.kcal)}kcal</td>
-        <td>${m.carb.toFixed(1)}g</td>
         <td>${m.protein.toFixed(1)}g</td>
         <td>${m.fat.toFixed(1)}g</td>
+        <td>${m.carb.toFixed(1)}g</td>
         <td class="item-actions">
           <button type="button" class="save-item-qty-btn">保存</button>
           <button type="button" class="delete-item-btn danger">削除</button>

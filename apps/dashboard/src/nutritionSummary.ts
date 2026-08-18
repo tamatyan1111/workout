@@ -15,7 +15,8 @@ function formatValue(value: number, unit: 'kcal' | 'g'): string {
 // design.md §2.16・2.17対応。カロリー・炭水化物・タンパク質・脂質を、「目標」「本日の摂取」
 // 「残り摂取可能」の3枚のカードにまとめて見るだけの表示専用(2026-08-16、
 // stat-cardが12枚に増えて分かりづらいとの指摘を受け、種別ごとに1枚(3枚)へ再構成。
-// AskUserQuestionで複数案を提示しユーザーが選択。表記順は炭水化物→タンパク質→脂質で統一)。
+// AskUserQuestionで複数案を提示しユーザーが選択。表記順はタンパク質→脂質→炭水化物(PFC順)で統一。
+// 2026-08-18、食品パッケージの成分表示順(PFC)に合わせて炭水化物→タンパク質→脂質から変更)。
 // 体重は完全にプロフィールタブへ委ねる。目標の設定・変更はプロフィールタブの
 // 「目標」に分離してある。
 export function renderNutritionSummary(container: HTMLElement): void {
@@ -50,9 +51,9 @@ export function renderNutritionSummary(container: HTMLElement): void {
 
     const metrics: Metric[] = [
       { label: 'カロリー', target: targetCalories, today: summary.today_kcal, unit: 'kcal' },
-      { label: '炭水化物', target: pfc?.carb_g ?? null, today: summary.today_carb_g, unit: 'g' },
       { label: 'タンパク質', target: pfc?.protein_g ?? null, today: summary.today_protein_g, unit: 'g' },
       { label: '脂質', target: pfc?.fat_g ?? null, today: summary.today_fat_g, unit: 'g' },
+      { label: '炭水化物', target: pfc?.carb_g ?? null, today: summary.today_carb_g, unit: 'g' },
     ];
 
     container.innerHTML = `
