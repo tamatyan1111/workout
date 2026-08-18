@@ -7,7 +7,7 @@ function errorMessage(err: unknown): string {
 }
 
 const PFC_MODE_LABELS: Record<PfcMode, string> = {
-  standard: '標準(C60% / P15% / F25%)',
+  standard: '標準(P15% / F25% / C60%)',
   bulk: '筋トレ向き(タンパク質 体重×1.8g/kg)',
   cut: '減量向き(タンパク質 体重×2.0g/kg)',
   custom: 'カスタム(グラム数で指定)',
@@ -48,14 +48,14 @@ export function renderGoalSettings(container: HTMLElement): void {
           </label>
         </div>
         <div id="custom-pfc-fields" class="field-row" hidden>
-          <label class="field">炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" /></label>
           <label class="field">タンパク質(g) <input type="number" step="0.1" id="goal-custom-protein" /></label>
           <label class="field">脂質(g) <input type="number" step="0.1" id="goal-custom-fat" /></label>
+          <label class="field">炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" /></label>
         </div>
         <div id="custom-ratio-fields" class="field-row" hidden>
-          <label class="field">炭水化物(%) <input type="number" step="0.1" id="goal-ratio-carb" /></label>
           <label class="field">タンパク質(%) <input type="number" step="0.1" id="goal-ratio-protein" /></label>
           <label class="field">脂質(%) <input type="number" step="0.1" id="goal-ratio-fat" /></label>
+          <label class="field">炭水化物(%) <input type="number" step="0.1" id="goal-ratio-carb" /></label>
         </div>
         <p id="ratio-sum-status" class="field-note"></p>
         <button type="submit">保存</button>

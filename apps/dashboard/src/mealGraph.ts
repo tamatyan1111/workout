@@ -81,9 +81,9 @@ export function renderMealGraph(container: HTMLElement): void {
     });
     const labels = [...byDate.keys()].sort();
     const kcalData = labels.map((d) => Math.round(byDate.get(d)!.reduce((sum, i) => sum + itemKcal(i), 0)));
-    const carbData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.carb_g_per_100g * i.quantity_g) / 100, 0));
     const proteinData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.protein_g_per_100g * i.quantity_g) / 100, 0));
     const fatData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.fat_g_per_100g * i.quantity_g) / 100, 0));
+    const carbData = labels.map((d) => byDate.get(d)!.reduce((sum, i) => sum + (i.carb_g_per_100g * i.quantity_g) / 100, 0));
 
     const targetCalories = summary?.goal?.target_calories ?? null;
 
@@ -117,13 +117,13 @@ export function renderMealGraph(container: HTMLElement): void {
     });
 
     const targetPfc = summary?.goal?.pfc ?? null;
-    // 表記順は炭水化物→タンパク質→脂質で統一する。目標線は実績と同じ色の点線にする
+    // 表記順はタンパク質→脂質→炭水化物(PFC順)で統一する。目標線は実績と同じ色の点線にする
     // (体重変動でも「今の目標に対する参考線」として表示、カロリーの目標線と同じ考え方)。
     // Chart.js標準の凡例だと幅次第で実績・目標が同じ行に混ざって折り返されてしまうため、
     // 凡例は独自HTMLで「1行目=実績、2行目=目標」を固定して描く(2026-08-16)
-    const carbColor = '#a855f7';
     const proteinColor = '#22c55e';
     const fatColor = '#ef4444';
+    const carbColor = '#a855f7';
 
     // Chart.jsはcanvas作成時のコンテナ高さを基準にサイズを決めるため、凡例HTMLは
     // Chart生成より先にDOMへ入れておく(後から入れるとチャートの描画領域が壊れる)
@@ -135,16 +135,16 @@ export function renderMealGraph(container: HTMLElement): void {
     if (legendEl) {
       legendEl.innerHTML = `
         <div class="chart-legend-row">
-          ${legendItemHtml(carbColor, '炭水化物(g)', false)}
           ${legendItemHtml(proteinColor, 'タンパク質(g)', false)}
           ${legendItemHtml(fatColor, '脂質(g)', false)}
+          ${legendItemHtml(carbColor, '炭水化物(g)', false)}
         </div>
         ${
           hasTarget
             ? `<div class="chart-legend-row">
-          ${legendItemHtml(carbColor, '目標炭水化物(g)', true)}
           ${legendItemHtml(proteinColor, '目標タンパク質(g)', true)}
           ${legendItemHtml(fatColor, '目標脂質(g)', true)}
+          ${legendItemHtml(carbColor, '目標炭水化物(g)', true)}
         </div>`
             : ''
         }
@@ -157,17 +157,17 @@ export function renderMealGraph(container: HTMLElement): void {
       data: {
         labels,
         datasets: [
-          { label: '炭水化物(g)', data: carbData, borderColor: carbColor },
           { label: 'タンパク質(g)', data: proteinData, borderColor: proteinColor },
           { label: '脂質(g)', data: fatData, borderColor: fatColor },
-          ...(targetPfc?.carb_g !== null && targetPfc?.carb_g !== undefined
-            ? [{ label: '目標炭水化物(g)', data: labels.map(() => targetPfc.carb_g), borderColor: carbColor, borderDash: [6, 4], pointRadius: 2 }]
-            : []),
+          { label: '炭水化物(g)', data: carbData, borderColor: carbColor },
           ...(targetPfc?.protein_g !== null && targetPfc?.protein_g !== undefined
             ? [{ label: '目標タンパク質(g)', data: labels.map(() => targetPfc.protein_g), borderColor: proteinColor, borderDash: [6, 4], pointRadius: 2 }]
             : []),
           ...(targetPfc?.fat_g !== null && targetPfc?.fat_g !== undefined
             ? [{ label: '目標脂質(g)', data: labels.map(() => targetPfc.fat_g), borderColor: fatColor, borderDash: [6, 4], pointRadius: 2 }]
+            : []),
+          ...(targetPfc?.carb_g !== null && targetPfc?.carb_g !== undefined
+            ? [{ label: '目標炭水化物(g)', data: labels.map(() => targetPfc.carb_g), borderColor: carbColor, borderDash: [6, 4], pointRadius: 2 }]
             : []),
         ],
       },

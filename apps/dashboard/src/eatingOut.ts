@@ -30,7 +30,7 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
   function draw(): void {
     container.innerHTML = `
       <table class="custom-food-table">
-        <thead><tr><th>名前</th><th>カロリー</th><th>炭水化物</th><th>タンパク質</th><th>脂質</th><th></th></tr></thead>
+        <thead><tr><th>名前</th><th>カロリー</th><th>タンパク質</th><th>脂質</th><th>炭水化物</th><th></th></tr></thead>
         <tbody id="eating-out-rows"></tbody>
       </table>
       <button type="button" id="new-eating-out-btn" class="link-button">+ 外食メニューを追加</button>
@@ -56,9 +56,9 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
       <tr data-id="${m.id}">
         <td>${escapeHtml(m.name)}</td>
         <td>${m.kcal}kcal</td>
-        <td>${m.carb_g}g</td>
         <td>${m.protein_g}g</td>
         <td>${m.fat_g}g</td>
+        <td>${m.carb_g}g</td>
         <td>
           <button type="button" class="edit-eating-out-btn">編集</button>
           <button type="button" class="delete-eating-out-btn danger">削除</button>
@@ -96,9 +96,9 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
           <label class="field">カロリー(kcal) <input type="number" step="0.1" id="eo-kcal" value="${meal?.kcal ?? ''}" required /></label>
         </div>
         <div class="field-row">
-          <label class="field">炭水化物(g) <input type="number" step="0.1" id="eo-carb" value="${meal?.carb_g ?? ''}" required /></label>
           <label class="field">タンパク質(g) <input type="number" step="0.1" id="eo-protein" value="${meal?.protein_g ?? ''}" required /></label>
           <label class="field">脂質(g) <input type="number" step="0.1" id="eo-fat" value="${meal?.fat_g ?? ''}" required /></label>
+          <label class="field">炭水化物(g) <input type="number" step="0.1" id="eo-carb" value="${meal?.carb_g ?? ''}" required /></label>
         </div>
         <p class="field-note">1食分として実際に食べた分の値をそのまま入力してください(量の調整はしません)</p>
         <button type="submit">保存</button>

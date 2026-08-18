@@ -205,7 +205,7 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
     listEl.innerHTML = cart
       .map((entry, i) =>
         entry.kind === 'item'
-          ? `<li>${escapeHtml(entry.item.name)} ${entry.item.ref.source === 'eating_out' ? '1食分' : `${entry.item.quantityG}g`} (${Math.round((entry.item.kcalPer100g * entry.item.quantityG) / 100)}kcal, C${((entry.item.carbPer100g * entry.item.quantityG) / 100).toFixed(1)}g / P${((entry.item.proteinPer100g * entry.item.quantityG) / 100).toFixed(1)}g / F${((entry.item.fatPer100g * entry.item.quantityG) / 100).toFixed(1)}g) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
+          ? `<li>${escapeHtml(entry.item.name)} ${entry.item.ref.source === 'eating_out' ? '1食分' : `${entry.item.quantityG}g`} (${Math.round((entry.item.kcalPer100g * entry.item.quantityG) / 100)}kcal, P${((entry.item.proteinPer100g * entry.item.quantityG) / 100).toFixed(1)}g / F${((entry.item.fatPer100g * entry.item.quantityG) / 100).toFixed(1)}g / C${((entry.item.carbPer100g * entry.item.quantityG) / 100).toFixed(1)}g) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
           : `<li>${escapeHtml(entry.recipeName)}(レシピ) <button type="button" class="remove-cart-entry" data-index="${i}">削除</button></li>`
       )
       .join('');
@@ -227,7 +227,7 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
         }),
         { kcal: 0, carb: 0, protein: 0, fat: 0 }
       );
-      totalEl.textContent = `合計: ${Math.round(totals.kcal)}kcal (C${totals.carb.toFixed(1)}g / P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g)`;
+      totalEl.textContent = `合計: ${Math.round(totals.kcal)}kcal (P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g / C${totals.carb.toFixed(1)}g)`;
     } else {
       totalEl.textContent = '';
     }
