@@ -125,7 +125,7 @@ final class NutritionCalcTest extends TestCase
     public function testCalculatePfcGramsCustomRatioConvertsPercentToGrams(): void
     {
         $pfc = calculate_pfc_grams('custom_ratio', 2000, 70, null, null, null, 20.0, 30.0, 50.0);
-        // タンパク質: 2000 * 0.20 / 4 = 100.0
+        // たんぱく質: 2000 * 0.20 / 4 = 100.0
         $this->assertSame(100.0, $pfc['protein_g']);
         // 脂質: 2000 * 0.30 / 9 = 66.7
         $this->assertEqualsWithDelta(66.7, $pfc['fat_g'], 0.01);

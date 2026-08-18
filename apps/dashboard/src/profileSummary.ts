@@ -8,10 +8,16 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// プロフィールタブのランディング用サマリー。身長・活動レベルと、体重・BMIを現在/目標で
-// 並べて表示する。目標体重・目標達成日はnutrition_goalsを読み取り専用で表示するのみで、
-// 編集は同タブの「目標」に委ねる(design.md未記載、UI再設計フェーズ2。
-// 2026-08-16、編集フォームを食事タブからプロフィールタブに移動)。
+type Metric = { label: string; target: number | null; current: number | null; unit: 'kg' | '%' | '' };
+
+function formatValue(value: number, unit: Metric['unit']): string {
+  return unit === '' ? value.toFixed(1) : `${value.toFixed(1)}${unit}`;
+}
+
+// design.md §2.16・2.17対応。体重・BMI・体脂肪率を、食事タブのサマリーと同じ
+// 「目標」「本日」「残り」の3枚のカードにまとめて見るだけの表示専用(2026-08-19、
+// 食事タブと見た目を揃えたいとの要望を受けて、4枚2段の個別カードから再構成)。
+// 身長・活動レベルは「目標/残り」の概念がないため、この3枚とは別に上部へ残す。
 export function renderProfileSummary(container: HTMLElement): void {
   container.innerHTML = '<p>読み込み中...</p>';
 
@@ -20,6 +26,22 @@ export function renderProfileSummary(container: HTMLElement): void {
     .catch((err) => {
       container.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
     });
+
+  function cardHtml(title: string, metrics: Metric[], valueOf: (m: Metric) => number | null): string {
+    return `
+      <div class="stat-card stat-card-multi">
+        <span class="stat-label">${escapeHtml(title)}</span>
+        <dl class="stat-multi-list">
+          ${metrics
+            .map((m) => {
+              const value = valueOf(m);
+              return `<div><dt>${escapeHtml(m.label)}</dt><dd>${value !== null ? formatValue(value, m.unit) : '—'}</dd></div>`;
+            })
+            .join('')}
+        </dl>
+      </div>
+    `;
+  }
 
   function draw(summary: NutritionSummary): void {
     const goal = summary.goal;
@@ -31,6 +53,17 @@ export function renderProfileSummary(container: HTMLElement): void {
       summary.activity_level !== null
         ? (ACTIVITY_LEVEL_SHORT_LABELS[summary.activity_level as ActivityLevel] ?? summary.activity_level)
         : '未設定';
+
+    const metrics: Metric[] = [
+      { label: '体重', target: goal?.target_weight ?? null, current: summary.current_weight, unit: 'kg' },
+      { label: 'BMI', target: goal?.target_bmi ?? null, current: summary.bmi, unit: '' },
+      {
+        label: '体脂肪率',
+        target: goal?.target_body_fat_percentage ?? null,
+        current: summary.current_body_fat_percentage,
+        unit: '%',
+      },
+    ];
 
     container.innerHTML = `
       <div class="nutrition-stats">
@@ -44,40 +77,9 @@ export function renderProfileSummary(container: HTMLElement): void {
         </div>
       </div>
       <div class="nutrition-stats">
-        <div class="stat-card">
-          <span class="stat-label">現在の体重</span>
-          <span class="stat-value">${summary.current_weight !== null ? `${summary.current_weight.toFixed(1)}kg` : '記録なし'}</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">目標体重</span>
-          <span class="stat-value">${goal ? `${goal.target_weight.toFixed(1)}kg` : '—'}</span>
-        </div>
-      </div>
-      <div class="nutrition-stats">
-        <div class="stat-card">
-          <span class="stat-label">BMI</span>
-          <span class="stat-value-row">
-            <span class="stat-value">${summary.bmi !== null ? summary.bmi.toFixed(1) : '—'}</span>
-            ${summary.bmi_category ? `<span class="stat-sub">${escapeHtml(summary.bmi_category)}</span>` : ''}
-          </span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">目標BMI</span>
-          <span class="stat-value-row">
-            <span class="stat-value">${goal?.target_bmi !== null && goal?.target_bmi !== undefined ? goal.target_bmi.toFixed(1) : '—'}</span>
-            ${goal?.target_bmi_category ? `<span class="stat-sub">${escapeHtml(goal.target_bmi_category)}</span>` : ''}
-          </span>
-        </div>
-      </div>
-      <div class="nutrition-stats">
-        <div class="stat-card">
-          <span class="stat-label">体脂肪率</span>
-          <span class="stat-value">${summary.current_body_fat_percentage !== null ? `${summary.current_body_fat_percentage.toFixed(1)}%` : '記録なし'}</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">目標体脂肪率</span>
-          <span class="stat-value">${goal?.target_body_fat_percentage !== null && goal?.target_body_fat_percentage !== undefined ? `${goal.target_body_fat_percentage.toFixed(1)}%` : '—'}</span>
-        </div>
+        ${cardHtml('目標', metrics, (m) => m.target)}
+        ${cardHtml('本日', metrics, (m) => m.current)}
+        ${cardHtml('残り', metrics, (m) => (m.target !== null && m.current !== null ? m.target - m.current : null))}
       </div>
       ${
         goal

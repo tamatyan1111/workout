@@ -33,7 +33,7 @@ try {
         $customCarbPercent = require_non_negative_number($body, 'custom_carb_percent');
         $sum = $customProteinPercent + $customFatPercent + $customCarbPercent;
         if (abs($sum - 100.0) > 0.5) {
-            json_error('タンパク質・脂質・炭水化物の比率の合計が100%になるようにしてください(現在の合計: ' . round($sum, 1) . '%)', 400);
+            json_error('たんぱく質・脂質・炭水化物の比率の合計が100%になるようにしてください(現在の合計: ' . round($sum, 1) . '%)', 400);
         }
     }
 

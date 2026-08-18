@@ -234,7 +234,9 @@ final class QueriesTest extends TestCase
     }
 
     // 「直近の履歴」用。直近$limit件だけを日付昇順(古い→新しい)で返す
-    public function testFetchBodyWeightLogsWithLimitReturnsMostRecentInAscendingOrder(): void
+    // 2026-08-19: 「直近の履歴」で新しい記録を上に表示するため、日付降順で返す
+    // (以前は表示直前に反転する前提で昇順だった)
+    public function testFetchBodyWeightLogsWithLimitReturnsMostRecentInDescendingOrder(): void
     {
         upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
         upsert_body_weight_log(self::$pdo, 1, '2026-08-02', 69.5);
@@ -243,8 +245,8 @@ final class QueriesTest extends TestCase
         $logs = fetch_body_weight_logs(self::$pdo, 1, null, null, 2);
 
         $this->assertCount(2, $logs);
-        $this->assertSame('2026-08-02', $logs[0]['logged_date']);
-        $this->assertSame('2026-08-03', $logs[1]['logged_date']);
+        $this->assertSame('2026-08-03', $logs[0]['logged_date']);
+        $this->assertSame('2026-08-02', $logs[1]['logged_date']);
     }
 
     public function testDeleteBodyWeightLogRemovesRow(): void
@@ -443,7 +445,7 @@ final class QueriesTest extends TestCase
 
     public function testCreateEatingOutMealThenFindIt(): void
     {
-        $id = create_eating_out_meal(self::$pdo, 1, 'ラーメン(豚骨)', 650.0, 25.0, 20.0, 90.0);
+        $id = create_eating_out_meal(self::$pdo, 1, 'ラーメン(豚骨)', null, 650.0, 25.0, 20.0, 90.0);
         $meal = find_eating_out_meal(self::$pdo, 1, $id);
         $this->assertSame('ラーメン(豚骨)', $meal['name']);
         $this->assertSame(650.0, $meal['kcal']);
@@ -453,8 +455,8 @@ final class QueriesTest extends TestCase
     // design.md §1.2: 外食メニューは他ユーザーから見えない
     public function testFetchEatingOutMealsIsScopedPerUser(): void
     {
-        create_eating_out_meal(self::$pdo, 1, 'ユーザー1の外食', 500.0, 20.0, 15.0, 60.0);
-        create_eating_out_meal(self::$pdo, 2, 'ユーザー2の外食', 500.0, 20.0, 15.0, 60.0);
+        create_eating_out_meal(self::$pdo, 1, 'ユーザー1の外食', null, 500.0, 20.0, 15.0, 60.0);
+        create_eating_out_meal(self::$pdo, 2, 'ユーザー2の外食', null, 500.0, 20.0, 15.0, 60.0);
 
         $meals = fetch_eating_out_meals(self::$pdo, 1);
         $this->assertCount(1, $meals);
@@ -464,8 +466,8 @@ final class QueriesTest extends TestCase
 
     public function testUpdateEatingOutMeal(): void
     {
-        $id = create_eating_out_meal(self::$pdo, 1, '牛丼(並)', 700.0, 22.0, 25.0, 95.0);
-        update_eating_out_meal(self::$pdo, $id, '牛丼(大盛り)', 900.0, 28.0, 30.0, 120.0);
+        $id = create_eating_out_meal(self::$pdo, 1, '牛丼(並)', null, 700.0, 22.0, 25.0, 95.0);
+        update_eating_out_meal(self::$pdo, $id, '牛丼(大盛り)', null, 900.0, 28.0, 30.0, 120.0);
 
         $meal = find_eating_out_meal(self::$pdo, 1, $id);
         $this->assertSame('牛丼(大盛り)', $meal['name']);
@@ -474,16 +476,25 @@ final class QueriesTest extends TestCase
 
     public function testDeleteEatingOutMealRemovesIt(): void
     {
-        $id = create_eating_out_meal(self::$pdo, 1, 'コンビニ弁当', 600.0, 18.0, 22.0, 75.0);
+        $id = create_eating_out_meal(self::$pdo, 1, 'コンビニ弁当', null, 600.0, 18.0, 22.0, 75.0);
         delete_eating_out_meal(self::$pdo, $id);
         $this->assertNull(find_eating_out_meal(self::$pdo, 1, $id));
+    }
+
+    // 2026-08-18追加: 店名(任意項目、design.md §2.20)
+    public function testCreateEatingOutMealWithShopNameThenFindIt(): void
+    {
+        $id = create_eating_out_meal(self::$pdo, 1, '豚骨ラーメン', '一蘭', 650.0, 25.0, 20.0, 90.0);
+        $meal = find_eating_out_meal(self::$pdo, 1, $id);
+        $this->assertSame('豚骨ラーメン', $meal['name']);
+        $this->assertSame('一蘭', $meal['shop_name']);
     }
 
     // 外食は「材料不明・1食分固定」のため、quantity_g=100固定でper_100g相当のスナップショットに
     // そのまま入る(design.md §2.20)
     public function testResolveItemsForMealAcceptsEatingOutMealId(): void
     {
-        $eatingOutId = create_eating_out_meal(self::$pdo, 1, 'ラーメン(豚骨)', 650.0, 25.0, 20.0, 90.0);
+        $eatingOutId = create_eating_out_meal(self::$pdo, 1, 'ラーメン(豚骨)', null, 650.0, 25.0, 20.0, 90.0);
 
         [$items] = resolve_items_for_meal(self::$pdo, 1, null, [
             ['eating_out_meal_id' => $eatingOutId, 'quantity_g' => 100.0],
@@ -494,6 +505,36 @@ final class QueriesTest extends TestCase
         $this->assertNull($items[0]['custom_food_id']);
         $this->assertSame('ラーメン(豚骨)', $items[0]['food']['name']);
         $this->assertSame(650.0, $items[0]['food']['kcal_per_100g']);
+    }
+
+    // 2026-08-19追加: 店名は料理名とは別に保持し、結合しない(直近の履歴で
+    // 「1行目=店名、2行目=料理名」のように分けて表示するため、design.md §2.20)
+    public function testResolveItemsForMealKeepsShopNameSeparateFromFoodName(): void
+    {
+        $eatingOutId = create_eating_out_meal(self::$pdo, 1, '豚骨ラーメン', '一蘭', 650.0, 25.0, 20.0, 90.0);
+
+        [$items] = resolve_items_for_meal(self::$pdo, 1, null, [
+            ['eating_out_meal_id' => $eatingOutId, 'quantity_g' => 100.0],
+        ]);
+
+        $this->assertSame('豚骨ラーメン', $items[0]['food']['name']);
+        $this->assertSame('一蘭', $items[0]['food']['shop_name']);
+    }
+
+    // 2026-08-19追加: 店名はmeal_items.eating_out_shop_name_snapshotに保存され、
+    // fetch_meals()で食品名とは別のキーとして返る
+    public function testFetchMealsIncludesEatingOutShopNameSnapshot(): void
+    {
+        $eatingOutId = create_eating_out_meal(self::$pdo, 1, '豚骨ラーメン', '一蘭', 650.0, 25.0, 20.0, 90.0);
+        $mealId = create_meal(self::$pdo, 1, '2026-08-19', 'dinner', null);
+        [$items] = resolve_items_for_meal(self::$pdo, 1, null, [
+            ['eating_out_meal_id' => $eatingOutId, 'quantity_g' => 100.0],
+        ]);
+        insert_meal_items(self::$pdo, 1, $mealId, $items, null, null);
+
+        $fetched = fetch_meals(self::$pdo, 1, null, null)[0]['items'][0];
+        $this->assertSame('豚骨ラーメン', $fetched['food_name']);
+        $this->assertSame('一蘭', $fetched['eating_out_shop_name']);
     }
 
     public function testCreateRecipeThenFetchRecipesIncludesItems(): void
@@ -674,6 +715,23 @@ final class QueriesTest extends TestCase
 
         $this->assertSame(0, $deletedCount);
         $this->assertCount(1, fetch_meals(self::$pdo, 1, null, null)[0]['items']);
+    }
+
+    // 2026-08-18追加: 直近の履歴で同じ日付・区分の食事を1枚のカードにまとめるため、
+    // add_meal.phpはこの関数で既存の食事を探してから食材を追加する
+    public function testFindMealByDateAndTypeReturnsExistingMeal(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
+        $found = find_meal_by_date_and_type(self::$pdo, 1, '2026-08-01', 'breakfast');
+        $this->assertSame($mealId, $found['id']);
+    }
+
+    public function testFindMealByDateAndTypeReturnsNullWhenNoMatch(): void
+    {
+        create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
+        $this->assertNull(find_meal_by_date_and_type(self::$pdo, 1, '2026-08-01', 'lunch'));
+        $this->assertNull(find_meal_by_date_and_type(self::$pdo, 1, '2026-08-02', 'breakfast'));
+        $this->assertNull(find_meal_by_date_and_type(self::$pdo, 2, '2026-08-01', 'breakfast'));
     }
 
     public function testDeleteMealCascadesToMealItems(): void

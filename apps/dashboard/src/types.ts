@@ -131,6 +131,7 @@ export interface FoodRef {
 export interface EatingOutMeal {
   id: number;
   name: string;
+  shop_name: string | null;
   kcal: number;
   protein_g: number;
   fat_g: number;
@@ -183,6 +184,7 @@ export interface MealItem {
   quantity_g: number;
   recipe_batch_id: string | null;
   recipe_name: string | null;
+  eating_out_shop_name: string | null;
 }
 
 // design.md §2.15「meals/meal_items テーブル」に対応

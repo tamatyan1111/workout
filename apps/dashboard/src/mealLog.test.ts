@@ -16,6 +16,7 @@ function makeItem(overrides: Partial<MealItem> = {}): MealItem {
     quantity_g: 100,
     recipe_batch_id: null,
     recipe_name: null,
+    eating_out_shop_name: null,
     ...overrides,
   };
 }

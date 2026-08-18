@@ -254,18 +254,25 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
               <col class="col-item-actions" />
             </colgroup>
             <thead>
-              <tr><th>食材名</th><th>重量(g)</th><th>カロリー</th><th>タンパク質</th><th>脂質</th><th>炭水化物</th><th></th></tr>
+              <tr><th>食材名</th><th>重量(g)</th><th>カロリー</th><th>たんぱく質</th><th>脂質</th><th>炭水化物</th><th></th></tr>
             </thead>
             <tbody>
               ${[...groups.entries()]
                 .map(([batchId, items]) => {
-                  const groupTotals = sumMacros(items);
-                  return `
-                <tr class="group-row" data-batch-id="${escapeHtml(batchId)}">
-                  <td colspan="6">${escapeHtml(items[0].recipe_name ?? '')}(${items.map((i) => escapeHtml(i.food_name)).join('・')}) ${Math.round(groupTotals.kcal)}kcal</td>
-                  <td>${editing ? `<button type="button" class="delete-group-btn danger" data-batch-id="${escapeHtml(batchId)}">まとめて削除</button>` : ''}</td>
+                  // まとめて削除は編集中だけ必要な操作のため、そのときだけ小さな行を出す。
+                  // どの料理由来かは各食材の行自体に「レシピ名 - 食材名」で書くので、
+                  // 見出し行にレシピ名を重ねて書く必要はない(2026-08-18、くくりが
+                  // 分かりにくいとの指摘を受けて、食材の行ごとにレシピ名を明記する方式に変更)
+                  const headerRow = editing
+                    ? `
+                <tr class="group-header-row" data-batch-id="${escapeHtml(batchId)}">
+                  <td colspan="6"></td>
+                  <td><button type="button" class="delete-group-btn danger" data-batch-id="${escapeHtml(batchId)}">まとめて削除</button></td>
                 </tr>
-              `;
+              `
+                    : '';
+                  const itemRows = items.map((item) => renderItemRow(item, editing, changingFoodItemId === item.id)).join('');
+                  return headerRow + itemRows;
                 })
                 .join('')}
               ${ungrouped.map((item) => renderItemRow(item, editing, changingFoodItemId === item.id)).join('')}
@@ -292,10 +299,17 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
   function renderItemRow(item: MealItem, editing: boolean, changingFood: boolean): string {
     const m = itemMacros(item);
     const isEatingOut = item.eating_out_meal_id !== null;
+    // レシピ経由・外食経由の食材は、由来(レシピ名/店名)を1行目に小さく、食材名/料理名を
+    // 2行目に表示する(2026-08-19、食材名の後ろに添えるだけだと由来と食材名の境目が
+    // 分かりにくいとの指摘を受けて、上下2段に変更。背景色によるまとまりの表現は維持する)
+    const sourceLabel = item.recipe_name ?? item.eating_out_shop_name;
+    const displayName = sourceLabel
+      ? `<span class="item-source-label">${escapeHtml(sourceLabel)}</span><br />${escapeHtml(item.food_name)}`
+      : escapeHtml(item.food_name);
     if (!editing) {
       return `
         <tr class="item-row" data-item-id="${item.id}">
-          <td>${escapeHtml(item.food_name)}</td>
+          <td>${displayName}</td>
           <td>${isEatingOut ? '1食分' : `${item.quantity_g}g`}</td>
           <td>${Math.round(m.kcal)}kcal</td>
           <td>${m.protein.toFixed(1)}g</td>
@@ -309,7 +323,7 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
     if (isEatingOut) {
       return `
         <tr class="item-row" data-item-id="${item.id}">
-          <td>${escapeHtml(item.food_name)}</td>
+          <td>${displayName}</td>
           <td>1食分</td>
           <td>${Math.round(m.kcal)}kcal</td>
           <td>${m.protein.toFixed(1)}g</td>
@@ -323,7 +337,7 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
     }
     const editRow = `
       <tr class="item-row" data-item-id="${item.id}">
-        <td>${escapeHtml(item.food_name)}</td>
+        <td>${displayName}</td>
         <td><input type="number" class="edit-item-qty" value="${item.quantity_g}" min="1" step="1" /></td>
         <td>${Math.round(m.kcal)}kcal</td>
         <td>${m.protein.toFixed(1)}g</td>
