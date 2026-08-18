@@ -524,6 +524,7 @@ CREATE TABLE eating_out_meals (
   id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id     INT UNSIGNED NOT NULL,
   name        VARCHAR(255) NOT NULL,
+  shop_name   VARCHAR(255) NULL,   -- 店名(任意項目、2026-08-18追加)
   kcal        DECIMAL(6,1) NOT NULL,
   protein_g   DECIMAL(6,2) NOT NULL,
   fat_g       DECIMAL(6,2) NOT NULL,
@@ -540,6 +541,7 @@ CREATE TABLE eating_out_meals (
 - `meal_items.eating_out_meal_id`で参照する。`resolve_food_source()`(`php/private/queries.php`)がこのテーブルの`kcal`等をそのまま「100gあたり」のスナップショット値として返し、呼び出し側は`quantity_g`に常に固定値100を渡すことで、`per_100g × quantity_g / 100`という既存の計算式をそのまま使い回す(専用の計算パスを作らない)。UI上は常に「1食分」とだけ表示し、`quantity_g`という内部表現はユーザーに見せない
 - `custom_foods`と違い、削除時の使用中チェックは行わない(`meal_items.eating_out_meal_id`は`ON DELETE SET NULL`のため、削除しても過去の記録は`*_snapshot`列で自己完結しており壊れない)
 - 直近の履歴(`recentMeals.ts`)の編集モードでは、量の編集・食材の差し替えUIは出さず、削除のみ許可する(レシピと同じ「1人前固定」という考え方のため)
+- **店名**(`shop_name`、任意項目、2026-08-18追加): 「何という店で食べたか」を記録したいという要望により追加。1つの自由入力欄とし、店名・支店名を分けた構造化はしない(「一蘭 渋谷店」のようにどこまでの粒度で書くかはユーザーに委ねる)。設定されている場合、`eating_out_meal_display_name()`(`php/private/queries.php`)が「店名 - 料理名」の形式に組み立て、`meal_items.food_name_snapshot`にもこの組み立て済みの文字列がそのまま入る(専用の店名スナップショット列は持たない)。「食事を記録する」画面の選択欄・直近の履歴のどちらも、この組み立て済みの名前がそのまま表示される
 
 ### 2.16 BMI・TDEE・目標カロリー・PFCグラム数の算出ロジック(読み取り時に計算、§7対応)
 
@@ -555,9 +557,9 @@ CREATE TABLE eating_out_meals (
    - サマリー表示では、この係数を掛ける前の値を「基礎代謝」、掛けた後の値との差分を「活動量」として2行で内訳表示する(2026-08-15、UI再設計フェーズ2で追加。バックエンドは`calculate_bmr()`として基礎代謝の算出をTDEE計算から独立した関数に切り出し、両方をAPIレスポンスに含める)
 4. **目標カロリー**: `TDEE + (nutrition_goals.target_weight − 直近体重) × 7200 ÷ (target_date − 今日の日数)`。増量方向ならプラス、減量方向ならマイナスになる。`target_date`を過ぎている場合は§2.17のバナー表示に切り替え、この計算自体は行わない(残り日数が0または負になるため)
 5. **PFCグラム数**(`pfc_mode`ごとに分岐):
-   - `standard`: タンパク質 = 目標カロリー×15%÷4、脂質 = 目標カロリー×25%÷9、炭水化物 = 目標カロリー×60%÷4
-   - `bulk`: タンパク質 = 直近体重×1.8(g)。脂質 = 目標カロリー×25%÷9。炭水化物 = (目標カロリー − タンパク質のkcal − 脂質のkcal)÷4
-   - `cut`: タンパク質 = 直近体重×2.0(g)。脂質・炭水化物は`bulk`と同じ式
+   - `standard`: たんぱく質 = 目標カロリー×15%÷4、脂質 = 目標カロリー×25%÷9、炭水化物 = 目標カロリー×60%÷4
+   - `bulk`: たんぱく質 = 直近体重×1.8(g)。脂質 = 目標カロリー×25%÷9。炭水化物 = (目標カロリー − たんぱく質のkcal − 脂質のkcal)÷4
+   - `cut`: たんぱく質 = 直近体重×2.0(g)。脂質・炭水化物は`bulk`と同じ式
    - `custom`: `nutrition_goals.custom_protein_g`・`custom_fat_g`・`custom_carb_g`をそのまま使う
    - `bulk`/`cut`で目標カロリーが低すぎる等の理由で炭水化物が負の値になるケースは、0にクランプした上で「カロリー設定を見直してください」という警告を表示する(実装時に詳細UIを詰める)
 

@@ -393,8 +393,9 @@ function exercise_has_logs(PDO $pdo, int $exerciseId): bool
 
 // ==== 体重の推移 ====
 
-// $limitを指定すると、直近(logged_date, id 降順)の$limit件だけを日付昇順で返す
-// (「直近の履歴」用。グラフの期間指定とは独立して使う。fetch_meals()と同じパターン)
+// $limitを指定すると、直近(logged_date, id 降順)の$limit件を降順のまま返す
+// (「直近の履歴」用。新しい記録を上に表示するため、2026-08-19からは反転しない。
+// グラフの期間指定とは独立して使う。fetch_recent_logs()と同じ並び順)
 function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, ?int $limit = null): array
 {
     $sql = 'SELECT id, logged_date, weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id';
@@ -424,9 +425,6 @@ function fetch_body_weight_logs(PDO $pdo, int $userId, ?string $dateFrom, ?strin
         $stmt->execute($params);
     }
     $rows = $stmt->fetchAll();
-    if ($limit !== null) {
-        $rows = array_reverse($rows);
-    }
 
     return array_map(function ($r) {
         return [
@@ -831,6 +829,8 @@ function search_foods(PDO $pdo, int $userId, ?string $q, ?string $foodGroupCode,
 // $eatingOutMealId指定時は、eating_out_meals(1食分の実値)をそのまま「100gあたり」の
 // スナップショット値として返す。呼び出し側がquantity_gを常に100固定で渡すことで、
 // per_100g × quantity_g / 100 という既存の計算式をそのまま使い回せる(design.md §2.20)。
+// 戻り値の'shop_name'は外食由来のときだけ非nullになる(直近の履歴で「1行目=店名、2行目=料理名」
+// のように分けて表示するため、'name'に結合しない。design.md §2.20)。
 function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $customFoodId, ?int $eatingOutMealId = null): ?array
 {
     if ($masterFoodId !== null) {
@@ -846,11 +846,23 @@ function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $cu
         $stmt->execute(['id' => $customFoodId, 'user_id' => $userId]);
     } else {
         $stmt = $pdo->prepare(
-            'SELECT name, kcal AS kcal_per_100g, protein_g AS protein_g_per_100g,
+            'SELECT name, shop_name, kcal AS kcal_per_100g, protein_g AS protein_g_per_100g,
                     fat_g AS fat_g_per_100g, carb_g AS carb_g_per_100g
              FROM eating_out_meals WHERE id = :id AND user_id = :user_id'
         );
         $stmt->execute(['id' => $eatingOutMealId, 'user_id' => $userId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+        return [
+            'name' => $row['name'],
+            'shop_name' => $row['shop_name'],
+            'kcal_per_100g' => (float) $row['kcal_per_100g'],
+            'protein_g_per_100g' => $row['protein_g_per_100g'] !== null ? (float) $row['protein_g_per_100g'] : 0.0,
+            'fat_g_per_100g' => $row['fat_g_per_100g'] !== null ? (float) $row['fat_g_per_100g'] : 0.0,
+            'carb_g_per_100g' => $row['carb_g_per_100g'] !== null ? (float) $row['carb_g_per_100g'] : 0.0,
+        ];
     }
     $row = $stmt->fetch();
     if (!$row) {
@@ -858,6 +870,7 @@ function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $cu
     }
     return [
         'name' => $row['name'],
+        'shop_name' => null,
         'kcal_per_100g' => (float) $row['kcal_per_100g'],
         'protein_g_per_100g' => $row['protein_g_per_100g'] !== null ? (float) $row['protein_g_per_100g'] : 0.0,
         'fat_g_per_100g' => $row['fat_g_per_100g'] !== null ? (float) $row['fat_g_per_100g'] : 0.0,
@@ -870,13 +883,15 @@ function resolve_food_source(PDO $pdo, int $userId, ?int $masterFoodId, ?int $cu
 function fetch_eating_out_meals(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, name, kcal, protein_g, fat_g, carb_g FROM eating_out_meals WHERE user_id = :user_id ORDER BY name'
+        'SELECT id, name, shop_name, kcal, protein_g, fat_g, carb_g FROM eating_out_meals
+         WHERE user_id = :user_id ORDER BY name'
     );
     $stmt->execute(['user_id' => $userId]);
     return array_map(function ($r) {
         return [
             'id' => (int) $r['id'],
             'name' => $r['name'],
+            'shop_name' => $r['shop_name'],
             'kcal' => (float) $r['kcal'],
             'protein_g' => (float) $r['protein_g'],
             'fat_g' => (float) $r['fat_g'],
@@ -888,7 +903,8 @@ function fetch_eating_out_meals(PDO $pdo, int $userId): array
 function find_eating_out_meal(PDO $pdo, int $userId, int $id): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, name, kcal, protein_g, fat_g, carb_g FROM eating_out_meals WHERE id = :id AND user_id = :user_id'
+        'SELECT id, name, shop_name, kcal, protein_g, fat_g, carb_g FROM eating_out_meals
+         WHERE id = :id AND user_id = :user_id'
     );
     $stmt->execute(['id' => $id, 'user_id' => $userId]);
     $row = $stmt->fetch();
@@ -898,6 +914,7 @@ function find_eating_out_meal(PDO $pdo, int $userId, int $id): ?array
     return [
         'id' => (int) $row['id'],
         'name' => $row['name'],
+        'shop_name' => $row['shop_name'],
         'kcal' => (float) $row['kcal'],
         'protein_g' => (float) $row['protein_g'],
         'fat_g' => (float) $row['fat_g'],
@@ -905,25 +922,44 @@ function find_eating_out_meal(PDO $pdo, int $userId, int $id): ?array
     ];
 }
 
-function create_eating_out_meal(PDO $pdo, int $userId, string $name, float $kcal, float $protein, float $fat, float $carb): int
-{
+function create_eating_out_meal(
+    PDO $pdo,
+    int $userId,
+    string $name,
+    ?string $shopName,
+    float $kcal,
+    float $protein,
+    float $fat,
+    float $carb
+): int {
     $stmt = $pdo->prepare(
-        'INSERT INTO eating_out_meals (user_id, name, kcal, protein_g, fat_g, carb_g)
-         VALUES (:user_id, :name, :kcal, :protein, :fat, :carb)'
+        'INSERT INTO eating_out_meals (user_id, name, shop_name, kcal, protein_g, fat_g, carb_g)
+         VALUES (:user_id, :name, :shop_name, :kcal, :protein, :fat, :carb)'
     );
     $stmt->execute([
-        'user_id' => $userId, 'name' => $name, 'kcal' => $kcal, 'protein' => $protein, 'fat' => $fat, 'carb' => $carb,
+        'user_id' => $userId, 'name' => $name, 'shop_name' => $shopName,
+        'kcal' => $kcal, 'protein' => $protein, 'fat' => $fat, 'carb' => $carb,
     ]);
     return (int) $pdo->lastInsertId();
 }
 
-function update_eating_out_meal(PDO $pdo, int $id, string $name, float $kcal, float $protein, float $fat, float $carb): void
-{
+function update_eating_out_meal(
+    PDO $pdo,
+    int $id,
+    string $name,
+    ?string $shopName,
+    float $kcal,
+    float $protein,
+    float $fat,
+    float $carb
+): void {
     $stmt = $pdo->prepare(
-        'UPDATE eating_out_meals SET name = :name, kcal = :kcal, protein_g = :protein,
+        'UPDATE eating_out_meals SET name = :name, shop_name = :shop_name, kcal = :kcal, protein_g = :protein,
             fat_g = :fat, carb_g = :carb WHERE id = :id'
     );
-    $stmt->execute(['name' => $name, 'kcal' => $kcal, 'protein' => $protein, 'fat' => $fat, 'carb' => $carb, 'id' => $id]);
+    $stmt->execute([
+        'name' => $name, 'shop_name' => $shopName, 'kcal' => $kcal, 'protein' => $protein, 'fat' => $fat, 'carb' => $carb, 'id' => $id,
+    ]);
 }
 
 function delete_eating_out_meal(PDO $pdo, int $id): void
@@ -1217,7 +1253,7 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, 
     $itemsStmt = $pdo->prepare(
         'SELECT id, meal_id, master_food_id, custom_food_id, eating_out_meal_id, food_name_snapshot, kcal_per_100g_snapshot,
                 protein_g_per_100g_snapshot, fat_g_per_100g_snapshot, carb_g_per_100g_snapshot,
-                quantity_g, recipe_batch_id, recipe_name_snapshot
+                quantity_g, recipe_batch_id, recipe_name_snapshot, eating_out_shop_name_snapshot
          FROM meal_items WHERE user_id = :user_id ORDER BY id'
     );
     $itemsStmt->execute(['user_id' => $userId]);
@@ -1236,6 +1272,7 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, 
             'quantity_g' => (float) $row['quantity_g'],
             'recipe_batch_id' => $row['recipe_batch_id'],
             'recipe_name' => $row['recipe_name_snapshot'],
+            'eating_out_shop_name' => $row['eating_out_shop_name_snapshot'],
         ];
     }
 
@@ -1254,6 +1291,18 @@ function find_meal(PDO $pdo, int $userId, int $id): ?array
 {
     $stmt = $pdo->prepare('SELECT id, photo_path FROM meals WHERE id = :id AND user_id = :user_id');
     $stmt->execute(['id' => $id, 'user_id' => $userId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+// 2026-08-18追加: 同じ日付・区分の食事は1枚のカードにまとめたいというUI要望のため、
+// add_meal.php はこの関数で既存の食事を探し、無ければ新規作成する(design.md §2.15)
+function find_meal_by_date_and_type(PDO $pdo, int $userId, string $loggedDate, string $mealType): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, photo_path FROM meals WHERE user_id = :user_id AND logged_date = :logged_date AND meal_type = :meal_type'
+    );
+    $stmt->execute(['user_id' => $userId, 'logged_date' => $loggedDate, 'meal_type' => $mealType]);
     $row = $stmt->fetch();
     return $row ?: null;
 }
@@ -1293,10 +1342,10 @@ function insert_meal_items(
         'INSERT INTO meal_items
             (meal_id, user_id, master_food_id, custom_food_id, eating_out_meal_id, food_name_snapshot,
              kcal_per_100g_snapshot, protein_g_per_100g_snapshot, fat_g_per_100g_snapshot, carb_g_per_100g_snapshot,
-             quantity_g, recipe_batch_id, recipe_name_snapshot)
+             quantity_g, recipe_batch_id, recipe_name_snapshot, eating_out_shop_name_snapshot)
          VALUES
             (:meal_id, :user_id, :master_food_id, :custom_food_id, :eating_out_meal_id, :food_name_snapshot,
-             :kcal, :protein, :fat, :carb, :quantity_g, :recipe_batch_id, :recipe_name_snapshot)'
+             :kcal, :protein, :fat, :carb, :quantity_g, :recipe_batch_id, :recipe_name_snapshot, :eating_out_shop_name_snapshot)'
     );
     $ids = [];
     foreach ($items as $item) {
@@ -1314,6 +1363,7 @@ function insert_meal_items(
             'quantity_g' => $item['quantity_g'],
             'recipe_batch_id' => $recipeBatchId,
             'recipe_name_snapshot' => $recipeNameSnapshot,
+            'eating_out_shop_name_snapshot' => $item['food']['shop_name'] ?? null,
         ]);
         $ids[] = (int) $pdo->lastInsertId();
     }

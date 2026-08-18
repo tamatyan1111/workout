@@ -9,6 +9,11 @@ import { escapeHtml } from 'shared';
 // 取り決めで、ユーザーには「1食分」としてのみ見せる(php/private/queries.phpのresolve_food_source参照)。
 const EATING_OUT_FIXED_QUANTITY_G = 100;
 
+// php/private/queries.phpのeating_out_meal_display_name()と同じ組み立て方(design.md §2.20)
+function eatingOutDisplayName(meal: EatingOutMeal): string {
+  return meal.shop_name ? `${meal.shop_name} - ${meal.name}` : meal.name;
+}
+
 type CartEntry = { kind: 'item'; item: CartItem } | { kind: 'recipe'; recipeId: number; recipeName: string };
 
 function errorMessage(err: unknown): string {
@@ -89,7 +94,7 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
         <h4>外食から追加</h4>
         <div class="recipe-quick-add">
           <select id="meal-eating-out-select">
-            ${eatingOutMeals.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
+            ${eatingOutMeals.map((m) => `<option value="${m.id}">${escapeHtml(eatingOutDisplayName(m))}</option>`).join('')}
           </select>
           <button type="button" id="add-eating-out-to-cart-btn" class="link-button">追加</button>
         </div>
@@ -135,7 +140,7 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
           kind: 'item',
           item: {
             ref: { source: 'eating_out', id: meal.id },
-            name: meal.name,
+            name: eatingOutDisplayName(meal),
             quantityG: EATING_OUT_FIXED_QUANTITY_G,
             kcalPer100g: meal.kcal,
             proteinPer100g: meal.protein_g,

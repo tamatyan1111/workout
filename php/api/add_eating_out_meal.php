@@ -9,13 +9,14 @@ try {
     $userId = require_login();
     $body = read_json_body();
     $name = require_field($body, 'name');
+    $shopName = optional_field($body, 'shop_name');
     $kcal = require_non_negative_number($body, 'kcal');
     $protein = require_non_negative_number($body, 'protein_g');
     $fat = require_non_negative_number($body, 'fat_g');
     $carb = require_non_negative_number($body, 'carb_g');
 
     $pdo = get_pdo();
-    $id = create_eating_out_meal($pdo, $userId, $name, $kcal, $protein, $fat, $carb);
+    $id = create_eating_out_meal($pdo, $userId, $name, $shopName, $kcal, $protein, $fat, $carb);
 
     json_ok(['id' => $id]);
 } catch (ValidationException $e) {

@@ -133,7 +133,7 @@ function calculate_pfc_grams(
         ];
     }
 
-    // bulk/cut: タンパク質は体重×g/kgで固定、脂質は目標カロリーの25%、炭水化物は残り
+    // bulk/cut: たんぱく質は体重×g/kgで固定、脂質は目標カロリーの25%、炭水化物は残り
     $proteinPerKg = $pfcMode === 'bulk' ? 1.8 : 2.0;
     $proteinG = $currentWeight * $proteinPerKg;
     $proteinKcal = $proteinG * 4;

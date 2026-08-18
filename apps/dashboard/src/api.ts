@@ -325,22 +325,24 @@ export const getEatingOutMeals = (): Promise<EatingOutMeal[]> =>
 
 export const addEatingOutMeal = (
   name: string,
+  shopName: string,
   kcal: string,
   protein: string,
   fat: string,
   carb: string
 ): Promise<{ id: number }> =>
-  callPost('add_eating_out_meal.php', { name, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
+  callPost('add_eating_out_meal.php', { name, shop_name: shopName, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
 
 export const editEatingOutMeal = (
   id: number,
   name: string,
+  shopName: string,
   kcal: string,
   protein: string,
   fat: string,
   carb: string
 ): Promise<void> =>
-  callPost('edit_eating_out_meal.php', { id, name, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
+  callPost('edit_eating_out_meal.php', { id, name, shop_name: shopName, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
 
 export const deleteEatingOutMeal = (id: number): Promise<void> => callPost('delete_eating_out_meal.php', { id });
 

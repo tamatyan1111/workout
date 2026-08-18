@@ -145,6 +145,7 @@ CREATE TABLE eating_out_meals (
   id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id     INT UNSIGNED NOT NULL,
   name        VARCHAR(255) NOT NULL,
+  shop_name   VARCHAR(255) NULL,   -- 店名(任意項目、2026-08-18追加)
   kcal        DECIMAL(6,1) NOT NULL,
   protein_g   DECIMAL(6,2) NOT NULL,
   fat_g       DECIMAL(6,2) NOT NULL,
@@ -209,6 +210,7 @@ CREATE TABLE meal_items (
   quantity_g                  DECIMAL(7,1) NOT NULL,
   recipe_batch_id             CHAR(36) NULL,       -- 同じレシピ展開でまとめて追加された行の目印(UUID)
   recipe_name_snapshot        VARCHAR(255) NULL,
+  eating_out_shop_name_snapshot VARCHAR(255) NULL, -- 外食の店名(任意項目、2026-08-19追加)
   created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_meal_items_meal_id (meal_id),

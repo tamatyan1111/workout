@@ -12,6 +12,7 @@ try {
     $body = read_json_body();
     $id = require_int($body, 'id');
     $name = require_field($body, 'name');
+    $shopName = optional_field($body, 'shop_name');
     $kcal = require_non_negative_number($body, 'kcal');
     $protein = require_non_negative_number($body, 'protein_g');
     $fat = require_non_negative_number($body, 'fat_g');
@@ -22,7 +23,7 @@ try {
         json_error('外食メニューが見つかりません', 404);
     }
 
-    update_eating_out_meal($pdo, $id, $name, $kcal, $protein, $fat, $carb);
+    update_eating_out_meal($pdo, $id, $name, $shopName, $kcal, $protein, $fat, $carb);
 
     json_ok();
 } catch (ValidationException $e) {

@@ -30,7 +30,7 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
   function draw(): void {
     container.innerHTML = `
       <table class="custom-food-table">
-        <thead><tr><th>名前</th><th>カロリー</th><th>タンパク質</th><th>脂質</th><th>炭水化物</th><th></th></tr></thead>
+        <thead><tr><th>店名</th><th>料理名</th><th>カロリー</th><th>たんぱく質</th><th>脂質</th><th>炭水化物</th><th></th></tr></thead>
         <tbody id="eating-out-rows"></tbody>
       </table>
       <button type="button" id="new-eating-out-btn" class="link-button">+ 外食メニューを追加</button>
@@ -47,13 +47,14 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
   function renderRows(): void {
     const rowsEl = container.querySelector<HTMLElement>('#eating-out-rows')!;
     if (meals.length === 0) {
-      rowsEl.innerHTML = '<tr><td colspan="6">登録されている外食メニューはありません</td></tr>';
+      rowsEl.innerHTML = '<tr><td colspan="7">登録されている外食メニューはありません</td></tr>';
       return;
     }
     rowsEl.innerHTML = meals
       .map(
         (m) => `
       <tr data-id="${m.id}">
+        <td>${m.shop_name ? escapeHtml(m.shop_name) : '—'}</td>
         <td>${escapeHtml(m.name)}</td>
         <td>${m.kcal}kcal</td>
         <td>${m.protein_g}g</td>
@@ -92,11 +93,12 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
     wrapEl.innerHTML = `
       <form id="eating-out-form">
         <div class="field-row">
-          <label class="field">名前 <input type="text" id="eo-name" value="${escapeHtml(meal?.name ?? '')}" required /></label>
+          <label class="field"><span>店名<span class="field-note-inline">(任意)</span></span> <input type="text" id="eo-shop-name" value="${escapeHtml(meal?.shop_name ?? '')}" /></label>
+          <label class="field">料理名 <input type="text" id="eo-name" value="${escapeHtml(meal?.name ?? '')}" required /></label>
           <label class="field">カロリー(kcal) <input type="number" step="0.1" id="eo-kcal" value="${meal?.kcal ?? ''}" required /></label>
         </div>
         <div class="field-row">
-          <label class="field">タンパク質(g) <input type="number" step="0.1" id="eo-protein" value="${meal?.protein_g ?? ''}" required /></label>
+          <label class="field">たんぱく質(g) <input type="number" step="0.1" id="eo-protein" value="${meal?.protein_g ?? ''}" required /></label>
           <label class="field">脂質(g) <input type="number" step="0.1" id="eo-fat" value="${meal?.fat_g ?? ''}" required /></label>
           <label class="field">炭水化物(g) <input type="number" step="0.1" id="eo-carb" value="${meal?.carb_g ?? ''}" required /></label>
         </div>
@@ -116,6 +118,7 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
       ev.preventDefault();
       const statusEl = wrapEl.querySelector<HTMLParagraphElement>('#eating-out-status')!;
       const name = wrapEl.querySelector<HTMLInputElement>('#eo-name')!.value;
+      const shopName = wrapEl.querySelector<HTMLInputElement>('#eo-shop-name')!.value;
       const kcal = wrapEl.querySelector<HTMLInputElement>('#eo-kcal')!.value;
       const protein = wrapEl.querySelector<HTMLInputElement>('#eo-protein')!.value;
       const fat = wrapEl.querySelector<HTMLInputElement>('#eo-fat')!.value;
@@ -123,9 +126,9 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
       statusEl.textContent = '保存中...';
       try {
         if (editingId === -1) {
-          await addEatingOutMeal(name, kcal, protein, fat, carb);
+          await addEatingOutMeal(name, shopName, kcal, protein, fat, carb);
         } else {
-          await editEatingOutMeal(editingId!, name, kcal, protein, fat, carb);
+          await editEatingOutMeal(editingId!, name, shopName, kcal, protein, fat, carb);
         }
         editingId = null;
         refresh();

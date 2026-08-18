@@ -29,8 +29,9 @@ export function renderCustomFoods(container: HTMLElement, onChanged: () => void)
 
   function draw(): void {
     container.innerHTML = `
+      <p class="field-note">数値はすべて100gあたりの値です</p>
       <table class="custom-food-table">
-        <thead><tr><th>食品名</th><th>kcal/100g</th><th>P/100g</th><th>F/100g</th><th>C/100g</th><th></th></tr></thead>
+        <thead><tr><th>食品名</th><th>カロリー</th><th>たんぱく質</th><th>脂質</th><th>炭水化物</th><th></th></tr></thead>
         <tbody id="custom-food-rows"></tbody>
       </table>
       <button type="button" id="new-custom-food-btn" class="link-button">+ 独自食材を追加</button>
@@ -55,10 +56,10 @@ export function renderCustomFoods(container: HTMLElement, onChanged: () => void)
         (f) => `
       <tr data-id="${f.id}">
         <td>${escapeHtml(f.name)}</td>
-        <td>${f.kcal_per_100g}</td>
-        <td>${f.protein_g_per_100g}</td>
-        <td>${f.fat_g_per_100g}</td>
-        <td>${f.carb_g_per_100g}</td>
+        <td>${f.kcal_per_100g}kcal</td>
+        <td>${f.protein_g_per_100g}g</td>
+        <td>${f.fat_g_per_100g}g</td>
+        <td>${f.carb_g_per_100g}g</td>
         <td>
           <button type="button" class="edit-food-btn">編集</button>
           <button type="button" class="delete-food-btn danger">削除</button>
@@ -96,12 +97,12 @@ export function renderCustomFoods(container: HTMLElement, onChanged: () => void)
       <form id="custom-food-form">
         <div class="field-row">
           <label class="field">食品名 <input type="text" id="cf-name" value="${escapeHtml(food?.name ?? '')}" required /></label>
-          <label class="field">カロリー(kcal/100g) <input type="number" step="0.1" id="cf-kcal" value="${food?.kcal_per_100g ?? ''}" required /></label>
+          <label class="field">カロリー(kcal) <input type="number" step="0.1" id="cf-kcal" value="${food?.kcal_per_100g ?? ''}" required /></label>
         </div>
         <div class="field-row">
-          <label class="field">タンパク質(g/100g) <input type="number" step="0.1" id="cf-protein" value="${food?.protein_g_per_100g ?? ''}" required /></label>
-          <label class="field">脂質(g/100g) <input type="number" step="0.1" id="cf-fat" value="${food?.fat_g_per_100g ?? ''}" required /></label>
-          <label class="field">炭水化物(g/100g) <input type="number" step="0.1" id="cf-carb" value="${food?.carb_g_per_100g ?? ''}" required /></label>
+          <label class="field">たんぱく質(g) <input type="number" step="0.1" id="cf-protein" value="${food?.protein_g_per_100g ?? ''}" required /></label>
+          <label class="field">脂質(g) <input type="number" step="0.1" id="cf-fat" value="${food?.fat_g_per_100g ?? ''}" required /></label>
+          <label class="field">炭水化物(g) <input type="number" step="0.1" id="cf-carb" value="${food?.carb_g_per_100g ?? ''}" required /></label>
         </div>
         <button type="submit">保存</button>
         <button type="button" id="cancel-custom-food-btn">キャンセル</button>

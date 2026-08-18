@@ -27,7 +27,8 @@ export async function renderRecentBodyWeights(container: HTMLElement): Promise<v
     return;
   }
 
-  logs = [...logs].reverse();
+  // 直近8件を日付・ID降順(新しい→古い)で表示する。APIも同じ降順で返すため、そのまま使う
+  // (2026-08-19、recentLogs.tsと同様に新しい記録を上に見たいとの要望を受けて変更)。
   let editing = false;
 
   draw();
