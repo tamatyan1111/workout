@@ -43,7 +43,8 @@ test('レシピの共有リンクは未ログインで閲覧でき、共有を�
   const recipes = panel.locator('#recipes');
   await recipes.getByRole('button', { name: '新しいレシピを作る' }).click();
   await recipes.locator('#recipe-name-input').fill('E2E共有レシピ');
-  await recipes.locator('#recipe-food-search').getByRole('textbox', { name: '食品名で検索' }).fill('E2Eテスト食材');
+  // 食品名の入力欄はlist属性(候補プルダウン)付きのため、ARIAロールがtextboxではなくcomboboxになる
+  await recipes.locator('#recipe-food-search').getByRole('combobox', { name: '食品名で検索' }).fill('E2Eテスト食材');
   await recipes.locator('#recipe-food-search').getByRole('button', { name: '検索' }).click();
   await recipes.getByRole('button', { name: '追加', exact: true }).click();
   await recipes.getByRole('button', { name: '保存', exact: true }).click();
