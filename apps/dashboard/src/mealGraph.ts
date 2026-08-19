@@ -4,6 +4,7 @@ import { periodRange } from './graph';
 import { itemKcal } from './mealLog';
 import type { Meal, MealItem, NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
+import { todayStr } from './date';
 
 type Period = '30d' | '3mo' | 'all';
 
@@ -23,7 +24,7 @@ export function renderMealGraph(container: HTMLElement): void {
   container.innerHTML = '<p>読み込み中...</p>';
 
   const initialRange = periodRange(currentPeriod);
-  void Promise.all([getNutritionSummary(), getMeals(initialRange.from, initialRange.to)])
+  void Promise.all([getNutritionSummary(todayStr()), getMeals(initialRange.from, initialRange.to)])
     .then(([s, m]) => {
       summary = s;
       meals = m;

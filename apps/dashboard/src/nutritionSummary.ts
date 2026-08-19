@@ -1,6 +1,8 @@
 import { getNutritionSummary } from './api';
 import type { NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
+import { addDays, todayStr, weekdayLabel } from './date';
+import { captureElementToClipboard } from './captureImage';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -19,14 +21,29 @@ function formatValue(value: number, unit: 'kcal' | 'g'): string {
 // 2026-08-18、食品パッケージの成分表示順(PFC)に合わせて炭水化物→たんぱく質→脂質から変更)。
 // 体重は完全にプロフィールタブへ委ねる。目標の設定・変更はプロフィールタブの
 // 「目標」に分離してある。
+// 2026-08-19、日付ナビ(前の日/次の日)を追加。未来日には進めない(目標達成に関する
+// バナーは「今まさに」の通知のため、過去日を見ているときは出さない)。
 export function renderNutritionSummary(container: HTMLElement): void {
-  container.innerHTML = '<p>読み込み中...</p>';
+  let currentDate = todayStr();
 
-  void getNutritionSummary()
-    .then((summary) => draw(summary))
-    .catch((err) => {
-      container.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
-    });
+  load();
+
+  function load(): void {
+    // 日付ナビを連続クリックしたときに、後発のリクエストより先発のリクエストが遅れて
+    // 返ってきて表示を上書きしてしまわないよう、リクエスト時点の日付と現在の日付が
+    // 一致するときだけ描画する(2026-08-20、実機検証で発覚した競合状態への対処)
+    const requestedDate = currentDate;
+    container.innerHTML = '<p>読み込み中...</p>';
+    void getNutritionSummary(requestedDate)
+      .then((summary) => {
+        if (requestedDate !== currentDate) return;
+        draw(summary);
+      })
+      .catch((err) => {
+        if (requestedDate !== currentDate) return;
+        container.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
+      });
+  }
 
   function cardHtml(title: string, metrics: Metric[], valueOf: (m: Metric) => number | null): string {
     return `
@@ -45,6 +62,7 @@ export function renderNutritionSummary(container: HTMLElement): void {
   }
 
   function draw(summary: NutritionSummary): void {
+    const isToday = currentDate === todayStr();
     const goal = summary.goal;
     const targetCalories = goal?.target_calories ?? null;
     const pfc = goal?.pfc ?? null;
@@ -57,15 +75,24 @@ export function renderNutritionSummary(container: HTMLElement): void {
     ];
 
     container.innerHTML = `
-      ${goal?.overdue ? '<p class="banner banner-warning">目標達成日を過ぎています。目標を見直しましょう。</p>' : ''}
+      <div class="date-nav">
+        <button type="button" class="date-nav-prev link-button">← 前の日</button>
+        <strong class="date-nav-current">${escapeHtml(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
+        <button type="button" class="date-nav-next link-button" ${isToday ? 'disabled' : ''}>次の日 →</button>
+      </div>
+      <div class="capture-controls">
+        <button type="button" class="link-button capture-btn">画像をコピー</button>
+        <span class="capture-status"></span>
+      </div>
+      ${isToday && goal?.overdue ? '<p class="banner banner-warning">目標達成日を過ぎています。目標を見直しましょう。</p>' : ''}
       ${
-        goal?.newly_reached_milestone !== null && goal?.newly_reached_milestone !== undefined
+        isToday && goal?.newly_reached_milestone !== null && goal?.newly_reached_milestone !== undefined
           ? `<p class="banner banner-success">🎉 目標まで${goal.newly_reached_milestone}%達成しました!</p>`
           : ''
       }
       <div class="nutrition-stats">
         ${cardHtml('目標', metrics, (m) => m.target)}
-        ${cardHtml('本日の摂取', metrics, (m) => m.today)}
+        ${cardHtml(isToday ? '本日の摂取' : 'この日の摂取', metrics, (m) => m.today)}
         ${cardHtml('残り摂取可能', metrics, (m) => (m.target !== null ? m.target - m.today : null))}
       </div>
       ${
@@ -79,5 +106,19 @@ export function renderNutritionSummary(container: HTMLElement): void {
       }
       <p class="field-note">目標の変更はプロフィールタブの「目標」から</p>
     `;
+
+    container.querySelector('.date-nav-prev')!.addEventListener('click', () => {
+      currentDate = addDays(currentDate, -1);
+      load();
+    });
+    container.querySelector<HTMLButtonElement>('.date-nav-next')!.addEventListener('click', () => {
+      if (isToday) return;
+      currentDate = addDays(currentDate, 1);
+      load();
+    });
+    container.querySelector('.capture-btn')!.addEventListener('click', () => {
+      const cardEl = container.closest<HTMLElement>('.card') ?? container;
+      void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
+    });
   }
 }

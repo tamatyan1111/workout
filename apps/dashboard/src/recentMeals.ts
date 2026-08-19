@@ -14,7 +14,10 @@ import { renderFoodSearch } from './foodSearch';
 import type { Meal, MealItem } from './types';
 import { escapeHtml } from 'shared';
 
-const RECENT_MEALS_LIMIT = 3;
+// 運動タブの「直近の履歴」(DISPLAY_LIMIT、recentLogs.ts)と件数を揃える
+// (2026-08-19、「同じ分だけ載せて」との要望を受けて3件から変更。単位はセット数と
+// 食事カードの件数で異なるが、表示件数の目安として揃える)。
+const RECENT_MEALS_LIMIT = 8;
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -76,19 +79,32 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
   let editingMealId: number | null = null;
   let addingItemToMealId: number | null = null;
   let changingFoodItemId: number | null = null;
+  // 中身(写真・食材一覧)は開くまで表示しない(2026-08-19、件数を増やした際に
+  // 一覧が縦に長くなりすぎないようにするための要望)。カードごとに開閉を独立管理する。
+  const openMealIds = new Set<number>();
 
   draw();
 
   function draw(): void {
     const sorted = [...meals].sort((a, b) => (a.logged_date < b.logged_date ? 1 : -1));
-    container.innerHTML = sorted.map((m) => renderMealCard(m, editingMealId === m.id)).join('');
+    container.innerHTML = sorted.map((m) => renderMealCard(m, openMealIds.has(m.id), editingMealId === m.id)).join('');
 
     container.querySelectorAll<HTMLElement>('.meal-card').forEach((card) => {
       const mealId = Number(card.dataset.mealId);
       const meal = meals.find((mm) => mm.id === mealId)!;
 
+      card.querySelector('.toggle-open-meal-btn')!.addEventListener('click', () => {
+        if (openMealIds.has(mealId)) {
+          openMealIds.delete(mealId);
+        } else {
+          openMealIds.add(mealId);
+        }
+        draw();
+      });
+
       card.querySelector('.toggle-edit-meal-btn')!.addEventListener('click', () => {
         editingMealId = editingMealId === mealId ? null : mealId;
+        openMealIds.add(mealId);
         addingItemToMealId = null;
         changingFoodItemId = null;
         draw();
@@ -105,19 +121,20 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
         }
       });
 
-      const photoStatusEl = card.querySelector<HTMLParagraphElement>('.photo-status')!;
+      // 写真関連の要素はカードが開いているときしか描画されない
+      const photoStatusEl = card.querySelector<HTMLParagraphElement>('.photo-status');
       card.querySelector<HTMLImageElement>('.meal-photo-thumb')?.addEventListener('click', () => {
         openLightbox(mealPhotoUrl(mealId));
       });
-      card.querySelector<HTMLInputElement>('.upload-photo-input')!.addEventListener('change', async (ev) => {
+      card.querySelector<HTMLInputElement>('.upload-photo-input')?.addEventListener('change', async (ev) => {
         const file = (ev.target as HTMLInputElement).files?.[0];
         if (!file) return;
-        photoStatusEl.textContent = 'アップロード中...';
+        if (photoStatusEl) photoStatusEl.textContent = 'アップロード中...';
         try {
           await uploadMealPhoto(mealId, file);
           await renderRecentMeals(container, onChanged);
         } catch (err) {
-          photoStatusEl.textContent = `アップロードに失敗しました: ${errorMessage(err)}`;
+          if (photoStatusEl) photoStatusEl.textContent = `アップロードに失敗しました: ${errorMessage(err)}`;
         }
       });
       card.querySelector('.delete-photo-btn')?.addEventListener('click', async () => {
@@ -126,7 +143,7 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
           await deleteMealPhoto(mealId);
           await renderRecentMeals(container, onChanged);
         } catch (err) {
-          photoStatusEl.textContent = `削除に失敗しました: ${errorMessage(err)}`;
+          if (photoStatusEl) photoStatusEl.textContent = `削除に失敗しました: ${errorMessage(err)}`;
         }
       });
 
@@ -214,7 +231,7 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
     });
   }
 
-  function renderMealCard(m: Meal, editing: boolean): string {
+  function renderMealCard(m: Meal, open: boolean, editing: boolean): string {
     const groups = new Map<string, MealItem[]>();
     const ungrouped: MealItem[] = [];
     m.items.forEach((item) => {
@@ -227,16 +244,11 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
     });
     const totals = sumMacros(m.items);
 
-    return `
-      <div class="meal-card" data-meal-id="${m.id}">
-        <div class="meal-card-header">
-          <strong>${escapeHtml(m.logged_date)} ${escapeHtml(MEAL_TYPE_LABELS[m.meal_type])}</strong>
-          <span>${Math.round(totals.kcal)}kcal (P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g / C${totals.carb.toFixed(1)}g)</span>
-          <span>
-            <button type="button" class="toggle-edit-meal-btn">${editing ? '閉じる' : '編集'}</button>
-            <button type="button" class="delete-meal-btn danger">記録ごと削除</button>
-          </span>
-        </div>
+    // 中身(写真・食材一覧)は開いているときだけ描画する(2026-08-19、件数を増やしたのに
+    // 合わせて、一覧が縦に長くなりすぎないよう開閉式にした)。
+    const body = !open
+      ? ''
+      : `
         <div class="meal-photo">
           ${m.photo_path ? `<img class="meal-photo-thumb" src="${mealPhotoUrl(m.id)}" alt="食事の写真" />` : ''}
           <label class="link-button upload-photo-label">
@@ -292,6 +304,22 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
         `
             : ''
         }
+      `;
+
+    return `
+      <div class="meal-card" data-meal-id="${m.id}">
+        <div class="meal-card-header">
+          <button type="button" class="toggle-open-meal-btn">
+            <span class="meal-card-chevron">${open ? '▼' : '▶'}</span>
+            ${escapeHtml(m.logged_date)} ${escapeHtml(MEAL_TYPE_LABELS[m.meal_type])}
+          </button>
+          <span>${Math.round(totals.kcal)}kcal (P${totals.protein.toFixed(1)}g / F${totals.fat.toFixed(1)}g / C${totals.carb.toFixed(1)}g)</span>
+          <span>
+            <button type="button" class="toggle-edit-meal-btn">${editing ? '閉じる' : '編集'}</button>
+            <button type="button" class="delete-meal-btn danger">記録ごと削除</button>
+          </span>
+        </div>
+        ${body}
       </div>
     `;
   }

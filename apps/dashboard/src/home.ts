@@ -51,7 +51,10 @@ export function renderHome(container: HTMLElement, onGoto: (tab: TabKey) => void
   const statsEl = container.querySelector<HTMLElement>('#home-stats')!;
   const today = todayStr();
 
-  void Promise.all([getMeals(today, today), getNutritionSummary()])
+  // getNutritionSummary()にはtodayを明示的に渡す(2026-08-20発覚: サーバーのdate('Y-m-d')は
+  // PHPの既定タイムゾーン(UTC)基準のため、日本時間の0時〜9時台は省略時にサーバー側の
+  // 「今日」が1日ずれてしまう)
+  void Promise.all([getMeals(today, today), getNutritionSummary(today)])
     .then(([meals, summary]) => {
       const todayKcal = Math.round(
         meals.reduce((sum, meal) => sum + meal.items.reduce((s, item) => s + itemKcal(item), 0), 0)

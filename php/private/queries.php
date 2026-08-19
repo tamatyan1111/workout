@@ -232,7 +232,9 @@ function delete_cycle(PDO $pdo, int $id): void
 
 // ==== 管理表・記録(ユーザーごと) ====
 
-function fetch_board(PDO $pdo, int $userId): array
+// $dateに記録したセットだけを「現在」列に載せる(2026-08-20、サマリーに日付ナビを
+// 追加したのに合わせて、「種目ごとの最終記録日」ではなく「指定日の記録」に変更)。
+function fetch_board(PDO $pdo, int $userId, string $date): array
 {
     $exercisesStmt = $pdo->prepare(
         "SELECT
@@ -247,20 +249,14 @@ function fetch_board(PDO $pdo, int $userId): array
     $exercisesStmt->execute(['user_id' => $userId]);
     $exercises = $exercisesStmt->fetchAll();
 
-    // design.md §2.9: 直近の記録日の(重量,回数)グループを、ログイン中のユーザーの全種目分まとめて取得する
-    // PDO::ATTR_EMULATE_PREPARES=falseのネイティブプリペアドステートメントは同名プレースホルダーの
-    // 再利用をサポートしないため、同じ値でも:user_id1/:user_id2のように名前を分ける
     $currentStmt = $pdo->prepare(
         "SELECT l.exercise_id, l.weight, l.reps, COUNT(*) AS sets
         FROM logs l
-        INNER JOIN (
-            SELECT exercise_id, MAX(logged_date) AS max_date FROM logs WHERE user_id = :user_id1 GROUP BY exercise_id
-        ) latest ON latest.exercise_id = l.exercise_id AND latest.max_date = l.logged_date
-        WHERE l.user_id = :user_id2
+        WHERE l.user_id = :user_id AND l.logged_date = :date
         GROUP BY l.exercise_id, l.weight, l.reps
         ORDER BY l.exercise_id, l.weight DESC, l.reps DESC"
     );
-    $currentStmt->execute(['user_id1' => $userId, 'user_id2' => $userId]);
+    $currentStmt->execute(['user_id' => $userId, 'date' => $date]);
 
     $currentByExercise = [];
     foreach ($currentStmt->fetchAll() as $row) {
@@ -525,7 +521,48 @@ function fetch_latest_two_body_weights(PDO $pdo, int $userId): array
         'SELECT weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id ORDER BY logged_date DESC LIMIT 2'
     );
     $stmt->execute(['user_id' => $userId]);
-    $rows = $stmt->fetchAll();
+    return map_latest_two_body_weights_rows($stmt->fetchAll());
+}
+
+// BMI・BMR・TDEE・目標カロリー計算用(2026-08-20)。これらは体重を毎日記録するとは限らない
+// 前提の「緩やかに変化する値」として扱いたいため、$date時点で分かっている直近の値
+// (その日以前で一番新しい記録)を使う。プロフィールタブの「体重・BMI・体脂肪率」の表示自体は
+// 運動・食事と揃えて「その日ちょうど」だけにしたいため、そちらはfetch_body_weight_on_dateを使う
+// (このas-of版はTDEE等の計算専用)。目標作成時のstart_weightスナップショット
+// (create_nutrition_goal)は「今まさに」の値であるべきなので、そちらは従来通り
+// fetch_latest_two_body_weightsを使う。
+function fetch_latest_two_body_weights_as_of(PDO $pdo, int $userId, string $date): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT weight, body_fat_percentage FROM body_weight_logs
+         WHERE user_id = :user_id AND logged_date <= :date
+         ORDER BY logged_date DESC LIMIT 2'
+    );
+    $stmt->execute(['user_id' => $userId, 'date' => $date]);
+    return map_latest_two_body_weights_rows($stmt->fetchAll());
+}
+
+// プロフィールタブのサマリー表示用(2026-08-20)。「記録がない日にも直近の値が出るのは
+// 紛らわしい」との指摘を受け、運動・食事と揃えて$dateにちょうど記録した行だけを返す
+// (無ければnull)。
+function fetch_body_weight_on_date(PDO $pdo, int $userId, string $date): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT weight, body_fat_percentage FROM body_weight_logs WHERE user_id = :user_id AND logged_date = :date'
+    );
+    $stmt->execute(['user_id' => $userId, 'date' => $date]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return null;
+    }
+    return [
+        'weight' => (float) $row['weight'],
+        'body_fat_percentage' => $row['body_fat_percentage'] !== null ? (float) $row['body_fat_percentage'] : null,
+    ];
+}
+
+function map_latest_two_body_weights_rows(array $rows): array
+{
     return [
         'current' => isset($rows[0]) ? (float) $rows[0]['weight'] : null,
         'previous' => isset($rows[1]) ? (float) $rows[1]['weight'] : null,
@@ -618,7 +655,8 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
     if (!$user) {
         json_error('ユーザーが見つかりません', 404);
     }
-    $weights = fetch_latest_two_body_weights($pdo, $userId);
+    $weights = fetch_latest_two_body_weights_as_of($pdo, $userId, $today);
+    $weightOnDate = fetch_body_weight_on_date($pdo, $userId, $today);
     $goal = fetch_latest_nutrition_goal($pdo, $userId);
 
     // サマリー(食事タブ)の「本日の摂取カロリー・PFC」用。$todayの食事をitemsごと合算する
@@ -637,12 +675,16 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
 
     $heightCm = $user['height_cm'] !== null ? (int) $user['height_cm'] : null;
     $activityLevel = $user['activity_level'];
+    // BMR・TDEE・目標カロリーの計算には「直近で分かっている体重」(as-of)を使う一方、
+    // プロフィールタブに表示するBMI・体重・体脂肪率は「その日ちょうどの記録」だけを使う
+    // (2026-08-20、記録の無い日に古い値が出て紛らわしいとの指摘への対応)
     $currentWeight = $weights['current'];
+    $weightForDisplay = $weightOnDate['weight'] ?? null;
 
     $bmi = null;
     $bmiCategory = null;
-    if ($heightCm !== null && $currentWeight !== null) {
-        $bmi = calculate_bmi($currentWeight, $heightCm);
+    if ($heightCm !== null && $weightForDisplay !== null) {
+        $bmi = calculate_bmi($weightForDisplay, $heightCm);
         $bmiCategory = bmi_category_label($bmi);
     }
 
@@ -714,8 +756,8 @@ function build_nutrition_summary(PDO $pdo, int $userId, string $today): array
     return [
         'height_cm' => $heightCm,
         'activity_level' => $activityLevel,
-        'current_weight' => $currentWeight,
-        'current_body_fat_percentage' => $weights['current_body_fat_percentage'],
+        'current_weight' => $weightForDisplay,
+        'current_body_fat_percentage' => $weightOnDate['body_fat_percentage'] ?? null,
         'bmi' => $bmi !== null ? round($bmi, 1) : null,
         'bmi_category' => $bmiCategory,
         'bmr' => $bmr !== null ? round($bmr) : null,

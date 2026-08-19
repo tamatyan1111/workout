@@ -146,8 +146,8 @@ export const deleteCycle = (id: number): Promise<void> => callPost('delete_cycle
 
 // ==== 管理表・種目 ====
 
-export const getBoard = (): Promise<Exercise[]> =>
-  callGet<{ exercises: Exercise[] }>('get_board.php').then((d) => d.exercises);
+export const getBoard = (date?: string): Promise<Exercise[]> =>
+  callGet<{ exercises: Exercise[] }>('get_board.php', { date: date ?? '' }).then((d) => d.exercises);
 
 export const addExercise = (
   cycleId: number,
@@ -247,7 +247,8 @@ function foodRefParams(ref: FoodRef): { master_food_id?: number; custom_food_id?
   return { eating_out_meal_id: ref.id };
 }
 
-export const getNutritionSummary = (): Promise<NutritionSummary> => callGet<NutritionSummary>('get_nutrition_summary.php');
+export const getNutritionSummary = (date?: string): Promise<NutritionSummary> =>
+  callGet<NutritionSummary>('get_nutrition_summary.php', { date: date ?? '' });
 
 export const getNutritionGoal = (): Promise<NutritionGoal | null> =>
   callGet<{ goal: NutritionGoal | null }>('get_nutrition_goal.php').then((d) => d.goal);

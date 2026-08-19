@@ -1,6 +1,7 @@
 import { addNutritionGoal, getNutritionSummary } from './api';
 import type { NutritionSummary, PfcMode } from './types';
 import { escapeHtml } from 'shared';
+import { todayStr } from './date';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -21,7 +22,7 @@ const PFC_MODE_LABELS: Record<PfcMode, string> = {
 export function renderGoalSettings(container: HTMLElement): void {
   container.innerHTML = '<p>読み込み中...</p>';
 
-  void getNutritionSummary()
+  void getNutritionSummary(todayStr())
     .then((summary) => draw(summary))
     .catch((err) => {
       container.innerHTML = `<p class="error">目標の取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
@@ -116,7 +117,7 @@ export function renderGoalSettings(container: HTMLElement): void {
           ratioFat.value,
           ratioCarb.value
         );
-        void getNutritionSummary().then((s) => draw(s));
+        void getNutritionSummary(todayStr()).then((s) => draw(s));
       } catch (err) {
         statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
       }

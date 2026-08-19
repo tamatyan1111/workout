@@ -8,8 +8,9 @@ send_cors_headers($config);
 
 try {
     $userId = require_login();
+    $date = $_GET['date'] ?? null;
     $pdo = get_pdo();
-    json_ok(build_nutrition_summary($pdo, $userId, date('Y-m-d')));
+    json_ok(build_nutrition_summary($pdo, $userId, $date ?: date('Y-m-d')));
 } catch (Throwable $e) {
     handle_unexpected_error($e);
 }

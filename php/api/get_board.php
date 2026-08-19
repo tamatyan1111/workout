@@ -8,8 +8,9 @@ send_cors_headers($config);
 
 try {
     $userId = require_login();
+    $date = $_GET['date'] ?? null;
     $pdo = get_pdo();
-    json_ok(['exercises' => fetch_board($pdo, $userId)]);
+    json_ok(['exercises' => fetch_board($pdo, $userId, $date ?: date('Y-m-d'))]);
 } catch (Throwable $e) {
     handle_unexpected_error($e);
 }

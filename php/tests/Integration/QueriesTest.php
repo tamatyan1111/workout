@@ -64,27 +64,27 @@ final class QueriesTest extends TestCase
 
     public function testFetchBoardReturnsOnlyOwnExercises(): void
     {
-        $board = fetch_board(self::$pdo, 1);
+        $board = fetch_board(self::$pdo, 1, '2026-01-01');
         $this->assertCount(3, $board);
     }
 
     // design.md §1.2: 他ユーザーのデータは一切見えないことを保証する重要なテスト
     public function testFetchBoardDoesNotLeakOtherUsersExercises(): void
     {
-        $board = fetch_board(self::$pdo, 1);
+        $board = fetch_board(self::$pdo, 1, '2026-01-01');
         $ids = array_column($board, 'id');
         $this->assertNotContains(4, $ids);
     }
 
     public function testFetchBoardMarksWeightBasedByTarget(): void
     {
-        $bench = $this->findById(fetch_board(self::$pdo, 1), 1);
+        $bench = $this->findById(fetch_board(self::$pdo, 1, '2026-01-01'), 1);
         $this->assertTrue($bench['is_weight_based']);
     }
 
     public function testFetchBoardMarksWeightlessWhenNoTargetAndNoLogs(): void
     {
-        $bike = $this->findById(fetch_board(self::$pdo, 1), 2);
+        $bike = $this->findById(fetch_board(self::$pdo, 1, '2026-01-01'), 2);
         $this->assertFalse($bike['is_weight_based']);
     }
 
@@ -95,18 +95,19 @@ final class QueriesTest extends TestCase
             "INSERT INTO logs (user_id, exercise_id, logged_date, set_number, weight, reps)
              VALUES (1, 3, '2026-01-01', 1, 10.0, 12)"
         );
-        $discontinued = $this->findById(fetch_board(self::$pdo, 1), 3);
+        $discontinued = $this->findById(fetch_board(self::$pdo, 1, '2026-01-01'), 3);
         $this->assertTrue($discontinued['is_weight_based']);
     }
 
     public function testFetchBoardCurrentIsEmptyWithoutLogs(): void
     {
-        $bench = $this->findById(fetch_board(self::$pdo, 1), 1);
+        $bench = $this->findById(fetch_board(self::$pdo, 1, '2026-01-01'), 1);
         $this->assertSame([], $bench['current']);
     }
 
-    // design.md §2.9: 直近の記録日の(weight, reps)ごとにグルーピングする
-    public function testFetchBoardCurrentReflectsLatestDateOnly(): void
+    // 2026-08-20: サマリーの日付ナビ追加に伴い、「種目ごとの最終記録日」ではなく
+    // 「指定日ちょうどの記録」だけを(weight, reps)ごとにグルーピングして返す仕様に変更
+    public function testFetchBoardCurrentOnlyReflectsGivenDate(): void
     {
         self::$pdo->exec(
             "INSERT INTO logs (user_id, exercise_id, logged_date, set_number, weight, reps) VALUES
@@ -114,10 +115,14 @@ final class QueriesTest extends TestCase
                 (1, 1, '2026-01-02', 1, 80, 12),
                 (1, 1, '2026-01-02', 2, 80, 12)"
         );
-        $bench = $this->findById(fetch_board(self::$pdo, 1), 1);
+        $bench = $this->findById(fetch_board(self::$pdo, 1, '2026-01-02'), 1);
         $this->assertCount(1, $bench['current']);
         $this->assertSame(80.0, $bench['current'][0]['weight']);
         $this->assertSame(2, $bench['current'][0]['sets']);
+
+        $benchOnEarlierDate = $this->findById(fetch_board(self::$pdo, 1, '2026-01-01'), 1);
+        $this->assertCount(1, $benchOnEarlierDate['current']);
+        $this->assertSame(60.0, $benchOnEarlierDate['current'][0]['weight']);
     }
 
     public function testIsWeightlessReturnsFalseWhenTargetWeightSet(): void
@@ -334,7 +339,7 @@ final class QueriesTest extends TestCase
 
         $this->assertNull(find_user_by_id(self::$pdo, 1));
         $this->assertCount(0, fetch_cycles(self::$pdo, 1));
-        $this->assertCount(0, fetch_board(self::$pdo, 1));
+        $this->assertCount(0, fetch_board(self::$pdo, 1, '2026-01-01'));
         $this->assertCount(0, fetch_body_weight_logs(self::$pdo, 1, null, null));
         $this->assertCount(0, fetch_custom_foods(self::$pdo, 1));
         $this->assertCount(0, fetch_recipes(self::$pdo, 1));
@@ -833,7 +838,7 @@ final class QueriesTest extends TestCase
         self::$pdo->exec(
             "UPDATE users SET height_cm = 175, activity_level = 'sedentary', birth_date = '1996-01-01', gender = 'male' WHERE id = 1"
         );
-        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-14', 70.0);
 
         $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
 
@@ -922,7 +927,7 @@ final class QueriesTest extends TestCase
     public function testBuildNutritionSummaryIncludesTargetBmiAndBodyFatPercentage(): void
     {
         self::$pdo->exec("UPDATE users SET height_cm = 175 WHERE id = 1");
-        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 80.0, 22.0);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-14', 80.0, 22.0);
         create_nutrition_goal(self::$pdo, 1, 70.0, '2026-12-01', 'standard', null, null, null, 18.0);
 
         $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
@@ -966,6 +971,38 @@ final class QueriesTest extends TestCase
 
         $this->assertTrue($summary['goal']['overdue']);
         $this->assertNull($summary['goal']['target_calories']);
+    }
+
+    // 2026-08-20: プロフィールタブのサマリーの体重・BMI・体脂肪率表示は、運動・食事と揃えて
+    // 「$todayちょうどの記録」だけを見る(記録の無い日はnull。「記録が無い日にも古い値が
+    // 出るのは紛らわしい」との実機検証での指摘を受けて、当初のas-of仕様から変更)
+    public function testBuildNutritionSummaryCurrentWeightOnlyReflectsExactDate(): void
+    {
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-20', 68.0);
+
+        $noLogOnThatDay = build_nutrition_summary(self::$pdo, 1, '2026-08-10');
+        $this->assertNull($noLogOnThatDay['current_weight']);
+
+        $exactMatch = build_nutrition_summary(self::$pdo, 1, '2026-08-20');
+        $this->assertSame(68.0, $exactMatch['current_weight']);
+    }
+
+    // BMR・TDEE・目標カロリーの計算は体重表示欄とは別に「直近で分かっている値」を使い続ける
+    // (体重を毎日記録しなくても目標カロリーが消えないようにするため、意図的にfetch_body_weight_on_dateとは
+    // 別のas-of取得を使っている。表示欄(current_weight・bmi)だけがnullになる)
+    public function testBuildNutritionSummaryTdeeStillWorksWithoutExactDateWeightLog(): void
+    {
+        self::$pdo->exec(
+            "UPDATE users SET height_cm = 175, activity_level = 'sedentary', birth_date = '1996-01-01', gender = 'male' WHERE id = 1"
+        );
+        upsert_body_weight_log(self::$pdo, 1, '2026-08-01', 70.0);
+
+        $summary = build_nutrition_summary(self::$pdo, 1, '2026-08-14');
+
+        $this->assertNull($summary['current_weight']);
+        $this->assertNull($summary['bmi']);
+        $this->assertNotNull($summary['tdee']);
     }
 
     // ==== パスワードリセット ====
