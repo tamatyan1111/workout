@@ -3,6 +3,8 @@ import { ACTIVITY_LEVEL_LABELS, ACTIVITY_LEVEL_SHORT_LABELS } from './profileEdi
 import type { NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
 import type { ActivityLevel } from 'shared';
+import { addDays, todayStr, weekdayLabel } from './date';
+import { captureElementToClipboard } from './captureImage';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -18,14 +20,31 @@ function formatValue(value: number, unit: Metric['unit']): string {
 // 「目標」「本日」「残り」の3枚のカードにまとめて見るだけの表示専用(2026-08-19、
 // 食事タブと見た目を揃えたいとの要望を受けて、4枚2段の個別カードから再構成)。
 // 身長・活動レベルは「目標/残り」の概念がないため、この3枚とは別に上部へ残す。
+// 2026-08-20、日付ナビ(前の日/次の日)を追加。運動・食事と揃えて「その日ちょうどの記録」
+// だけを表示する(記録の無い日は—。実機検証で「記録が無い日にも値が出て紛らわしい」との
+// 指摘を受け、当初のas-of仕様から変更。BMR・TDEE等の内部計算は引き続きas-of値を使う。
+// build_nutrition_summaryのfetch_body_weight_on_date/fetch_latest_two_body_weights_as_of参照)。
 export function renderProfileSummary(container: HTMLElement): void {
-  container.innerHTML = '<p>読み込み中...</p>';
+  let currentDate = todayStr();
 
-  void getNutritionSummary()
-    .then((summary) => draw(summary))
-    .catch((err) => {
-      container.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
-    });
+  load();
+
+  function load(): void {
+    // 日付ナビを連続クリックしたときに、後発のリクエストより先発のリクエストが遅れて
+    // 返ってきて表示を上書きしてしまわないよう、リクエスト時点の日付と現在の日付が
+    // 一致するときだけ描画する(2026-08-20、実機検証で発覚した競合状態への対処)
+    const requestedDate = currentDate;
+    container.innerHTML = '<p>読み込み中...</p>';
+    void getNutritionSummary(requestedDate)
+      .then((summary) => {
+        if (requestedDate !== currentDate) return;
+        draw(summary);
+      })
+      .catch((err) => {
+        if (requestedDate !== currentDate) return;
+        container.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
+      });
+  }
 
   function cardHtml(title: string, metrics: Metric[], valueOf: (m: Metric) => number | null): string {
     return `
@@ -44,6 +63,7 @@ export function renderProfileSummary(container: HTMLElement): void {
   }
 
   function draw(summary: NutritionSummary): void {
+    const isToday = currentDate === todayStr();
     const goal = summary.goal;
     const activityLabel =
       summary.activity_level !== null
@@ -66,6 +86,15 @@ export function renderProfileSummary(container: HTMLElement): void {
     ];
 
     container.innerHTML = `
+      <div class="date-nav">
+        <button type="button" class="date-nav-prev link-button">← 前の日</button>
+        <strong class="date-nav-current">${escapeHtml(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
+        <button type="button" class="date-nav-next link-button" ${isToday ? 'disabled' : ''}>次の日 →</button>
+      </div>
+      <div class="capture-controls">
+        <button type="button" class="link-button capture-btn">画像をコピー</button>
+        <span class="capture-status"></span>
+      </div>
       <div class="nutrition-stats">
         <div class="stat-card">
           <span class="stat-label">身長</span>
@@ -78,7 +107,7 @@ export function renderProfileSummary(container: HTMLElement): void {
       </div>
       <div class="nutrition-stats">
         ${cardHtml('目標', metrics, (m) => m.target)}
-        ${cardHtml('本日', metrics, (m) => m.current)}
+        ${cardHtml(isToday ? '本日' : 'この日', metrics, (m) => m.current)}
         ${cardHtml('残り', metrics, (m) => (m.target !== null && m.current !== null ? m.target - m.current : null))}
       </div>
       ${
@@ -87,5 +116,19 @@ export function renderProfileSummary(container: HTMLElement): void {
           : '<p class="field-note">目標体重・目標達成日は「目標」から設定できます</p>'
       }
     `;
+
+    container.querySelector('.date-nav-prev')!.addEventListener('click', () => {
+      currentDate = addDays(currentDate, -1);
+      load();
+    });
+    container.querySelector<HTMLButtonElement>('.date-nav-next')!.addEventListener('click', () => {
+      if (isToday) return;
+      currentDate = addDays(currentDate, 1);
+      load();
+    });
+    container.querySelector('.capture-btn')!.addEventListener('click', () => {
+      const cardEl = container.closest<HTMLElement>('.card') ?? container;
+      void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
+    });
   }
 }

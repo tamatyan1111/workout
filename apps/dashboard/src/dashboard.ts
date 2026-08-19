@@ -15,6 +15,7 @@ import { renderRecentBodyWeights } from './recentBodyWeights';
 import { renderRecentLogs } from './recentLogs';
 import { renderRecordForm } from './recordForm';
 import { initScreenNav } from './screenNav';
+import { todayStr } from './date';
 import { escapeHtml } from 'shared';
 
 // design.md §3「ログイン後(通常時)」対応。ロゴタップで開くホーム+3タブ(運動・食事・
@@ -264,7 +265,11 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
 
   async function loadExercisePanel(): Promise<void> {
     try {
-      const [exercises, cycles, logs] = await Promise.all([getBoard(), getCycles(), getLogs()]);
+      // getBoard()には明示的にフロント側の「今日」を渡す(2026-08-20発覚: サーバーの
+      // date('Y-m-d')はPHPの既定タイムゾーン(UTC)基準のため、日本時間の0時〜9時台は
+      // サーバー側の「今日」が1日ずれる。board.ts側のサマリー日付ラベルはtodayStr()を
+      // 使っているため、初回描画時点でここも揃えておかないと表示とズレる)
+      const [exercises, cycles, logs] = await Promise.all([getBoard(todayStr()), getCycles(), getLogs()]);
       renderBoard(boardViewEl, exercises);
       renderRecordForm(recordFormEl, exercises, () => {
         void renderRecentLogs(recentLogsEl);

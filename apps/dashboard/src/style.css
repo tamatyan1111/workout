@@ -581,6 +581,27 @@ td select {
   font-size: 0.78rem;
 }
 
+/* サマリー全体を画像コピーするためのボタン+状態表示。運動・食事・プロフィール共通
+   (2026-08-20)。captureImage.tsのcaptureElementToClipboardが、この要素自体は
+   画像から除外する。 */
+.capture-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.capture-controls .link-button {
+  margin-bottom: 0;
+  font-size: 0.78rem;
+}
+
+.capture-status {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 /* 重量・回数(セット数含む)の列幅は、どのテーブルでも同じ値に揃える
    (重量は最大 XXX.X の4桁、回数・セット数は最大2桁を表示できれば十分なため) */
 .col-weight {
@@ -1048,6 +1069,29 @@ th.col-group-end {
   color: var(--success);
 }
 
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.date-nav .link-button {
+  margin-bottom: 0;
+}
+
+.date-nav .link-button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+.date-nav-current {
+  min-width: 9rem;
+  text-align: center;
+}
+
 .nutrition-stats {
   display: flex;
   flex-wrap: wrap;
@@ -1190,6 +1234,28 @@ th.col-group-end {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.toggle-open-meal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-weight: bold;
+  font-size: inherit;
+  text-align: left;
+}
+
+.toggle-open-meal-btn:hover {
+  background: transparent;
+}
+
+.meal-card-chevron {
+  color: var(--text-muted);
+  font-size: 0.7rem;
 }
 
 .recipe-share-info {

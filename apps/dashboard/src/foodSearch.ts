@@ -33,13 +33,18 @@ const FOOD_GROUPS: { code: string; name: string }[] = [
 export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem) => void): void {
   container.innerHTML = `
     <form id="food-search-form">
-      <label>食品グループ
-        <select id="food-search-group">
-          <option value="">すべて</option>
-          ${FOOD_GROUPS.map((g) => `<option value="${g.code}">${escapeHtml(g.name)}</option>`).join('')}
-        </select>
-      </label>
-      <label>食品名で検索 <input type="text" id="food-search-q" placeholder="例: 白米、にわとり むね" /></label>
+      <div class="field-row">
+        <label class="field">食品グループ
+          <select id="food-search-group">
+            <option value="">すべて</option>
+            ${FOOD_GROUPS.map((g) => `<option value="${g.code}">${escapeHtml(g.name)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">食品名で検索
+          <input type="text" id="food-search-q" list="food-search-datalist" placeholder="例: 白米、にわとり むね" autocomplete="off" />
+          <datalist id="food-search-datalist"></datalist>
+        </label>
+      </div>
       <button type="submit">検索</button>
     </form>
     <p id="food-search-status"></p>
@@ -48,6 +53,28 @@ export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem)
 
   const statusEl = container.querySelector<HTMLParagraphElement>('#food-search-status')!;
   const resultsEl = container.querySelector<HTMLElement>('#food-search-results')!;
+  const qInput = container.querySelector<HTMLInputElement>('#food-search-q')!;
+  const groupSelect = container.querySelector<HTMLSelectElement>('#food-search-group')!;
+  const datalistEl = container.querySelector<HTMLDataListElement>('#food-search-datalist')!;
+
+  let suggestTimer: ReturnType<typeof setTimeout> | undefined;
+  qInput.addEventListener('input', () => {
+    const q = qInput.value.trim();
+    clearTimeout(suggestTimer);
+    if (!q) {
+      datalistEl.innerHTML = '';
+      return;
+    }
+    suggestTimer = setTimeout(async () => {
+      try {
+        const foods = await searchFoods(q, groupSelect.value || undefined);
+        const names = [...new Set(foods.map((f) => f.name))];
+        datalistEl.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}"></option>`).join('');
+      } catch {
+        // 入力中の候補取得失敗は無視(検索ボタン押下時に改めてエラー表示される)
+      }
+    }, 250);
+  });
 
   container.querySelector<HTMLFormElement>('#food-search-form')!.addEventListener('submit', async (ev) => {
     ev.preventDefault();

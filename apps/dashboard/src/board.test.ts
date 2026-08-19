@@ -41,8 +41,8 @@ describe('renderBoard', () => {
   it('groups exercises under their cycle heading, using the label from the API response', () => {
     const container = document.createElement('div');
     renderBoard(container, [
-      makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス' }),
-      makeExercise({ id: 2, cycle: { id: 3, label: 'Legs' }, name: 'スクワット' }),
+      makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス', current: [{ weight: 60, reps: 10, sets: 1 }] }),
+      makeExercise({ id: 2, cycle: { id: 3, label: 'Legs' }, name: 'スクワット', current: [{ weight: 60, reps: 10, sets: 1 }] }),
     ]);
 
     expect(container.textContent).toContain('Push');
@@ -53,7 +53,9 @@ describe('renderBoard', () => {
 
   it('excludes discontinued exercises', () => {
     const container = document.createElement('div');
-    renderBoard(container, [makeExercise({ is_discontinued: true, name: '廃止種目' })]);
+    renderBoard(container, [
+      makeExercise({ is_discontinued: true, name: '廃止種目', current: [{ weight: 60, reps: 10, sets: 1 }] }),
+    ]);
 
     expect(container.textContent).not.toContain('廃止種目');
   });
@@ -78,5 +80,14 @@ describe('renderBoard', () => {
     renderBoard(container, []);
 
     expect(container.textContent).toContain('まだ種目が登録されていません');
+  });
+
+  // 2026-08-20: 記録がない日には種目名だけの行を並べず、代わりにメッセージを出す
+  it('hides exercises with no records for the currently viewed day', () => {
+    const container = document.createElement('div');
+    renderBoard(container, [makeExercise({ name: 'ベンチプレス', current: [] })]);
+
+    expect(container.textContent).not.toContain('ベンチプレス');
+    expect(container.textContent).toContain('この日の記録はありません');
   });
 });
