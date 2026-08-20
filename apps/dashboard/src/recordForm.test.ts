@@ -25,20 +25,23 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
     is_weight_based: true,
     target: { weight: 60, reps: 10, sets: 3 },
     current: [],
+    latest: [],
     ...overrides,
   };
 }
 
 describe('buildSetsFromCurrent', () => {
-  it('falls back to 3 blank sets when there is no current value', () => {
+  // buildSetsFromCurrentはexercise.latest(種目ごとの直近の記録)を初期値に使う。
+  // exercise.current(サマリーの日付ナビで選んだ日ちょうどの記録)とは別物(2026-08-20)
+  it('falls back to 3 blank sets when there is no latest value', () => {
     expect(buildSetsFromCurrent(undefined)).toEqual(emptySets());
-    expect(buildSetsFromCurrent(makeExercise({ current: [] }))).toEqual(emptySets());
+    expect(buildSetsFromCurrent(makeExercise({ latest: [] }))).toEqual(emptySets());
   });
 
   // design.md §2.9: 現在値のグループをそのままセット欄に展開する(ドロップセット対応)
-  it('expands each current-value group into its own sets', () => {
+  it('expands each latest-value group into its own sets', () => {
     const exercise = makeExercise({
-      current: [
+      latest: [
         { weight: 60, reps: 3, sets: 1 },
         { weight: 50, reps: 10, sets: 2 },
       ],
@@ -51,7 +54,7 @@ describe('buildSetsFromCurrent', () => {
   });
 
   it('represents a weightless set with an empty weight string', () => {
-    const exercise = makeExercise({ current: [{ weight: null, reps: 20, sets: 1 }] });
+    const exercise = makeExercise({ latest: [{ weight: null, reps: 20, sets: 1 }] });
     expect(buildSetsFromCurrent(exercise)).toEqual([{ weight: '', reps: '20' }]);
   });
 });
@@ -87,9 +90,9 @@ describe('renderRecordForm', () => {
     expect(options).toContain('腹筋ローラー');
   });
 
-  it('shows 3 blank set rows by default when there is no current value', () => {
+  it('shows 3 blank set rows by default when there is no latest value', () => {
     const container = document.createElement('div');
-    renderRecordForm(container, [makeExercise({ current: [] })], () => {});
+    renderRecordForm(container, [makeExercise({ latest: [] })], () => {});
 
     expect(container.querySelectorAll('.set-row')).toHaveLength(3);
   });

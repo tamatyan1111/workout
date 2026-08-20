@@ -14,7 +14,11 @@ export interface Exercise {
   name: string;
   is_weight_based: boolean;
   target: { weight: number | null; reps: number | null; sets: number | null };
+  // サマリーの日付ナビで選んだ日にちょうど記録したセット(その日の記録が無ければ空配列)
   current: SetGroup[];
+  // 種目ごとの直近の記録日のセット(運動を記録フォームの初期値用。currentとは異なり、
+  // 選んだ日に関わらず常に「その種目を最後にやった内容」を指す)
+  latest: SetGroup[];
 }
 
 // design.md §2.3「cycles テーブル」に対応。ユーザーごとに自由に作成できる

@@ -125,6 +125,25 @@ final class QueriesTest extends TestCase
         $this->assertSame(60.0, $benchOnEarlierDate['current'][0]['weight']);
     }
 
+    // 2026-08-20: 「運動を記録」フォームの初期値(前回の重量・回数)用。currentが指定日
+    // ちょうどの記録に変わったのに巻き込まれて、前回値の初期入力が効かなくなっていた不具合の
+    // 回帰テスト。latestは選んだ日に関わらず種目ごとの直近の記録を常に返す
+    public function testFetchBoardLatestReflectsMostRecentLogRegardlessOfGivenDate(): void
+    {
+        self::$pdo->exec(
+            "INSERT INTO logs (user_id, exercise_id, logged_date, set_number, weight, reps) VALUES
+                (1, 1, '2026-01-01', 1, 60, 10),
+                (1, 1, '2026-01-02', 1, 80, 12),
+                (1, 1, '2026-01-02', 2, 80, 12)"
+        );
+        // 2026-01-03には何も記録していないので、currentは空だがlatestは直近(01-02)の内容を返す
+        $bench = $this->findById(fetch_board(self::$pdo, 1, '2026-01-03'), 1);
+        $this->assertSame([], $bench['current']);
+        $this->assertCount(1, $bench['latest']);
+        $this->assertSame(80.0, $bench['latest'][0]['weight']);
+        $this->assertSame(2, $bench['latest'][0]['sets']);
+    }
+
     public function testIsWeightlessReturnsFalseWhenTargetWeightSet(): void
     {
         $this->assertFalse(is_weightless(self::$pdo, 1));
