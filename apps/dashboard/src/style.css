@@ -644,29 +644,16 @@ td select {
   white-space: normal;
 }
 
-/* 「現在」「目標」の列グループの境目を分かりやすくする。「目標」側を白背景+枠線で
-   1枚のパネルのように囲み、単なる縦線より境目をはっきりさせる。狭い列で文字が枠に
-   近づきすぎないよう、直前の列(セット数)にも右側の余白を足す */
-td.col-group-target,
-th.col-group-target {
-  background: var(--surface);
-  border-top: 1px solid var(--accent);
-  border-bottom: 1px solid var(--accent);
+/* 目標テーブルの開閉トグル(2026-08-20、現在の実績と同じ行に並べると横幅が窮屈になる
+   との指摘を受けて、実績テーブルの下にリンクで開く別テーブルへ分離した) */
+.toggle-target-btn {
+  margin-top: 0.3rem;
+  margin-bottom: 0;
+  font-size: 0.78rem;
 }
 
-td.col-group-target-start,
-th.col-group-target-start {
-  border-left: 1px solid var(--accent);
-}
-
-td.col-group-target-end,
-th.col-group-target-end {
-  border-right: 1px solid var(--accent);
-}
-
-td.col-group-end,
-th.col-group-end {
-  padding-right: 0.7rem;
+.board-target-table {
+  margin-top: 0.4rem;
 }
 
 .board-edit-table .col-cycle {

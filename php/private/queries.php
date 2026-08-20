@@ -257,17 +257,27 @@ function fetch_board(PDO $pdo, int $userId, string $date): array
         ORDER BY l.exercise_id, l.weight DESC, l.reps DESC"
     );
     $currentStmt->execute(['user_id' => $userId, 'date' => $date]);
+    $currentByExercise = group_log_rows_by_exercise($currentStmt->fetchAll());
 
-    $currentByExercise = [];
-    foreach ($currentStmt->fetchAll() as $row) {
-        $currentByExercise[(int) $row['exercise_id']][] = [
-            'weight' => $row['weight'] !== null ? (float) $row['weight'] : null,
-            'reps' => (int) $row['reps'],
-            'sets' => (int) $row['sets'],
-        ];
-    }
+    // 「運動を記録」フォームの初期値(前回やった重量・回数)用(2026-08-20)。サマリーの「現在」
+    // (指定日ちょうどの記録)とは意図的に別物: その日まだ何も記録していなくても、種目ごとの
+    // 直近の記録日の内容を初期値にできるようにする。
+    // PDO::ATTR_EMULATE_PREPARES=falseのネイティブプリペアドステートメントは同名プレースホルダーの
+    // 再利用をサポートしないため、同じ値でも:user_id1/:user_id2のように名前を分ける
+    $latestStmt = $pdo->prepare(
+        "SELECT l.exercise_id, l.weight, l.reps, COUNT(*) AS sets
+        FROM logs l
+        INNER JOIN (
+            SELECT exercise_id, MAX(logged_date) AS max_date FROM logs WHERE user_id = :user_id1 GROUP BY exercise_id
+        ) latest ON latest.exercise_id = l.exercise_id AND latest.max_date = l.logged_date
+        WHERE l.user_id = :user_id2
+        GROUP BY l.exercise_id, l.weight, l.reps
+        ORDER BY l.exercise_id, l.weight DESC, l.reps DESC"
+    );
+    $latestStmt->execute(['user_id1' => $userId, 'user_id2' => $userId]);
+    $latestByExercise = group_log_rows_by_exercise($latestStmt->fetchAll());
 
-    return array_map(function ($e) use ($currentByExercise) {
+    return array_map(function ($e) use ($currentByExercise, $latestByExercise) {
         return [
             'id' => (int) $e['id'],
             'cycle' => ['id' => (int) $e['cycle_id'], 'label' => $e['cycle_label']],
@@ -280,8 +290,22 @@ function fetch_board(PDO $pdo, int $userId, string $date): array
                 'sets' => $e['target_sets'] !== null ? (int) $e['target_sets'] : null,
             ],
             'current' => $currentByExercise[(int) $e['id']] ?? [],
+            'latest' => $latestByExercise[(int) $e['id']] ?? [],
         ];
     }, $exercises);
+}
+
+function group_log_rows_by_exercise(array $rows): array
+{
+    $byExercise = [];
+    foreach ($rows as $row) {
+        $byExercise[(int) $row['exercise_id']][] = [
+            'weight' => $row['weight'] !== null ? (float) $row['weight'] : null,
+            'reps' => (int) $row['reps'],
+            'sets' => (int) $row['sets'],
+        ];
+    }
+    return $byExercise;
 }
 
 function fetch_logs(PDO $pdo, int $userId, ?int $exerciseId, ?string $dateFrom, ?string $dateTo): array

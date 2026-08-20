@@ -7,12 +7,15 @@ export function emptySets(count = 3): SetInput[] {
   return Array.from({ length: count }, () => ({ weight: '', reps: '' }));
 }
 
-// design.md §2.9「現在値」をそのままセット欄の初期値として展開する
+// design.md §2.9「現在値」をそのままセット欄の初期値として展開する。
+// exercise.current(サマリーの日付ナビで選んだ日ちょうどの記録)ではなく、
+// exercise.latest(種目ごとの直近の記録)を使う(2026-08-20、サマリーが日付ナビ導入で
+// 「その日ちょうど」に変わった際、こちらまで巻き込まれて前回値の初期入力が効かなくなっていたのを修正)
 export function buildSetsFromCurrent(exercise: Exercise | undefined): SetInput[] {
-  if (!exercise || exercise.current.length === 0) return emptySets();
+  if (!exercise || exercise.latest.length === 0) return emptySets();
 
   const result: SetInput[] = [];
-  exercise.current.forEach((group) => {
+  exercise.latest.forEach((group) => {
     for (let i = 0; i < group.sets; i++) {
       result.push({
         weight: group.weight === null ? '' : String(group.weight),

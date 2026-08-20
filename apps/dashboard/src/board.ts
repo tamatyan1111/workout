@@ -15,6 +15,9 @@ function errorMessage(err: unknown): string {
 // 実際に種目が属しているサイクルをid昇順(作成順)でグルーピングして表示する。
 export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {
   let currentDate = todayStr();
+  // 目標テーブルを開いているサイクルのid。日付ナビをまたいでも開閉状態は保持する
+  // (2026-08-20、実績と目標を同じ行に並べると横幅が窮屈になるとの指摘を受けて分離)
+  const openTargetCycleIds = new Set<number>();
 
   draw(exercises);
 
@@ -30,7 +33,7 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
         <button type="button" class="link-button capture-btn">画像をコピー</button>
         <span class="capture-status"></span>
       </div>
-      ${renderCycles(ex)}
+      ${renderCycles(ex, openTargetCycleIds)}
     `;
 
     container.querySelector('.date-nav-prev')!.addEventListener('click', () => void navigate(-1));
@@ -41,6 +44,17 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
     container.querySelector('.capture-btn')!.addEventListener('click', () => {
       const cardEl = container.closest<HTMLElement>('.card') ?? container;
       void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
+    });
+    container.querySelectorAll<HTMLButtonElement>('.toggle-target-btn').forEach((btn) => {
+      const cycleId = Number(btn.dataset.cycleId);
+      btn.addEventListener('click', () => {
+        if (openTargetCycleIds.has(cycleId)) {
+          openTargetCycleIds.delete(cycleId);
+        } else {
+          openTargetCycleIds.add(cycleId);
+        }
+        draw(ex);
+      });
     });
   }
 
@@ -62,7 +76,7 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
   }
 }
 
-function renderCycles(exercises: Exercise[]): string {
+function renderCycles(exercises: Exercise[], openTargetCycleIds: Set<number>): string {
   const active = exercises.filter((e) => !e.is_discontinued);
   const cycleIds = [...new Set(active.map((e) => e.cycle.id))].sort((a, b) => a - b);
 
@@ -70,40 +84,42 @@ function renderCycles(exercises: Exercise[]): string {
     return '<p>まだ種目が登録されていません。「種目管理」から追加してください。</p>';
   }
 
-  return cycleIds
+  const blocks = cycleIds
     .map((cycleId) => {
       const cycleExercises = active.filter((e) => e.cycle.id === cycleId);
-      // その日に記録の無い種目は行ごと表示しない(2026-08-20、「記録がない日にも種目名が
-      // 出ているのは何故」との指摘を受けて、目標だけの行が並ぶ状態をやめた)
+      // その日に記録の無いサイクルはカードごと表示しない(2026-08-20、「Pushをしていないのに
+      // そのカードを出す必要はない」との指摘を受けて、「記録なし」メッセージすら出さないことにした)
       const recordedExercises = cycleExercises.filter((e) => e.current.length > 0);
+      if (recordedExercises.length === 0) return '';
       const label = cycleExercises[0].cycle.label;
+      const showTarget = openTargetCycleIds.has(cycleId);
       return `
         <section class="cycle-block">
           <h3>${escapeHtml(label)}</h3>
-          ${recordedExercises.length > 0 ? renderTable(recordedExercises) : '<p class="field-note">この日の記録はありません</p>'}
+          ${renderTable(recordedExercises)}
+          <button type="button" class="link-button toggle-target-btn" data-cycle-id="${cycleId}">${showTarget ? '目標を隠す' : '目標を見る'}</button>
+          ${showTarget ? renderTargetTable(recordedExercises) : ''}
         </section>
       `;
     })
+    .filter((html) => html !== '')
     .join('');
+
+  return blocks || '<p class="field-note">この日の記録はありません</p>';
 }
 
+// 実績(現在の重量・回数・セット)だけの表。目標は別テーブル(renderTargetTable)に分離した
+// (2026-08-20、同じ行に並べると横幅が窮屈になるとの指摘を受けて)。
 function renderTable(exercises: Exercise[]): string {
   return `
     <table class="board-table">
       <colgroup>
         <col />
         <col class="col-weight" /><col class="col-count" /><col class="col-count-sets" />
-        <col class="col-weight col-group-target" /><col class="col-count col-group-target" /><col class="col-count-sets col-group-target" />
       </colgroup>
       <thead>
         <tr>
-          <th rowspan="2">種目名</th>
-          <th colspan="3">現在</th>
-          <th colspan="3" class="col-group-target col-group-target-start col-group-target-end">目標</th>
-        </tr>
-        <tr>
-          <th>重量(kg)</th><th>回数</th><th class="col-group-end">セット</th>
-          <th class="col-group-target col-group-target-start">重量(kg)</th><th class="col-group-target">回数</th><th class="col-group-target col-group-target-end">セット</th>
+          <th>種目名</th><th>重量(kg)</th><th>回数</th><th>セット</th>
         </tr>
       </thead>
       <tbody>
@@ -115,10 +131,6 @@ function renderTable(exercises: Exercise[]): string {
 
 function renderRowGroup(e: Exercise): string {
   const lineCount = Math.max(e.current.length, 1);
-
-  const targetWeight = formatWeight(e.target.weight);
-  const targetReps = valueOrDash(e.target.reps);
-  const targetSets = valueOrDash(e.target.sets);
 
   const lines = Array.from({ length: lineCount }, (_, i) => {
     const group = e.current[i];
@@ -132,25 +144,46 @@ function renderRowGroup(e: Exercise): string {
   return lines
     .map((line, i) => {
       const nameCell = i === 0 ? `<td rowspan="${lineCount}">${escapeHtml(e.name)}</td>` : '';
-      const targetCells =
-        i === 0
-          ? `
-            <td rowspan="${lineCount}" class="col-group-target col-group-target-start">${escapeHtml(targetWeight)}</td>
-            <td rowspan="${lineCount}" class="col-group-target">${escapeHtml(targetReps)}</td>
-            <td rowspan="${lineCount}" class="col-group-target col-group-target-end">${escapeHtml(targetSets)}</td>
-          `
-          : '';
       return `
         <tr>
           ${nameCell}
           <td>${escapeHtml(line.weight)}</td>
           <td>${escapeHtml(line.reps)}</td>
-          <td class="col-group-end">${escapeHtml(line.sets)}</td>
-          ${targetCells}
+          <td>${escapeHtml(line.sets)}</td>
         </tr>
       `;
     })
     .join('');
+}
+
+function renderTargetTable(exercises: Exercise[]): string {
+  return `
+    <table class="board-table board-target-table">
+      <colgroup>
+        <col />
+        <col class="col-weight" /><col class="col-count" /><col class="col-count-sets" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>種目名</th><th>重量(kg)</th><th>回数</th><th>セット</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${exercises
+          .map(
+            (e) => `
+          <tr>
+            <td>${escapeHtml(e.name)}</td>
+            <td>${escapeHtml(formatWeight(e.target.weight))}</td>
+            <td>${escapeHtml(valueOrDash(e.target.reps))}</td>
+            <td>${escapeHtml(valueOrDash(e.target.sets))}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 export function valueOrDash(v: number | null): string {

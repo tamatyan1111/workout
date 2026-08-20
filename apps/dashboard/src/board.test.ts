@@ -33,6 +33,7 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
     is_weight_based: true,
     target: { weight: 60, reps: 10, sets: 3 },
     current: [],
+    latest: [],
     ...overrides,
   };
 }
@@ -89,5 +90,34 @@ describe('renderBoard', () => {
 
     expect(container.textContent).not.toContain('ベンチプレス');
     expect(container.textContent).toContain('この日の記録はありません');
+  });
+
+  // 2026-08-20: 「Pushをしていないのにそのカードを出す必要はない」との指摘を受けて、
+  // 記録の無いサイクルはカードごと(見出しも)非表示にする
+  it('hides an entire cycle card when nothing was recorded that day, even if another cycle was', () => {
+    const container = document.createElement('div');
+    renderBoard(container, [
+      makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス', current: [] }),
+      makeExercise({ id: 2, cycle: { id: 2, label: 'Legs' }, name: 'スクワット', current: [{ weight: 60, reps: 10, sets: 1 }] }),
+    ]);
+
+    expect(container.textContent).not.toContain('Push');
+    expect(container.textContent).not.toContain('ベンチプレス');
+    expect(container.textContent).toContain('Legs');
+    expect(container.textContent).toContain('スクワット');
+  });
+
+  // 2026-08-20: 目標は実績と同じ行に並べず、トグルで開閉する別テーブルに分離した
+  it('hides target values until the toggle button is clicked', () => {
+    const container = document.createElement('div');
+    renderBoard(container, [
+      makeExercise({ current: [{ weight: 60, reps: 10, sets: 1 }], target: { weight: 80, reps: 5, sets: 3 } }),
+    ]);
+
+    expect(container.textContent).not.toContain('80.0');
+
+    container.querySelector<HTMLButtonElement>('.toggle-target-btn')!.click();
+
+    expect(container.textContent).toContain('80.0');
   });
 });
