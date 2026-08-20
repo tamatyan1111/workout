@@ -124,9 +124,29 @@ jobs:
             sleep 1
           done
           echo "server did not start in time"; cat server.log; exit 1
+      # package-lock.jsonを使わない構成(frontendジョブのコメント参照)なのでハッシュ化できず、
+      # 実際にインストールされた@playwright/testのバージョンをキーにする。ブラウザ本体
+      # (Chromium)のダウンロードだけキャッシュ対象で、OS依存パッケージ(apt)はキャッシュされない
+      # ため、キャッシュヒット時もinstall-depsだけは毎回実行する(2026-08-20、e2eジョブが
+      # 数分かかることがある件への対処として追加)。
+      - name: Get installed Playwright version
+        id: playwright-version
+        working-directory: apps/dashboard
+        run: echo "version=$(node -e "console.log(require('@playwright/test/package.json').version)")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: apps/dashboard
         run: npx playwright install --with-deps chromium
+      - name: Install Playwright OS dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: apps/dashboard
+        run: npx playwright install-deps chromium
       - name: Run E2E tests
         run: npm run e2e --workspace=apps/dashboard
       - name: Upload Playwright report on failure
