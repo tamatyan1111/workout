@@ -30,6 +30,7 @@ final class QueriesTest extends TestCase
         self::$pdo->exec('TRUNCATE TABLE recipes');
         self::$pdo->exec('TRUNCATE TABLE custom_foods');
         self::$pdo->exec('TRUNCATE TABLE eating_out_meals');
+        self::$pdo->exec('TRUNCATE TABLE meal_favorites');
         self::$pdo->exec('TRUNCATE TABLE nutrition_goals');
         self::$pdo->exec('TRUNCATE TABLE foods');
         self::$pdo->exec('TRUNCATE TABLE users');
@@ -173,6 +174,70 @@ final class QueriesTest extends TestCase
     {
         $this->assertNull(find_exercise(self::$pdo, 1, 4));
         $this->assertNotNull(find_exercise(self::$pdo, 2, 4));
+    }
+
+    // ==== 種目の並べ替え(2026-08-21) ====
+
+    public function testMoveExerciseSwapsSortOrderWithPreviousSibling(): void
+    {
+        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 1'); // ベンチプレス
+        self::$pdo->exec('UPDATE exercises SET sort_order = 1 WHERE id = 2'); // エアロバイク
+
+        move_exercise(self::$pdo, 1, 2, 'up');
+
+        $this->assertSame(1, (int) find_exercise(self::$pdo, 1, 1)['sort_order']);
+        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
+    }
+
+    public function testMoveExerciseSwapsSortOrderWithNextSibling(): void
+    {
+        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 1');
+        self::$pdo->exec('UPDATE exercises SET sort_order = 1 WHERE id = 2');
+
+        move_exercise(self::$pdo, 1, 1, 'down');
+
+        $this->assertSame(1, (int) find_exercise(self::$pdo, 1, 1)['sort_order']);
+        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
+    }
+
+    public function testMoveExerciseDoesNothingAtTheBoundary(): void
+    {
+        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 1');
+        self::$pdo->exec('UPDATE exercises SET sort_order = 1 WHERE id = 2');
+
+        move_exercise(self::$pdo, 1, 1, 'up');
+        move_exercise(self::$pdo, 1, 2, 'down');
+
+        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 1)['sort_order']);
+        $this->assertSame(1, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
+    }
+
+    // design.md §2.8と同じ考え方: 廃止済みは現役の後ろに常に表示されるため、
+    // 並べ替えも現役同士・廃止済み同士でだけ行い、またいで入れ替わらないようにする
+    public function testMoveExerciseDoesNotCrossTheDiscontinuedBoundary(): void
+    {
+        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 2'); // エアロバイク(現役)
+        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 3'); // 廃止種目(廃止済み)
+
+        move_exercise(self::$pdo, 1, 3, 'up');
+
+        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
+        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 3)['sort_order']);
+    }
+
+    public function testNextExerciseSortOrderIsMaxPlusOne(): void
+    {
+        self::$pdo->exec('UPDATE exercises SET sort_order = 5 WHERE id = 1');
+        self::$pdo->exec('UPDATE exercises SET sort_order = 2 WHERE id = 2');
+
+        $this->assertSame(6, next_exercise_sort_order(self::$pdo, 1));
+    }
+
+    public function testNextExerciseSortOrderIsZeroForCycleWithNoExercises(): void
+    {
+        $cycleId = create_cycle(self::$pdo, 1, '新しいサイクル');
+
+        $this->assertSame(0, next_exercise_sort_order(self::$pdo, $cycleId));
     }
 
     public function testFindLogReturnsNullForOtherUsersLog(): void
@@ -488,6 +553,22 @@ final class QueriesTest extends TestCase
         $this->assertNull(find_eating_out_meal(self::$pdo, 1, 999));
     }
 
+    // 2026-08-21: 店名の昇順、同じ店の中では料理名の昇順で並べる(店名バラバラで探しにくい
+    // との指摘への対応)
+    public function testFetchEatingOutMealsSortsByShopNameThenName(): void
+    {
+        create_eating_out_meal(self::$pdo, 1, 'Bランチ', 'Bshop', 700.0, 30.0, 25.0, 80.0);
+        create_eating_out_meal(self::$pdo, 1, 'Zセット', 'Ashop', 600.0, 25.0, 20.0, 90.0);
+        create_eating_out_meal(self::$pdo, 1, 'Aセット', 'Ashop', 650.0, 22.0, 18.0, 85.0);
+
+        $meals = fetch_eating_out_meals(self::$pdo, 1);
+
+        $this->assertSame(
+            [['Ashop', 'Aセット'], ['Ashop', 'Zセット'], ['Bshop', 'Bランチ']],
+            array_map(fn ($m) => [$m['shop_name'], $m['name']], $meals)
+        );
+    }
+
     public function testUpdateEatingOutMeal(): void
     {
         $id = create_eating_out_meal(self::$pdo, 1, '牛丼(並)', null, 700.0, 22.0, 25.0, 95.0);
@@ -512,6 +593,72 @@ final class QueriesTest extends TestCase
         $meal = find_eating_out_meal(self::$pdo, 1, $id);
         $this->assertSame('豚骨ラーメン', $meal['name']);
         $this->assertSame('一蘭', $meal['shop_name']);
+    }
+
+    // ==== よく使う内容(meal_favorites、2026-08-21) ====
+
+    public function testCreateMealFavoriteWithMasterFoodThenFetchIt(): void
+    {
+        // foods id=1は setUpBeforeClass で登録済みの白米(342kcal/100g)
+        create_meal_favorite(self::$pdo, 1, 1, null, 150.0);
+
+        $favorites = fetch_meal_favorites(self::$pdo, 1);
+
+        $this->assertCount(1, $favorites);
+        $this->assertSame('master', $favorites[0]['source']);
+        $this->assertSame(1, $favorites[0]['food_id']);
+        $this->assertSame('白米', $favorites[0]['name']);
+        $this->assertSame(150.0, $favorites[0]['quantity_g']);
+        $this->assertSame(342.0, $favorites[0]['kcal_per_100g']);
+    }
+
+    public function testCreateMealFavoriteWithCustomFoodThenFetchIt(): void
+    {
+        $customFoodId = create_custom_food(self::$pdo, 1, '自家製プロテインバー', 400.0, 20.0, 10.0, 40.0);
+        create_meal_favorite(self::$pdo, 1, null, $customFoodId, 50.0);
+
+        $favorites = fetch_meal_favorites(self::$pdo, 1);
+
+        $this->assertCount(1, $favorites);
+        $this->assertSame('custom', $favorites[0]['source']);
+        $this->assertSame($customFoodId, $favorites[0]['food_id']);
+        $this->assertSame('自家製プロテインバー', $favorites[0]['name']);
+        $this->assertSame(50.0, $favorites[0]['quantity_g']);
+    }
+
+    // design.md §1.2: 他ユーザーからは見えない
+    public function testFetchMealFavoritesIsScopedPerUser(): void
+    {
+        create_meal_favorite(self::$pdo, 1, 1, null, 150.0);
+        create_meal_favorite(self::$pdo, 2, 1, null, 200.0);
+
+        $favorites = fetch_meal_favorites(self::$pdo, 1);
+
+        $this->assertCount(1, $favorites);
+        $this->assertSame(150.0, $favorites[0]['quantity_g']);
+    }
+
+    public function testDeleteMealFavoriteRemovesIt(): void
+    {
+        $id = create_meal_favorite(self::$pdo, 1, 1, null, 150.0);
+        delete_meal_favorite(self::$pdo, $id);
+
+        $this->assertCount(0, fetch_meal_favorites(self::$pdo, 1));
+        $this->assertNull(find_meal_favorite(self::$pdo, 1, $id));
+    }
+
+    // 「よく使う内容」はスナップショットを持たず、常に食品の最新の名前・栄養値を参照する
+    // (登録後に独自食材の中身を編集しても、古い値のまま残らないようにするため)
+    public function testFetchMealFavoritesReflectsCurrentFoodValuesNotASnapshot(): void
+    {
+        $customFoodId = create_custom_food(self::$pdo, 1, '変更前の名前', 400.0, 20.0, 10.0, 40.0);
+        create_meal_favorite(self::$pdo, 1, null, $customFoodId, 50.0);
+
+        update_custom_food(self::$pdo, $customFoodId, '変更後の名前', 500.0, 25.0, 15.0, 45.0);
+
+        $favorites = fetch_meal_favorites(self::$pdo, 1);
+        $this->assertSame('変更後の名前', $favorites[0]['name']);
+        $this->assertSame(500.0, $favorites[0]['kcal_per_100g']);
     }
 
     // 外食は「材料不明・1食分固定」のため、quantity_g=100固定でper_100g相当のスナップショットに

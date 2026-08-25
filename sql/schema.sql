@@ -51,6 +51,7 @@ CREATE TABLE exercises (
   target_weight   DECIMAL(5,2) NULL,                -- NULLは「目標重量なし」
   target_reps     SMALLINT UNSIGNED NULL,
   target_sets     SMALLINT UNSIGNED NULL,
+  sort_order      INT NOT NULL DEFAULT 0,           -- 同じサイクル内での表示順(種目管理画面の並べ替え用)
   PRIMARY KEY (id),
   UNIQUE KEY uq_exercises_cycle_id_name (cycle_id, name),
   CONSTRAINT fk_exercises_user_id FOREIGN KEY (user_id) REFERENCES users(id),
@@ -222,4 +223,24 @@ CREATE TABLE meal_items (
   CONSTRAINT fk_meal_items_eating_out_meal_id FOREIGN KEY (eating_out_meal_id) REFERENCES eating_out_meals(id) ON DELETE SET NULL
   -- master_food_id・custom_food_id・eating_out_meal_idの排他制約はCHECK制約では表現しない(recipe_itemsと同じ理由、上記参照)。
   -- resolve_items_for_meal()(php/private/queries.php)で担保する
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 「食品+量」の組み合わせをよく使う内容として保存し、食事を記録する画面からワンタップで
+-- カートに追加できるようにする(2026-08-21、design.md未記載、UI再設計フェーズ2)。
+-- 外食は外食管理自体がすでに同じ役割(固定内容をワンタップ相当で呼び出す)を持つため対象外。
+-- スナップショットは持たず、常に食品の最新の名前・栄養値を参照する(meal_itemsと異なり、
+-- 「よく使う内容」自体はまだ食事として記録されていない、ただの呼び出し用テンプレートのため)。
+CREATE TABLE meal_favorites (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         INT UNSIGNED NOT NULL,
+  master_food_id  INT UNSIGNED NULL,
+  custom_food_id  INT UNSIGNED NULL,
+  quantity_g      DECIMAL(7,1) NOT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_meal_favorites_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_meal_favorites_master_food_id FOREIGN KEY (master_food_id) REFERENCES foods(id) ON DELETE CASCADE,
+  CONSTRAINT fk_meal_favorites_custom_food_id FOREIGN KEY (custom_food_id) REFERENCES custom_foods(id) ON DELETE CASCADE
+  -- master_food_id・custom_food_idの排他制約はmeal_itemsと同じ理由でCHECK制約では表現しない。
+  -- create_meal_favorite()(php/private/queries.php)で担保する
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -112,8 +112,11 @@ export function renderMealGraph(container: HTMLElement): void {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: { title: { display: true, text: '摂取カロリーの推移', font: { size: 14 } } },
-        scales: { y: { beginAtZero: true, title: { display: true, text: 'kcal' } } },
+        // 0始まりに固定すると変動幅が小さい日でグラフが潰れて見えるため、
+        // Chart.jsの既定(実データの範囲に応じた自動スケール)に任せる(2026-08-21)
+        scales: { y: { title: { display: true, text: 'kcal' } } },
       },
     });
 
@@ -174,11 +177,12 @@ export function renderMealGraph(container: HTMLElement): void {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: 'PFC実績の推移', font: { size: 14 } },
           legend: { display: false },
         },
-        scales: { y: { beginAtZero: true, title: { display: true, text: 'g' } } },
+        scales: { y: { title: { display: true, text: 'g' } } },
       },
     });
   }

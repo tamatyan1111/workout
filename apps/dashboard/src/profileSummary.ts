@@ -3,7 +3,7 @@ import { ACTIVITY_LEVEL_LABELS, ACTIVITY_LEVEL_SHORT_LABELS } from './profileEdi
 import type { NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
 import type { ActivityLevel } from 'shared';
-import { addDays, todayStr, weekdayLabel } from './date';
+import { addDays, shortDateLabel, todayStr, weekdayLabel } from './date';
 import { captureElementToClipboard } from './captureImage';
 
 function errorMessage(err: unknown): string {
@@ -86,15 +86,16 @@ export function renderProfileSummary(container: HTMLElement): void {
     ];
 
     container.innerHTML = `
-      <div class="date-nav">
-        <button type="button" class="date-nav-prev link-button">← 前の日</button>
-        <strong class="date-nav-current">${escapeHtml(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
-        <button type="button" class="date-nav-next link-button" ${isToday ? 'disabled' : ''}>次の日 →</button>
+      <div class="summary-header">
+        <h2>サマリー</h2>
+        <div class="date-nav">
+          <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
+          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
+          <button type="button" class="date-nav-next" aria-label="次の日" title="次の日" ${isToday ? 'disabled' : ''}>›</button>
+        </div>
+        <button type="button" class="capture-icon-btn" aria-label="画像をコピー" title="画像をコピー">📋</button>
       </div>
-      <div class="capture-controls">
-        <button type="button" class="link-button capture-btn">画像をコピー</button>
-        <span class="capture-status"></span>
-      </div>
+      <p class="capture-status"></p>
       <div class="nutrition-stats">
         <div class="stat-card">
           <span class="stat-label">身長</span>
@@ -126,7 +127,7 @@ export function renderProfileSummary(container: HTMLElement): void {
       currentDate = addDays(currentDate, 1);
       load();
     });
-    container.querySelector('.capture-btn')!.addEventListener('click', () => {
+    container.querySelector('.capture-icon-btn')!.addEventListener('click', () => {
       const cardEl = container.closest<HTMLElement>('.card') ?? container;
       void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
     });

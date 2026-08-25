@@ -188,10 +188,14 @@ function buildSetSeriesChart(
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: { title: { display: true, text: opts.title, font: { size: 14 } } },
       scales: {
         x: { title: { display: true, text: '日付' } },
-        y: { title: { display: true, text: opts.yLabel }, beginAtZero: true },
+        // 0始まりに固定すると、変動幅が小さい種目(例: 60〜80kg)ではグラフの大半が
+        // 空白になり、特に幅の狭いスマホ画面で線が潰れて見づらくなる。Chart.jsの
+        // 既定(実データの範囲に応じた自動スケール)に任せる(2026-08-21)
+        y: { title: { display: true, text: opts.yLabel } },
       },
     },
   });
@@ -208,12 +212,16 @@ function buildLineChart(
     data: { labels, datasets: [{ label: opts.datasetLabel, data, borderColor: opts.color }] },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         title: { display: true, text: opts.title, font: { size: 14 } },
       },
       scales: {
         x: { title: { display: true, text: '日付' } },
-        y: { title: { display: true, text: opts.yLabel }, beginAtZero: true },
+        // 0始まりに固定すると、変動幅が小さい種目(例: 60〜80kg)ではグラフの大半が
+        // 空白になり、特に幅の狭いスマホ画面で線が潰れて見づらくなる。Chart.jsの
+        // 既定(実データの範囲に応じた自動スケール)に任せる(2026-08-21)
+        y: { title: { display: true, text: opts.yLabel } },
       },
     },
   });

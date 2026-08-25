@@ -14,7 +14,6 @@ export function renderNutrition(container: HTMLElement): void {
   container.innerHTML = `
     <div data-screen="landing" class="stack">
       <div class="card">
-        <h2>サマリー</h2>
         <div id="nutrition-summary"><p>読み込み中...</p></div>
       </div>
       <div class="card">

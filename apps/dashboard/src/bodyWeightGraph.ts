@@ -65,6 +65,7 @@ export function renderBodyWeightGraph(container: HTMLElement): void {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: { title: { display: true, text: '体重の推移', font: { size: 14 } } },
         scales: {
           x: { title: { display: true, text: '日付' } },

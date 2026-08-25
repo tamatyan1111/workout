@@ -1,7 +1,17 @@
-import { addMeal, addMealFromRecipe, addMealItemFromRecipe, getEatingOutMeals, getRecipes, uploadMealPhoto } from './api';
+import {
+  addMeal,
+  addMealFavorite,
+  addMealFromRecipe,
+  addMealItemFromRecipe,
+  deleteMealFavorite,
+  getEatingOutMeals,
+  getMealFavorites,
+  getRecipes,
+  uploadMealPhoto,
+} from './api';
 import { todayStr } from './date';
 import { renderFoodSearch } from './foodSearch';
-import type { CartItem, EatingOutMeal, MealItem, MealType, Recipe } from './types';
+import type { CartItem, EatingOutMeal, MealFavorite, MealItem, MealType, Recipe } from './types';
 import { escapeHtml } from 'shared';
 
 // 外食メニューは「材料が分からない、1食分の実値のみ」なので、quantity_gは常にこの固定値
@@ -37,6 +47,7 @@ export function itemKcal(item: MealItem): number {
 export function renderMealLog(container: HTMLElement, onSaved: () => void): void {
   let recipes: Recipe[] = [];
   let eatingOutMeals: EatingOutMeal[] = [];
+  let favorites: MealFavorite[] = [];
   let cart: CartEntry[] = [];
   let loggedDate = todayStr();
   let mealType: MealType = 'breakfast';
@@ -45,15 +56,28 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
 
   container.innerHTML = '<p>読み込み中...</p>';
 
-  void Promise.all([getRecipes(), getEatingOutMeals()])
-    .then(([r, e]) => {
+  void Promise.all([getRecipes(), getEatingOutMeals(), getMealFavorites()])
+    .then(([r, e, f]) => {
       recipes = r;
       eatingOutMeals = e;
+      favorites = f;
       draw();
     })
     .catch((err) => {
       container.innerHTML = `<p class="error">読み込みに失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
     });
+
+  // 食品検索の「☆よく使うに登録」から呼ばれる。登録後は一覧を再取得してチップを更新する
+  async function saveFavorite(ref: { source: 'master' | 'custom'; id: number }, quantityG: number): Promise<void> {
+    const statusEl = container.querySelector<HTMLParagraphElement>('#food-search-status');
+    try {
+      await addMealFavorite(ref, quantityG);
+      favorites = await getMealFavorites();
+      draw();
+    } catch (err) {
+      if (statusEl) statusEl.textContent = `よく使う内容への登録に失敗しました: ${errorMessage(err)}`;
+    }
+  }
 
   function draw(): void {
     container.innerHTML = `
@@ -70,6 +94,26 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
           <div class="field" id="meal-photo-field">${photoFieldInnerHtml()}</div>
         </div>
       </form>
+
+      ${
+        favorites.length > 0
+          ? `
+        <h4>よく使う</h4>
+        <div class="favorite-chips">
+          ${favorites
+            .map(
+              (f) => `
+            <span class="favorite-chip">
+              <button type="button" class="favorite-chip-add" data-id="${f.id}">${escapeHtml(f.name)} ${f.quantity_g}g</button>
+              <button type="button" class="favorite-chip-remove" data-id="${f.id}" aria-label="よく使う内容から削除" title="よく使う内容から削除">×</button>
+            </span>
+          `
+            )
+            .join('')}
+        </div>
+      `
+          : ''
+      }
 
       <h4>食品を検索して追加</h4>
       <div id="meal-food-search"></div>
@@ -116,10 +160,48 @@ export function renderMealLog(container: HTMLElement, onSaved: () => void): void
       mealType = (ev.target as HTMLSelectElement).value as MealType;
     });
 
-    renderFoodSearch(container.querySelector<HTMLElement>('#meal-food-search')!, (item) => {
-      cart.push({ kind: 'item', item });
-      renderCart();
-    });
+    renderFoodSearch(
+      container.querySelector<HTMLElement>('#meal-food-search')!,
+      (item) => {
+        cart.push({ kind: 'item', item });
+        renderCart();
+      },
+      (ref, quantityG) => void saveFavorite(ref, quantityG)
+    );
+
+    if (favorites.length > 0) {
+      container.querySelectorAll<HTMLButtonElement>('.favorite-chip-add').forEach((btn) => {
+        const favorite = favorites.find((f) => f.id === Number(btn.dataset.id));
+        if (!favorite) return;
+        btn.addEventListener('click', () => {
+          cart.push({
+            kind: 'item',
+            item: {
+              ref: { source: favorite.source, id: favorite.food_id },
+              name: favorite.name,
+              quantityG: favorite.quantity_g,
+              kcalPer100g: favorite.kcal_per_100g,
+              proteinPer100g: favorite.protein_g_per_100g,
+              fatPer100g: favorite.fat_g_per_100g,
+              carbPer100g: favorite.carb_g_per_100g,
+            },
+          });
+          renderCart();
+        });
+      });
+      container.querySelectorAll<HTMLButtonElement>('.favorite-chip-remove').forEach((btn) => {
+        const id = Number(btn.dataset.id);
+        btn.addEventListener('click', async () => {
+          try {
+            await deleteMealFavorite(id);
+            favorites = favorites.filter((f) => f.id !== id);
+            draw();
+          } catch (err) {
+            alert(`削除に失敗しました: ${errorMessage(err)}`);
+          }
+        });
+      });
+    }
 
     if (recipes.length > 0) {
       container.querySelector('#add-recipe-to-cart-btn')!.addEventListener('click', () => {
