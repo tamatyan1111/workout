@@ -11,6 +11,7 @@ import type {
   Gender,
   LogRow,
   Meal,
+  MealFavorite,
   MealType,
   NutritionGoal,
   NutritionSummary,
@@ -185,6 +186,9 @@ export const editExercise = (
 
 export const deleteExercise = (id: number): Promise<void> => callPost('delete_exercise.php', { id });
 
+export const moveExercise = (id: number, direction: 'up' | 'down'): Promise<void> =>
+  callPost('move_exercise.php', { id, direction });
+
 // ==== 記録ログ ====
 
 export const getLogs = (exerciseId?: number, from?: string, to?: string): Promise<LogRow[]> =>
@@ -346,6 +350,18 @@ export const editEatingOutMeal = (
   callPost('edit_eating_out_meal.php', { id, name, shop_name: shopName, kcal, protein_g: protein, fat_g: fat, carb_g: carb });
 
 export const deleteEatingOutMeal = (id: number): Promise<void> => callPost('delete_eating_out_meal.php', { id });
+
+export const getMealFavorites = (): Promise<MealFavorite[]> =>
+  callGet<{ favorites: MealFavorite[] }>('get_meal_favorites.php').then((d) => d.favorites);
+
+export const addMealFavorite = (ref: { source: 'master' | 'custom'; id: number }, quantityG: number): Promise<{ id: number }> =>
+  callPost('add_meal_favorite.php', {
+    master_food_id: ref.source === 'master' ? ref.id : undefined,
+    custom_food_id: ref.source === 'custom' ? ref.id : undefined,
+    quantity_g: quantityG,
+  });
+
+export const deleteMealFavorite = (id: number): Promise<void> => callPost('delete_meal_favorite.php', { id });
 
 export const getRecipes = (): Promise<Recipe[]> => callGet<{ recipes: Recipe[] }>('get_recipes.php').then((d) => d.recipes);
 

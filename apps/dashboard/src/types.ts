@@ -138,6 +138,21 @@ export interface EatingOutMeal {
   carb_g: number;
 }
 
+// 食事を記録する画面の「よく使う内容」(2026-08-21、design.md未記載、UI再設計フェーズ2)。
+// 「食品+量」の組み合わせをワンタップでカートに追加するための保存済みショートカット。
+// スナップショットではなく、食品の最新の名前・栄養値を都度参照する(meal_favoritesのJOIN参照)。
+export interface MealFavorite {
+  id: number;
+  source: 'master' | 'custom';
+  food_id: number;
+  name: string;
+  quantity_g: number;
+  kcal_per_100g: number;
+  protein_g_per_100g: number;
+  fat_g_per_100g: number;
+  carb_g_per_100g: number;
+}
+
 export interface RecipeItem {
   master_food_id: number | null;
   custom_food_id: number | null;

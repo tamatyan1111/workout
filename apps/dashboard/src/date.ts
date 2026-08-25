@@ -19,3 +19,10 @@ export function weekdayLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   return WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()];
 }
+
+// dateStr(YYYY-MM-DD)を「M/D」形式に短縮する(サマリーの日付ナビをスマホの横幅に
+// 収めるため、年は省く。2026-08-21)。
+export function shortDateLabel(dateStr: string): string {
+  const [, m, d] = dateStr.split('-').map(Number);
+  return `${m}/${d}`;
+}

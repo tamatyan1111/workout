@@ -30,8 +30,8 @@ try {
     }
 
     $stmt = $pdo->prepare(
-        'INSERT INTO exercises (user_id, cycle_id, name, target_weight, target_reps, target_sets)
-         VALUES (:user_id, :cycle_id, :name, :target_weight, :target_reps, :target_sets)'
+        'INSERT INTO exercises (user_id, cycle_id, name, target_weight, target_reps, target_sets, sort_order)
+         VALUES (:user_id, :cycle_id, :name, :target_weight, :target_reps, :target_sets, :sort_order)'
     );
     $stmt->execute([
         'user_id' => $userId,
@@ -40,6 +40,8 @@ try {
         'target_weight' => $targetWeight,
         'target_reps' => $targetReps,
         'target_sets' => $targetSets,
+        // 新しい種目は、そのサイクルの一番後ろに追加する(2026-08-21)
+        'sort_order' => next_exercise_sort_order($pdo, $cycleId),
     ]);
 
     json_ok(['id' => (int) $pdo->lastInsertId()]);

@@ -46,7 +46,6 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       <section id="tab-exercise" class="tab-panel" hidden>
         <div data-screen="landing" class="stack">
           <div class="card">
-            <h2>サマリー</h2>
             <div id="board-view"><p>読み込み中...</p></div>
           </div>
           <div class="card">
@@ -107,7 +106,6 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       <section id="tab-profile" class="tab-panel" hidden>
         <div data-screen="landing" class="stack">
           <div class="card">
-            <h2>サマリー</h2>
             <div id="profile-summary"><p>読み込み中...</p></div>
           </div>
           <div class="card">

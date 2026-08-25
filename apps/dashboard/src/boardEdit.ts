@@ -1,4 +1,4 @@
-import { addExercise, deleteExercise, editExercise } from './api';
+import { addExercise, deleteExercise, editExercise, moveExercise } from './api';
 import type { Cycle, Exercise } from './types';
 import { escapeHtml } from 'shared';
 
@@ -21,6 +21,7 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
       <div class="table-scroll">
         <table class="board-edit-table">
           <colgroup>
+            <col class="col-reorder" />
             <col class="col-cycle" />
             <col />
             <col class="col-weight" /><col class="col-count" /><col class="col-count-sets" />
@@ -28,10 +29,20 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
             <col class="col-actions" />
           </colgroup>
           <thead>
-            <tr><th>サイクル</th><th>種目名</th><th>重量(kg)</th><th>回数</th><th>セット</th><th class="discontinued-cell">廃止</th><th></th></tr>
+            <tr><th></th><th>サイクル</th><th>種目名</th><th>重量(kg)</th><th>回数</th><th>セット</th><th class="discontinued-cell">廃止</th><th></th></tr>
           </thead>
           <tbody>
-            ${exercises.map((e) => renderEditRow(e, cycles)).join('')}
+            ${exercises
+              .map((e, i) => {
+                // 同じサイクル・同じ廃止状態どうしでだけ並べ替えできる(queries.phpのmove_exerciseと
+                // 同じ考え方)。前後の種目がそれに当てはまらなければ、先頭/末尾として上下ボタンを無効にする
+                const prev = exercises[i - 1];
+                const next = exercises[i + 1];
+                const sameGroup = (other: Exercise | undefined) =>
+                  other !== undefined && other.cycle.id === e.cycle.id && other.is_discontinued === e.is_discontinued;
+                return renderEditRow(e, cycles, sameGroup(prev), sameGroup(next));
+              })
+              .join('')}
             ${newRowKeys.map((key) => renderNewRow(key, cycles)).join('')}
           </tbody>
         </table>
@@ -60,6 +71,19 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
             : `削除に失敗しました: ${String(err instanceof Error ? err.message : err)}`;
           alert(message);
         }
+      });
+      row.querySelectorAll<HTMLButtonElement>('.move-exercise-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const direction = btn.dataset.direction as 'up' | 'down';
+          btn.disabled = true;
+          try {
+            await moveExercise(e.id, direction);
+            onChanged();
+          } catch (err) {
+            alert(`並べ替えに失敗しました: ${String(err instanceof Error ? err.message : err)}`);
+            btn.disabled = false;
+          }
+        });
       });
     });
 
@@ -152,9 +176,15 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
   }
 }
 
-function renderEditRow(e: Exercise, cycles: Cycle[]): string {
+function renderEditRow(e: Exercise, cycles: Cycle[], canMoveUp: boolean, canMoveDown: boolean): string {
   return `
     <tr data-id="${e.id}">
+      <td>
+        <div class="reorder-buttons">
+          <button type="button" class="move-exercise-btn" data-direction="up" aria-label="上へ" title="上へ" ${canMoveUp ? '' : 'disabled'}>▲</button>
+          <button type="button" class="move-exercise-btn" data-direction="down" aria-label="下へ" title="下へ" ${canMoveDown ? '' : 'disabled'}>▼</button>
+        </div>
+      </td>
       <td>
         <select class="cycle-select">
           ${cycles.map((c) => `<option value="${c.id}" ${c.id === e.cycle.id ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}
@@ -175,6 +205,7 @@ function renderEditRow(e: Exercise, cycles: Cycle[]): string {
 function renderNewRow(key: number, cycles: Cycle[]): string {
   return `
     <tr data-new-key="${key}">
+      <td></td>
       <td>
         <select class="new-cycle">
           ${cycles.map((c) => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join('')}

@@ -30,7 +30,14 @@ const FOOD_GROUPS: { code: string; name: string }[] = [
 
 // mealLog.ts・recipes.tsの両方から使う、食品検索→グラム数指定→カートに追加するウィジェット。
 // onAddで追加を通知する(カート自体の保持・表示は呼び出し元の責務)。
-export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem) => void): void {
+// onSaveFavoriteを渡した呼び出し元(mealLog.ts)でだけ、検索結果に「よく使うに登録」ボタンを
+// 出す(2026-08-21、design.md未記載、UI再設計フェーズ2。レシピの食材検索等では不要なため
+// オプション引数にしてある)。
+export function renderFoodSearch(
+  container: HTMLElement,
+  onAdd: (item: CartItem) => void,
+  onSaveFavorite?: (ref: { source: 'master' | 'custom'; id: number }, quantityG: number) => void
+): void {
   container.innerHTML = `
     <form id="food-search-form">
       <div class="field-row">
@@ -108,6 +115,7 @@ export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem)
         </div>
         <input type="number" class="food-result-qty" value="100" min="1" step="1" />
         <button type="button" class="add-food-btn link-button">追加</button>
+        ${onSaveFavorite ? '<button type="button" class="save-favorite-btn link-button" title="この食品と量をよく使う内容に登録">☆よく使うに登録</button>' : ''}
       </div>
     `
       )
@@ -130,5 +138,17 @@ export function renderFoodSearch(container: HTMLElement, onAdd: (item: CartItem)
         });
       });
     });
+
+    if (onSaveFavorite) {
+      resultsEl.querySelectorAll<HTMLButtonElement>('.save-favorite-btn').forEach((btn) => {
+        const row = btn.closest<HTMLElement>('.food-result-row')!;
+        const food = foods[Number(row.dataset.index)];
+        btn.addEventListener('click', () => {
+          const qty = Number(row.querySelector<HTMLInputElement>('.food-result-qty')!.value);
+          if (!qty || qty <= 0) return;
+          onSaveFavorite({ source: food.source, id: food.id }, qty);
+        });
+      });
+    }
   }
 }
