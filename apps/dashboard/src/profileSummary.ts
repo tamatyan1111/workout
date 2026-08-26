@@ -87,7 +87,6 @@ export function renderProfileSummary(container: HTMLElement): void {
 
     container.innerHTML = `
       <div class="summary-header">
-        <h2>サマリー</h2>
         <div class="date-nav">
           <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
           <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
@@ -111,11 +110,6 @@ export function renderProfileSummary(container: HTMLElement): void {
         ${cardHtml(isToday ? '本日' : 'この日', metrics, (m) => m.current)}
         ${cardHtml('残り', metrics, (m) => (m.target !== null && m.current !== null ? m.target - m.current : null))}
       </div>
-      ${
-        goal
-          ? `<p class="field-note">目標達成日: ${escapeHtml(goal.target_date)}(目標の変更は「目標」から)</p>`
-          : '<p class="field-note">目標体重・目標達成日は「目標」から設定できます</p>'
-      }
     `;
 
     container.querySelector('.date-nav-prev')!.addEventListener('click', () => {
@@ -127,9 +121,9 @@ export function renderProfileSummary(container: HTMLElement): void {
       currentDate = addDays(currentDate, 1);
       load();
     });
-    container.querySelector('.capture-icon-btn')!.addEventListener('click', () => {
+    container.querySelector<HTMLButtonElement>('.capture-icon-btn')!.addEventListener('click', (ev) => {
       const cardEl = container.closest<HTMLElement>('.card') ?? container;
-      void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
+      void captureElementToClipboard(cardEl, ev.currentTarget as HTMLButtonElement, container.querySelector('.capture-status'));
     });
   }
 }

@@ -25,7 +25,6 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
     const isToday = currentDate === todayStr();
     container.innerHTML = `
       <div class="summary-header">
-        <h2>サマリー</h2>
         <div class="date-nav">
           <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
           <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
@@ -42,9 +41,9 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
       if (isToday) return;
       void navigate(1);
     });
-    container.querySelector('.capture-icon-btn')!.addEventListener('click', () => {
+    container.querySelector<HTMLButtonElement>('.capture-icon-btn')!.addEventListener('click', (ev) => {
       const cardEl = container.closest<HTMLElement>('.card') ?? container;
-      void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
+      void captureElementToClipboard(cardEl, ev.currentTarget as HTMLButtonElement, container.querySelector('.capture-status'));
     });
     container.querySelectorAll<HTMLButtonElement>('.toggle-target-btn').forEach((btn) => {
       const cycleId = Number(btn.dataset.cycleId);
@@ -88,25 +87,25 @@ function renderCycles(exercises: Exercise[], openTargetCycleIds: Set<number>): s
   const blocks = cycleIds
     .map((cycleId) => {
       const cycleExercises = active.filter((e) => e.cycle.id === cycleId);
-      // その日に記録の無いサイクルはカードごと表示しない(2026-08-20、「Pushをしていないのに
-      // そのカードを出す必要はない」との指摘を受けて、「記録なし」メッセージすら出さないことにした)
+      // 実績テーブルは記録の無いサイクルでは出さない(2026-08-20、「Pushをしていないのに
+      // そのカードを出す必要はない」との指摘)が、目標だけはその日の記録の有無に関わらず
+      // いつでも確認できるようにする(2026-08-26、「記録がなくても目標ボタンを押せるように」
+      // との指摘を受けて、カード自体は残し目標ボタンを常に出す形に変更)
       const recordedExercises = cycleExercises.filter((e) => e.current.length > 0);
-      if (recordedExercises.length === 0) return '';
       const label = cycleExercises[0].cycle.label;
       const showTarget = openTargetCycleIds.has(cycleId);
       return `
         <section class="cycle-block">
           <h3>${escapeHtml(label)}</h3>
-          ${renderTable(recordedExercises)}
+          ${recordedExercises.length > 0 ? renderTable(recordedExercises) : '<p class="field-note">この日の記録はありません</p>'}
           <button type="button" class="link-button toggle-target-btn" data-cycle-id="${cycleId}">${showTarget ? '目標を隠す' : '目標を見る'}</button>
-          ${showTarget ? renderTargetTable(recordedExercises) : ''}
+          ${showTarget ? renderTargetTable(cycleExercises) : ''}
         </section>
       `;
     })
-    .filter((html) => html !== '')
     .join('');
 
-  return blocks || '<p class="field-note">この日の記録はありません</p>';
+  return blocks;
 }
 
 // 実績(現在の重量・回数・セット)だけの表。目標は別テーブル(renderTargetTable)に分離した

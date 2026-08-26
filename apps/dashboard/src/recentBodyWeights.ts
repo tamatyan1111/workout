@@ -39,7 +39,7 @@ export async function renderRecentBodyWeights(container: HTMLElement): Promise<v
         <table class="recent-logs-table">
           <colgroup>
             <col class="col-date" />
-            <col class="col-weight" /><col class="col-weight" />
+            <col class="col-bw-value" /><col class="col-bw-value" />
             <col class="col-actions" />
           </colgroup>
           <thead>

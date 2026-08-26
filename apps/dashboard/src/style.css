@@ -139,6 +139,9 @@ body {
   font-weight: 700;
   color: var(--accent-contrast);
   cursor: pointer;
+  /* スマホの狭い幅でもサイト名を折り返させない(2026-08-26) */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .logo:hover {
@@ -149,6 +152,9 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  /* フレックスアイテムの既定のmin-width:autoのままだと、中身(表示名)が長いときに
+     .header-right全体が縮まずロゴを圧迫することがあるため明示的に許可する */
+  min-width: 0;
 }
 
 /* ヘッダーの名前(タップでプロフィールタブへ、2026-08-16) */
@@ -163,6 +169,12 @@ body {
   color: var(--accent-contrast);
   opacity: 0.85;
   cursor: pointer;
+  /* 表示名が長い場合は折り返さず省略する(2026-08-26) */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 8rem;
 }
 
 .welcome:hover {
@@ -351,8 +363,11 @@ main h4,
   margin-top: 0;
   padding: 0.5rem 0.6rem;
   /* input type="date"はブラウザのネイティブUIぶん高さがselect/number等とズレることが
-     あるため、明示的に高さを揃える(2026-08-21、実機での指摘を受けて追加) */
+     あるため、明示的に高さを揃える(2026-08-21、実機での指摘を受けて追加)。
+     line-heightも揃えないと、高さを固定してもiOS Safari等ではdate入力欄の中身が
+     縦方向にずれて見えることがある(2026-08-26追加) */
   height: 2.5rem;
+  line-height: 1.2;
   box-sizing: border-box;
   font-family: inherit;
   font-size: 0.88rem;
@@ -391,6 +406,7 @@ form select {
   padding: 0.35rem 0.5rem;
   font-size: 0.88rem;
   height: 2.2rem;
+  line-height: 1.2;
 }
 
 /* 食事を記録するの入力欄も同じ高さに揃える(日付・区分・食品検索・数量など全部) */
@@ -399,6 +415,7 @@ form select {
   padding: 0.35rem 0.5rem;
   font-size: 0.88rem;
   height: 2.2rem;
+  line-height: 1.2;
 }
 
 /* 「+セットを追加」の上の余白を、「+種目を追加」(boardEdit.ts)の上の余白と揃える */
@@ -604,11 +621,6 @@ td select {
   margin-bottom: 0.6rem;
 }
 
-.summary-header h2 {
-  margin: 0;
-  white-space: nowrap;
-}
-
 /* 画像コピーはアイコンボタン1つにして、サマリーの右端に置く(2026-08-21)。
    captureImage.tsのcaptureElementToClipboardが、この要素自体は画像から除外する。 */
 .capture-icon-btn {
@@ -618,6 +630,13 @@ td select {
   font-size: 0.95rem;
   background: transparent;
   border: 1px solid var(--border);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+/* コピー成功を文字ではなくボタンの見た目(チェックマーク+色)で伝える(2026-08-26) */
+.capture-icon-btn-success {
+  background: var(--success-soft);
+  border-color: var(--success);
 }
 
 .capture-status {
@@ -640,7 +659,9 @@ td select {
 }
 
 .col-count {
-  width: 2.8rem;
+  /* 種目管理画面はinput要素が入るぶん、プレーンなテキストより横幅を余計に使うため、
+     スマホで2桁の数字が見えるように少し広げた(2026-08-26) */
+  width: 3.2rem;
 }
 
 /* 「セット」列は隣に区切り(枠線・背景)があり余白を多めに取っているため、
@@ -691,18 +712,18 @@ td select {
   width: 2.4rem;
 }
 
-/* 種目管理画面の並べ替えボタン(2026-08-21、同じサイクル内で自由に並べ替えたいとの
-   要望を受けて追加。スマホでのドラッグ操作は不安定なため上下ボタン方式にした) */
-.reorder-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+/* 種目管理画面の並べ替えハンドル(2026-08-26、Pointer Eventsで自前実装。
+   touch-action:noneが無いと、ドラッグ中にブラウザがスクロールと誤認して操作が途切れる) */
+.drag-handle {
+  padding: 0.3rem 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
 }
 
-.reorder-buttons button {
-  padding: 0.1rem 0.3rem;
-  line-height: 1.2;
-  font-size: 0.7rem;
+.board-edit-table tr.dragging {
+  opacity: 0.5;
 }
 
 .board-edit-table .col-cycle {
@@ -756,6 +777,12 @@ td select {
 
 .recent-logs-table .col-date {
   width: 8.2rem;
+}
+
+/* プロフィールタブの直近の記録(体重・体脂肪率)は「重量(kg)」より桁数が少ないため、
+   運動タブの重量列(col-weight)より狭く取れる(2026-08-26、幅を詰めたいとの指摘を受けて追加) */
+.recent-logs-table .col-bw-value {
+  width: 3.6rem;
 }
 
 .recent-logs-table td input {
@@ -893,11 +920,26 @@ td select {
   /* Chart.jsのresponsive:trueは既定でアスペクト比を保つため、幅の狭いスマホでは
      グラフの高さも一緒に縮んで潰れて見える。maintainAspectRatio:falseと組み合わせて、
      幅に関わらず最低限の高さを確保する(2026-08-21) */
-  height: 260px;
+  height: 340px;
   margin-bottom: 1rem;
   padding: 0.8rem;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
+}
+
+/* PFCグラフだけ独自凡例(chart-legend-rows)がcanvasと同じ箱を共有するため、
+   flexboxで残り高さをcanvasに割り当てる。これが無いとChart.jsは凡例の分を
+   差し引かずに箱の全高でcanvasを描画してしまい、canvasだけ箱の下端からはみ出す
+   (2026-08-26、他のグラフと背景・枠が揃っていないとの指摘を受けて修正) */
+.chart-wrap-with-legend {
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-canvas-box {
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
 /* PFCグラフの独自凡例。1行目=実績、2行目=目標を固定するため、Chart.js標準の凡例
@@ -908,6 +950,7 @@ td select {
   gap: 0.3rem;
   margin-bottom: 0.5rem;
   font-size: 0.78rem;
+  flex-shrink: 0;
 }
 
 .chart-legend-row {
@@ -1291,6 +1334,19 @@ td select {
   flex-wrap: wrap;
 }
 
+.meal-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+
+.meal-edit-header .edit-meal-date {
+  flex: 1;
+  min-width: 0;
+}
+
 .toggle-open-meal-btn {
   display: inline-flex;
   align-items: center;
@@ -1343,6 +1399,11 @@ td select {
 }
 
 .recipe-quick-add select {
+  /* width:autoだと選択肢の中で一番長い文字列(店名込みの外食メニュー名など)に
+     合わせて広がり、スマホで画面の外にはみ出すことがあったため、コンテナの幅に
+     収まるようにする(2026-08-26) */
+  flex: 1;
+  min-width: 0;
   width: auto;
 }
 

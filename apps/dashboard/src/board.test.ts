@@ -92,19 +92,22 @@ describe('renderBoard', () => {
     expect(container.textContent).toContain('この日の記録はありません');
   });
 
-  // 2026-08-20: 「Pushをしていないのにそのカードを出す必要はない」との指摘を受けて、
-  // 記録の無いサイクルはカードごと(見出しも)非表示にする
-  it('hides an entire cycle card when nothing was recorded that day, even if another cycle was', () => {
+  // 2026-08-26: 記録が無い日でもサイクルの見出しと「目標を見る」ボタンは残す
+  // (「目標は記録がなくても押せるようにしたい」との指摘を受けて、2026-08-20時点の
+  // 「カードごと非表示」から変更)
+  it('keeps the cycle heading and target toggle visible even with no records that day', () => {
     const container = document.createElement('div');
     renderBoard(container, [
-      makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス', current: [] }),
-      makeExercise({ id: 2, cycle: { id: 2, label: 'Legs' }, name: 'スクワット', current: [{ weight: 60, reps: 10, sets: 1 }] }),
+      makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス', current: [], target: { weight: 80, reps: 5, sets: 3 } }),
     ]);
 
-    expect(container.textContent).not.toContain('Push');
+    expect(container.textContent).toContain('Push');
     expect(container.textContent).not.toContain('ベンチプレス');
-    expect(container.textContent).toContain('Legs');
-    expect(container.textContent).toContain('スクワット');
+    expect(container.textContent).not.toContain('80.0');
+
+    container.querySelector<HTMLButtonElement>('.toggle-target-btn')!.click();
+
+    expect(container.textContent).toContain('80.0');
   });
 
   // 2026-08-20: 目標は実績と同じ行に並べず、トグルで開閉する別テーブルに分離した

@@ -1,9 +1,9 @@
 import {
-  addMealItem,
   deleteMeal,
   deleteMealItem,
   deleteMealItemGroup,
   deleteMealPhoto,
+  editMeal,
   editMealItem,
   getMeals,
   mealPhotoUrl,
@@ -11,7 +11,7 @@ import {
 } from './api';
 import { itemKcal, MEAL_TYPE_LABELS } from './mealLog';
 import { renderFoodSearch } from './foodSearch';
-import type { Meal, MealItem } from './types';
+import type { Meal, MealItem, MealType } from './types';
 import { escapeHtml } from 'shared';
 
 // 運動タブの「直近の履歴」(DISPLAY_LIMIT、recentLogs.ts)と件数を揃える
@@ -77,7 +77,6 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
   }
 
   let editingMealId: number | null = null;
-  let addingItemToMealId: number | null = null;
   let changingFoodItemId: number | null = null;
   // 中身(写真・食材一覧)は開くまで表示しない(2026-08-19、件数を増やした際に
   // 一覧が縦に長くなりすぎないようにするための要望)。カードごとに開閉を独立管理する。
@@ -105,7 +104,6 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
       card.querySelector('.toggle-edit-meal-btn')!.addEventListener('click', () => {
         editingMealId = editingMealId === mealId ? null : mealId;
         openMealIds.add(mealId);
-        addingItemToMealId = null;
         changingFoodItemId = null;
         draw();
       });
@@ -118,6 +116,20 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
           await renderRecentMeals(container, onChanged);
         } catch (err) {
           alert(`削除に失敗しました: ${errorMessage(err)}`);
+        }
+      });
+
+      card.querySelector('.save-meal-header-btn')?.addEventListener('click', async () => {
+        const statusEl = card.querySelector<HTMLParagraphElement>('.meal-header-status')!;
+        const loggedDate = card.querySelector<HTMLInputElement>('.edit-meal-date')!.value;
+        const mealType = card.querySelector<HTMLSelectElement>('.edit-meal-type')!.value as MealType;
+        statusEl.textContent = '保存中...';
+        try {
+          await editMeal(mealId, loggedDate, mealType);
+          onChanged();
+          await renderRecentMeals(container, onChanged);
+        } catch (err) {
+          statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
         }
       });
 
@@ -209,25 +221,6 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
           })();
         });
       }
-
-      card.querySelector('.show-add-item-btn')?.addEventListener('click', () => {
-        addingItemToMealId = mealId;
-        draw();
-      });
-      const addSearchEl = card.querySelector<HTMLElement>('.add-item-food-search');
-      if (addSearchEl) {
-        renderFoodSearch(addSearchEl, (newItem) => {
-          void (async () => {
-            try {
-              await addMealItem(mealId, newItem);
-              onChanged();
-              await renderRecentMeals(container, onChanged);
-            } catch (err) {
-              alert(`追加に失敗しました: ${errorMessage(err)}`);
-            }
-          })();
-        });
-      }
     });
   }
 
@@ -291,19 +284,6 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
             </tbody>
           </table>
         </div>
-        ${
-          editing
-            ? `
-          <div class="add-item-section">
-            ${
-              addingItemToMealId === m.id
-                ? `<div class="add-item-food-search"></div>`
-                : `<button type="button" class="show-add-item-btn link-button">+ 食材を追加</button>`
-            }
-          </div>
-        `
-            : ''
-        }
       `;
 
     return `
@@ -319,6 +299,22 @@ export async function renderRecentMeals(container: HTMLElement, onChanged: () =>
             <button type="button" class="delete-meal-btn danger">記録ごと削除</button>
           </span>
         </div>
+        ${
+          editing
+            ? `
+          <div class="field meal-edit-header">
+            <input type="date" class="edit-meal-date" value="${escapeHtml(m.logged_date)}" />
+            <select class="edit-meal-type">
+              ${(Object.keys(MEAL_TYPE_LABELS) as MealType[])
+                .map((t) => `<option value="${t}" ${t === m.meal_type ? 'selected' : ''}>${escapeHtml(MEAL_TYPE_LABELS[t])}</option>`)
+                .join('')}
+            </select>
+            <button type="button" class="save-meal-header-btn">保存</button>
+          </div>
+          <p class="meal-header-status"></p>
+        `
+            : ''
+        }
         ${body}
       </div>
     `;

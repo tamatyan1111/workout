@@ -42,9 +42,9 @@ export function renderMealGraph(container: HTMLElement): void {
         <button type="button" data-period="all">全期間</button>
       </div>
       <div class="chart-wrap"><canvas id="calorie-chart"></canvas></div>
-      <div class="chart-wrap">
+      <div class="chart-wrap chart-wrap-with-legend">
         <div id="pfc-legend" class="chart-legend-rows"></div>
-        <canvas id="pfc-chart"></canvas>
+        <div class="chart-canvas-box"><canvas id="pfc-chart"></canvas></div>
       </div>
     `;
 

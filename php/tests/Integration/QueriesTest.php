@@ -176,53 +176,31 @@ final class QueriesTest extends TestCase
         $this->assertNotNull(find_exercise(self::$pdo, 2, 4));
     }
 
-    // ==== 種目の並べ替え(2026-08-21) ====
+    // ==== 種目の並べ替え(2026-08-21、2026-08-26にD&D方式のreorder_exercisesへ置き換え) ====
 
-    public function testMoveExerciseSwapsSortOrderWithPreviousSibling(): void
+    // 2026-08-26追加: 種目管理画面のドラッグ&ドロップ並べ替え用。move_exercise(隣接swap)と違い、
+    // ドロップ後の並び順(id配列)を1回のトランザクションでまとめて反映する
+    public function testReorderExercisesAppliesTheGivenOrder(): void
     {
         self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 1'); // ベンチプレス
         self::$pdo->exec('UPDATE exercises SET sort_order = 1 WHERE id = 2'); // エアロバイク
 
-        move_exercise(self::$pdo, 1, 2, 'up');
+        reorder_exercises(self::$pdo, 1, 1, false, [2, 1]);
 
         $this->assertSame(1, (int) find_exercise(self::$pdo, 1, 1)['sort_order']);
         $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
     }
 
-    public function testMoveExerciseSwapsSortOrderWithNextSibling(): void
+    public function testReorderExercisesDoesNothingWhenIdSetDoesNotMatchTheGroup(): void
     {
         self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 1');
         self::$pdo->exec('UPDATE exercises SET sort_order = 1 WHERE id = 2');
 
-        move_exercise(self::$pdo, 1, 1, 'down');
-
-        $this->assertSame(1, (int) find_exercise(self::$pdo, 1, 1)['sort_order']);
-        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
-    }
-
-    public function testMoveExerciseDoesNothingAtTheBoundary(): void
-    {
-        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 1');
-        self::$pdo->exec('UPDATE exercises SET sort_order = 1 WHERE id = 2');
-
-        move_exercise(self::$pdo, 1, 1, 'up');
-        move_exercise(self::$pdo, 1, 2, 'down');
+        // idが3(廃止済み)を含んでおり、現役グループの構成と一致しないため何もしない
+        reorder_exercises(self::$pdo, 1, 1, false, [2, 3]);
 
         $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 1)['sort_order']);
         $this->assertSame(1, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
-    }
-
-    // design.md §2.8と同じ考え方: 廃止済みは現役の後ろに常に表示されるため、
-    // 並べ替えも現役同士・廃止済み同士でだけ行い、またいで入れ替わらないようにする
-    public function testMoveExerciseDoesNotCrossTheDiscontinuedBoundary(): void
-    {
-        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 2'); // エアロバイク(現役)
-        self::$pdo->exec('UPDATE exercises SET sort_order = 0 WHERE id = 3'); // 廃止種目(廃止済み)
-
-        move_exercise(self::$pdo, 1, 3, 'up');
-
-        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 2)['sort_order']);
-        $this->assertSame(0, (int) find_exercise(self::$pdo, 1, 3)['sort_order']);
     }
 
     public function testNextExerciseSortOrderIsMaxPlusOne(): void
@@ -831,9 +809,11 @@ final class QueriesTest extends TestCase
         $this->assertSame(342.0, $items[0]['food']['kcal_per_100g']);
     }
 
-    // design.md §2.15: meal_itemsは追加した瞬間の栄養値をスナップショットし、
-    // 後からcustom_foodsの値を編集しても過去のログの計算結果は変わらない
-    public function testInsertMealItemsSnapshotsNutritionAtTimeOfLogging(): void
+    // 2026-08-26: 食材管理・外食管理・レシピ管理でカロリー/栄養を後から修正したとき、
+    // 過去の食事履歴にも修正後の値を反映してほしいという要望を受けて、meal_itemsの
+    // スナップショット列ではなく食品側(custom_foods等)を優先的に参照するように変更した
+    // (design.md未記載、以前は「ログ後は変更しない」仕様だったのを反転させたもの)
+    public function testFetchMealsReflectsCurrentCustomFoodValuesAfterEdit(): void
     {
         $customFoodId = create_custom_food(self::$pdo, 1, '自家製プロテインバー', 400, 20, 10, 40);
         $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'snack', null);
@@ -842,11 +822,30 @@ final class QueriesTest extends TestCase
             ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'eating_out_meal_id' => null, 'quantity_g' => 50.0, 'food' => $food],
         ], null, null);
 
-        // ログ後にカロリーを大きく変更する
-        update_custom_food(self::$pdo, $customFoodId, '自家製プロテインバー', 900, 20, 10, 40);
+        // ログ後にカロリーを大きく修正する
+        update_custom_food(self::$pdo, $customFoodId, '自家製プロテインバー(改良版)', 900, 20, 10, 40);
+
+        $meals = fetch_meals(self::$pdo, 1, null, null);
+        $this->assertSame(900.0, $meals[0]['items'][0]['kcal_per_100g']);
+        $this->assertSame('自家製プロテインバー(改良版)', $meals[0]['items'][0]['food_name']);
+    }
+
+    // 参照先の独自食材が削除された後は、他に頼れる値が無いためスナップショットへ
+    // フォールバックする(meal_items.custom_food_idはON DELETE SET NULL)
+    public function testFetchMealsFallsBackToSnapshotWhenCustomFoodIsDeleted(): void
+    {
+        $customFoodId = create_custom_food(self::$pdo, 1, '自家製プロテインバー', 400, 20, 10, 40);
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'snack', null);
+        $food = resolve_food_source(self::$pdo, 1, null, $customFoodId);
+        insert_meal_items(self::$pdo, 1, $mealId, [
+            ['master_food_id' => null, 'custom_food_id' => $customFoodId, 'eating_out_meal_id' => null, 'quantity_g' => 50.0, 'food' => $food],
+        ], null, null);
+
+        delete_custom_food(self::$pdo, $customFoodId);
 
         $meals = fetch_meals(self::$pdo, 1, null, null);
         $this->assertSame(400.0, $meals[0]['items'][0]['kcal_per_100g']);
+        $this->assertSame('自家製プロテインバー', $meals[0]['items'][0]['food_name']);
     }
 
     public function testExpandRecipeToMealItemsGroupsByRecipeBatchId(): void
@@ -903,6 +902,19 @@ final class QueriesTest extends TestCase
         $this->assertNull(find_meal_by_date_and_type(self::$pdo, 1, '2026-08-01', 'lunch'));
         $this->assertNull(find_meal_by_date_and_type(self::$pdo, 1, '2026-08-02', 'breakfast'));
         $this->assertNull(find_meal_by_date_and_type(self::$pdo, 2, '2026-08-01', 'breakfast'));
+    }
+
+    public function testUpdateMealChangesLoggedDateAndMealType(): void
+    {
+        $mealId = create_meal(self::$pdo, 1, '2026-08-01', 'breakfast', null);
+
+        update_meal(self::$pdo, 1, $mealId, '2026-08-02', 'lunch');
+
+        $stmt = self::$pdo->prepare('SELECT logged_date, meal_type FROM meals WHERE id = :id');
+        $stmt->execute(['id' => $mealId]);
+        $row = $stmt->fetch();
+        $this->assertSame('2026-08-02', $row['logged_date']);
+        $this->assertSame('lunch', $row['meal_type']);
     }
 
     public function testDeleteMealCascadesToMealItems(): void

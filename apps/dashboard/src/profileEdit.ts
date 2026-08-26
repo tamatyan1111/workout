@@ -85,7 +85,8 @@ export function renderProfileEdit(container: HTMLElement, onAccountDeleted: () =
       <div id="theme-toggle-wrap"></div>
 
       <h3>アカウントの削除</h3>
-      <button type="button" id="delete-account-btn" class="danger">アカウントを削除する</button>
+      <button type="button" id="show-delete-account-btn" class="link-button">アカウントを削除する</button>
+      <button type="button" id="delete-account-btn" class="danger" hidden>本当に削除する(取り消せません)</button>
     `;
 
     const formEl = container.querySelector<HTMLFormElement>('#profile-form')!;
@@ -108,6 +109,11 @@ export function renderProfileEdit(container: HTMLElement, onAccountDeleted: () =
     });
 
     renderThemeToggle(container.querySelector<HTMLElement>('#theme-toggle-wrap')!);
+
+    container.querySelector('#show-delete-account-btn')!.addEventListener('click', () => {
+      container.querySelector('#show-delete-account-btn')!.setAttribute('hidden', '');
+      container.querySelector('#delete-account-btn')!.removeAttribute('hidden');
+    });
 
     container.querySelector('#delete-account-btn')!.addEventListener('click', async () => {
       if (!confirm('本当にアカウントを削除しますか?この操作は取り消せず、全てのデータが即座に失われます。')) return;
