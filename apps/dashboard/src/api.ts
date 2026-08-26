@@ -186,8 +186,7 @@ export const editExercise = (
 
 export const deleteExercise = (id: number): Promise<void> => callPost('delete_exercise.php', { id });
 
-export const moveExercise = (id: number, direction: 'up' | 'down'): Promise<void> =>
-  callPost('move_exercise.php', { id, direction });
+export const reorderExercises = (orderedIds: number[]): Promise<void> => callPost('reorder_exercises.php', { ordered_ids: orderedIds });
 
 // ==== 記録ログ ====
 
@@ -429,6 +428,9 @@ export const deleteMealItemGroup = (recipeBatchId: string): Promise<void> =>
   callPost('delete_meal_item_group.php', { recipe_batch_id: recipeBatchId });
 
 export const deleteMeal = (id: number): Promise<void> => callPost('delete_meal.php', { id });
+
+export const editMeal = (id: number, loggedDate: string, mealType: MealType): Promise<void> =>
+  callPost('edit_meal.php', { id, logged_date: loggedDate, meal_type: mealType });
 
 // design.md §2.18: 写真は認証付きAPI経由で配信するため、<img src>にセッションCookieが
 // 必要になる(same-origin配信なのでcredentials指定不要でブラウザが自動付与する)

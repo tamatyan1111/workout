@@ -114,6 +114,24 @@ export function renderEatingOut(container: HTMLElement, onChanged: () => void): 
       wrapEl.innerHTML = '';
     });
 
+    // たんぱく質・脂質・炭水化物からカロリーを自動計算する(2026-08-26、手入力の手間を
+    // 減らしたいとの要望を受けて追加)。カロリー欄を直接編集した後は、その値を尊重して
+    // 自動上書きしない
+    const kcalInput = wrapEl.querySelector<HTMLInputElement>('#eo-kcal')!;
+    let kcalManuallyEdited = false;
+    kcalInput.addEventListener('input', () => {
+      kcalManuallyEdited = true;
+    });
+    ['#eo-protein', '#eo-fat', '#eo-carb'].forEach((selector) => {
+      wrapEl.querySelector<HTMLInputElement>(selector)!.addEventListener('input', () => {
+        if (kcalManuallyEdited) return;
+        const protein = Number(wrapEl.querySelector<HTMLInputElement>('#eo-protein')!.value) || 0;
+        const fat = Number(wrapEl.querySelector<HTMLInputElement>('#eo-fat')!.value) || 0;
+        const carb = Number(wrapEl.querySelector<HTMLInputElement>('#eo-carb')!.value) || 0;
+        kcalInput.value = (protein * 4 + fat * 9 + carb * 4).toFixed(1);
+      });
+    });
+
     wrapEl.querySelector<HTMLFormElement>('#eating-out-form')!.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const statusEl = wrapEl.querySelector<HTMLParagraphElement>('#eating-out-status')!;

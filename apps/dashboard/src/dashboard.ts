@@ -31,7 +31,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       <div class="header-inner">
         <button type="button" class="logo" id="logo-home">からだ手帳</button>
         <div class="header-right">
-          <button type="button" class="welcome" id="welcome-profile-link">ようこそ、${escapeHtml(displayName)}さん</button>
+          <button type="button" class="welcome" id="welcome-profile-link">${escapeHtml(displayName)}さん</button>
           <button type="button" class="header-logout-btn" id="header-logout-btn">ログアウト</button>
         </div>
       </div>

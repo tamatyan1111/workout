@@ -1,4 +1,4 @@
-import { addExercise, deleteExercise, editExercise, moveExercise } from './api';
+import { addExercise, deleteExercise, editExercise, reorderExercises } from './api';
 import type { Cycle, Exercise } from './types';
 import { escapeHtml } from 'shared';
 
@@ -32,17 +32,7 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
             <tr><th></th><th>サイクル</th><th>種目名</th><th>重量(kg)</th><th>回数</th><th>セット</th><th class="discontinued-cell">廃止</th><th></th></tr>
           </thead>
           <tbody>
-            ${exercises
-              .map((e, i) => {
-                // 同じサイクル・同じ廃止状態どうしでだけ並べ替えできる(queries.phpのmove_exerciseと
-                // 同じ考え方)。前後の種目がそれに当てはまらなければ、先頭/末尾として上下ボタンを無効にする
-                const prev = exercises[i - 1];
-                const next = exercises[i + 1];
-                const sameGroup = (other: Exercise | undefined) =>
-                  other !== undefined && other.cycle.id === e.cycle.id && other.is_discontinued === e.is_discontinued;
-                return renderEditRow(e, cycles, sameGroup(prev), sameGroup(next));
-              })
-              .join('')}
+            ${exercises.map((e) => renderEditRow(e, cycles)).join('')}
             ${newRowKeys.map((key) => renderNewRow(key, cycles)).join('')}
           </tbody>
         </table>
@@ -72,20 +62,9 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
           alert(message);
         }
       });
-      row.querySelectorAll<HTMLButtonElement>('.move-exercise-btn').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const direction = btn.dataset.direction as 'up' | 'down';
-          btn.disabled = true;
-          try {
-            await moveExercise(e.id, direction);
-            onChanged();
-          } catch (err) {
-            alert(`並べ替えに失敗しました: ${String(err instanceof Error ? err.message : err)}`);
-            btn.disabled = false;
-          }
-        });
-      });
     });
+
+    setupDragAndDrop();
 
     newRowKeys.forEach((key) => {
       const row = container.querySelector<HTMLTableRowElement>(`tr[data-new-key="${key}"]`)!;
@@ -101,6 +80,57 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
     });
 
     container.querySelector('#save-all-btn')!.addEventListener('click', () => void saveAll());
+  }
+
+  // ドラッグ&ドロップでの並べ替え(2026-08-26、以前はモバイルでの操作不安定さを理由に
+  // ▲▼ボタン方式にしていたが、改めてD&Dにしたいとの要望を受けて変更)。
+  // ネイティブHTML5 drag&dropはタッチ端末での挙動が不安定なため、Pointer Eventsで自前実装する。
+  // 並べ替えは同じサイクル・同じ廃止状態どうしでのみ行う(queries.phpのreorder_exercisesと同じ制約)。
+  function setupDragAndDrop(): void {
+    const tbody = container.querySelector('tbody')!;
+    let draggedRow: HTMLTableRowElement | null = null;
+    let groupSelector = '';
+    let originalOrder: string[] = [];
+
+    container.querySelectorAll<HTMLButtonElement>('.drag-handle').forEach((handle) => {
+      handle.addEventListener('pointerdown', (ev) => {
+        const row = handle.closest<HTMLTableRowElement>('tr[data-id]');
+        if (!row) return;
+        ev.preventDefault();
+        draggedRow = row;
+        groupSelector = `tr[data-cycle-id="${row.dataset.cycleId}"][data-discontinued="${row.dataset.discontinued}"]`;
+        originalOrder = [...tbody.querySelectorAll<HTMLTableRowElement>(groupSelector)].map((r) => r.dataset.id!);
+        row.classList.add('dragging');
+        handle.setPointerCapture(ev.pointerId);
+      });
+
+      handle.addEventListener('pointermove', (ev) => {
+        if (!draggedRow) return;
+        const target = (document.elementFromPoint(ev.clientX, ev.clientY)?.closest(groupSelector) ?? null) as HTMLTableRowElement | null;
+        if (!target || target === draggedRow) return;
+        const rect = target.getBoundingClientRect();
+        const insertBeforeTarget = ev.clientY < rect.top + rect.height / 2;
+        target.parentElement!.insertBefore(draggedRow, insertBeforeTarget ? target : target.nextSibling);
+      });
+
+      const finishDrag = (ev: PointerEvent): void => {
+        if (!draggedRow) return;
+        handle.releasePointerCapture(ev.pointerId);
+        draggedRow.classList.remove('dragging');
+        draggedRow = null;
+        const newOrder = [...tbody.querySelectorAll<HTMLTableRowElement>(groupSelector)].map((r) => r.dataset.id!);
+        if (newOrder.join(',') === originalOrder.join(',')) return;
+        void reorderExercises(newOrder.map(Number))
+          .then(() => onChanged())
+          .catch((err: unknown) => {
+            alert(`並べ替えに失敗しました: ${String(err instanceof Error ? err.message : err)}`);
+            draw();
+          });
+      };
+
+      handle.addEventListener('pointerup', finishDrag);
+      handle.addEventListener('pointercancel', finishDrag);
+    });
   }
 
   async function saveAll(): Promise<void> {
@@ -176,14 +206,11 @@ export function renderBoardEdit(container: HTMLElement, exercises: Exercise[], c
   }
 }
 
-function renderEditRow(e: Exercise, cycles: Cycle[], canMoveUp: boolean, canMoveDown: boolean): string {
+function renderEditRow(e: Exercise, cycles: Cycle[]): string {
   return `
-    <tr data-id="${e.id}">
+    <tr data-id="${e.id}" data-cycle-id="${e.cycle.id}" data-discontinued="${e.is_discontinued ? '1' : '0'}">
       <td>
-        <div class="reorder-buttons">
-          <button type="button" class="move-exercise-btn" data-direction="up" aria-label="上へ" title="上へ" ${canMoveUp ? '' : 'disabled'}>▲</button>
-          <button type="button" class="move-exercise-btn" data-direction="down" aria-label="下へ" title="下へ" ${canMoveDown ? '' : 'disabled'}>▼</button>
-        </div>
+        <button type="button" class="drag-handle" aria-label="ドラッグして並べ替え" title="ドラッグして並べ替え">⠿</button>
       </td>
       <td>
         <select class="cycle-select">

@@ -76,7 +76,6 @@ export function renderNutritionSummary(container: HTMLElement): void {
 
     container.innerHTML = `
       <div class="summary-header">
-        <h2>サマリー</h2>
         <div class="date-nav">
           <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
           <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
@@ -105,7 +104,6 @@ export function renderNutritionSummary(container: HTMLElement): void {
               : ''
           : '<p>目標がまだ設定されていません。プロフィールタブの「目標」から設定できます。</p>'
       }
-      <p class="field-note">目標の変更はプロフィールタブの「目標」から</p>
     `;
 
     container.querySelector('.date-nav-prev')!.addEventListener('click', () => {
@@ -117,9 +115,9 @@ export function renderNutritionSummary(container: HTMLElement): void {
       currentDate = addDays(currentDate, 1);
       load();
     });
-    container.querySelector('.capture-icon-btn')!.addEventListener('click', () => {
+    container.querySelector<HTMLButtonElement>('.capture-icon-btn')!.addEventListener('click', (ev) => {
       const cardEl = container.closest<HTMLElement>('.card') ?? container;
-      void captureElementToClipboard(cardEl, container.querySelector('.capture-status'));
+      void captureElementToClipboard(cardEl, ev.currentTarget as HTMLButtonElement, container.querySelector('.capture-status'));
     });
   }
 }

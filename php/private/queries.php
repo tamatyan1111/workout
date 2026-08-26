@@ -388,51 +388,31 @@ function next_exercise_sort_order(PDO $pdo, int $cycleId): int
     return (int) $stmt->fetchColumn();
 }
 
-// 種目管理画面の並べ替え用(2026-08-21)。同じサイクル・同じ廃止状態の種目どうしでのみ
-// 順序を入れ替える(廃止済みは常に現役の後ろに表示されるため、現役同士・廃止済み同士で
-// 別々に並べ替える)。隣り合う種目が無い(先頭で上へ・末尾で下へ)場合は何もしない。
-function move_exercise(PDO $pdo, int $userId, int $exerciseId, string $direction): void
+// 種目管理画面のドラッグ&ドロップ並べ替え用(2026-08-26)。以前は隣接swap方式の
+// move_exercise(▲▼ボタン)だったが、D&Dへの変更に伴い置き換えた。ドラッグで複数段
+// 動かすと何度も呼ぶ必要がある隣接swapと違い、ドロップ後の並び順を1回で反映する。
+// $orderedIdsは同じサイクル・同じ廃止状態の種目グループを並べ替えた後のid配列。
+// グループの構成(件数・所属)が一致しない場合は何もしない(不正な呼び出し・競合状態への対処)。
+function reorder_exercises(PDO $pdo, int $userId, int $cycleId, bool $isDiscontinued, array $orderedIds): void
 {
-    $exercise = find_exercise($pdo, $userId, $exerciseId);
-    if (!$exercise) {
-        json_error('種目が見つかりません', 404);
-    }
-
     $siblingsStmt = $pdo->prepare(
-        'SELECT id, sort_order FROM exercises
-         WHERE user_id = :user_id AND cycle_id = :cycle_id AND is_discontinued = :is_discontinued
-         ORDER BY sort_order, id'
+        'SELECT id FROM exercises WHERE user_id = :user_id AND cycle_id = :cycle_id AND is_discontinued = :is_discontinued'
     );
-    $siblingsStmt->execute([
-        'user_id' => $userId,
-        'cycle_id' => $exercise['cycle_id'],
-        'is_discontinued' => $exercise['is_discontinued'],
-    ]);
-    $siblings = $siblingsStmt->fetchAll();
+    $siblingsStmt->execute(['user_id' => $userId, 'cycle_id' => $cycleId, 'is_discontinued' => $isDiscontinued]);
+    $siblingIds = array_map('intval', array_column($siblingsStmt->fetchAll(), 'id'));
 
-    $index = null;
-    foreach ($siblings as $i => $s) {
-        if ((int) $s['id'] === $exerciseId) {
-            $index = $i;
-            break;
-        }
-    }
-    if ($index === null) {
+    sort($siblingIds);
+    $sortedOrderedIds = array_map('intval', $orderedIds);
+    sort($sortedOrderedIds);
+    if ($siblingIds !== $sortedOrderedIds) {
         return;
     }
 
-    $swapWithIndex = $direction === 'up' ? $index - 1 : $index + 1;
-    if ($swapWithIndex < 0 || $swapWithIndex >= count($siblings)) {
-        return;
-    }
-
-    $current = $siblings[$index];
-    $swapWith = $siblings[$swapWithIndex];
-
-    $updateStmt = $pdo->prepare('UPDATE exercises SET sort_order = :sort_order WHERE id = :id');
+    $updateStmt = $pdo->prepare('UPDATE exercises SET sort_order = :sort_order WHERE id = :id AND user_id = :user_id');
     $pdo->beginTransaction();
-    $updateStmt->execute(['sort_order' => $swapWith['sort_order'], 'id' => $current['id']]);
-    $updateStmt->execute(['sort_order' => $current['sort_order'], 'id' => $swapWith['id']]);
+    foreach ($orderedIds as $index => $id) {
+        $updateStmt->execute(['sort_order' => $index, 'id' => (int) $id, 'user_id' => $userId]);
+    }
     $pdo->commit();
 }
 
@@ -1442,11 +1422,25 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, 
         return [];
     }
 
+    // 2026-08-26: カロリー・栄養・食品名・店名は、食材/外食が編集された後は常に最新の値で
+    // 参照したいという要望を受けて、スナップショット列ではなく食品側をLEFT JOINしてCOALESCEで
+    // 優先的に参照するように変更した(参照先の食品が削除された場合だけスナップショットへ
+    // フォールバックする)。レシピ名(recipe_name_snapshot)はmeal_itemsにrecipe_idを持たず
+    // 遡って参照できないため、こちらは引き続きスナップショットのまま。
     $itemsStmt = $pdo->prepare(
-        'SELECT id, meal_id, master_food_id, custom_food_id, eating_out_meal_id, food_name_snapshot, kcal_per_100g_snapshot,
-                protein_g_per_100g_snapshot, fat_g_per_100g_snapshot, carb_g_per_100g_snapshot,
-                quantity_g, recipe_batch_id, recipe_name_snapshot, eating_out_shop_name_snapshot
-         FROM meal_items WHERE user_id = :user_id ORDER BY id'
+        'SELECT mi.id, mi.meal_id, mi.master_food_id, mi.custom_food_id, mi.eating_out_meal_id,
+                COALESCE(f.name, cf.name, mi.food_name_snapshot) AS food_name,
+                COALESCE(f.kcal_per_100g, cf.kcal_per_100g, eom.kcal, mi.kcal_per_100g_snapshot) AS kcal_per_100g,
+                COALESCE(f.protein_g_per_100g, cf.protein_g_per_100g, eom.protein_g, mi.protein_g_per_100g_snapshot) AS protein_g_per_100g,
+                COALESCE(f.fat_g_per_100g, cf.fat_g_per_100g, eom.fat_g, mi.fat_g_per_100g_snapshot) AS fat_g_per_100g,
+                COALESCE(f.carb_g_per_100g, cf.carb_g_per_100g, eom.carb_g, mi.carb_g_per_100g_snapshot) AS carb_g_per_100g,
+                mi.quantity_g, mi.recipe_batch_id, mi.recipe_name_snapshot,
+                COALESCE(eom.shop_name, mi.eating_out_shop_name_snapshot) AS eating_out_shop_name
+         FROM meal_items mi
+         LEFT JOIN foods f ON f.id = mi.master_food_id
+         LEFT JOIN custom_foods cf ON cf.id = mi.custom_food_id
+         LEFT JOIN eating_out_meals eom ON eom.id = mi.eating_out_meal_id
+         WHERE mi.user_id = :user_id ORDER BY mi.id'
     );
     $itemsStmt->execute(['user_id' => $userId]);
     $itemsByMeal = [];
@@ -1456,15 +1450,15 @@ function fetch_meals(PDO $pdo, int $userId, ?string $dateFrom, ?string $dateTo, 
             'master_food_id' => $row['master_food_id'] !== null ? (int) $row['master_food_id'] : null,
             'custom_food_id' => $row['custom_food_id'] !== null ? (int) $row['custom_food_id'] : null,
             'eating_out_meal_id' => $row['eating_out_meal_id'] !== null ? (int) $row['eating_out_meal_id'] : null,
-            'food_name' => $row['food_name_snapshot'],
-            'kcal_per_100g' => (float) $row['kcal_per_100g_snapshot'],
-            'protein_g_per_100g' => (float) $row['protein_g_per_100g_snapshot'],
-            'fat_g_per_100g' => (float) $row['fat_g_per_100g_snapshot'],
-            'carb_g_per_100g' => (float) $row['carb_g_per_100g_snapshot'],
+            'food_name' => $row['food_name'],
+            'kcal_per_100g' => (float) $row['kcal_per_100g'],
+            'protein_g_per_100g' => (float) $row['protein_g_per_100g'],
+            'fat_g_per_100g' => (float) $row['fat_g_per_100g'],
+            'carb_g_per_100g' => (float) $row['carb_g_per_100g'],
             'quantity_g' => (float) $row['quantity_g'],
             'recipe_batch_id' => $row['recipe_batch_id'],
             'recipe_name' => $row['recipe_name_snapshot'],
-            'eating_out_shop_name' => $row['eating_out_shop_name_snapshot'],
+            'eating_out_shop_name' => $row['eating_out_shop_name'],
         ];
     }
 
@@ -1497,6 +1491,12 @@ function find_meal_by_date_and_type(PDO $pdo, int $userId, string $loggedDate, s
     $stmt->execute(['user_id' => $userId, 'logged_date' => $loggedDate, 'meal_type' => $mealType]);
     $row = $stmt->fetch();
     return $row ?: null;
+}
+
+function update_meal(PDO $pdo, int $userId, int $id, string $loggedDate, string $mealType): void
+{
+    $stmt = $pdo->prepare('UPDATE meals SET logged_date = :logged_date, meal_type = :meal_type WHERE id = :id AND user_id = :user_id');
+    $stmt->execute(['logged_date' => $loggedDate, 'meal_type' => $mealType, 'id' => $id, 'user_id' => $userId]);
 }
 
 // 2026-08-15追加(§2.18): 写真の添付・差し替え・削除。$photoPathはmeal_photos/{user_id}/{uuid}.jpg
