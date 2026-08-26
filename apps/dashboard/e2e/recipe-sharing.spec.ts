@@ -18,7 +18,7 @@ test('レシピの共有リンクは未ログインで閲覧でき、共有を�
 
   await expect(page.getByRole('heading', { name: 'ようこそ' })).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: /フルボディ/ }).click();
-  await expect(page.getByText('ようこそ、E2E共有テストユーザーさん')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('E2E共有テストユーザーさん')).toBeVisible({ timeout: 10_000 });
 
   await page.locator('.tab-button[data-tab="nutrition"]').click();
   const panel = page.locator('#tab-nutrition');

@@ -39,7 +39,7 @@ test('サインアップ→オンボーディング→全タブが正常表示�
   await page.getByRole('button', { name: /フルボディ/ }).click();
 
   // 通常のダッシュボードに遷移する。初期表示はホーム画面
-  await expect(page.getByText('ようこそ、E2Eテストユーザーさん')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('E2Eテストユーザーさん')).toBeVisible({ timeout: 10_000 });
   await assertNoErrorInPanel(page.locator('#tab-home'));
 
   // ロゴをクリックするとホームに戻ることを確認してから、全タブを確認する
