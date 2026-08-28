@@ -15,9 +15,9 @@ function errorMessage(err: unknown): string {
 // 実際に種目が属しているサイクルをid昇順(作成順)でグルーピングして表示する。
 export function renderBoard(container: HTMLElement, exercises: Exercise[]): void {
   let currentDate = todayStr();
-  // 目標テーブルを開いているサイクルのid。日付ナビをまたいでも開閉状態は保持する
-  // (2026-08-20、実績と目標を同じ行に並べると横幅が窮屈になるとの指摘を受けて分離)
-  const openTargetCycleIds = new Set<number>();
+  // 目標一覧を開いているかどうか。日付ナビをまたいでも開閉状態は保持する
+  // (2026-08-29、サイクルごとの目標ボタンを1つの共通ボタンにまとめた際もこの考え方を踏襲)
+  let showTargets = false;
 
   draw(exercises);
 
@@ -25,15 +25,18 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
     const isToday = currentDate === todayStr();
     container.innerHTML = `
       <div class="summary-header">
+        <span class="today-badge">${isToday ? '今日' : ''}</span>
         <div class="date-nav">
           <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
-          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
+          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)})</strong>
           <button type="button" class="date-nav-next" aria-label="次の日" title="次の日" ${isToday ? 'disabled' : ''}>›</button>
         </div>
         <button type="button" class="capture-icon-btn" aria-label="画像をコピー" title="画像をコピー">📋</button>
       </div>
       <p class="capture-status"></p>
-      ${renderCycles(ex, openTargetCycleIds)}
+      ${renderCycles(ex)}
+      <button type="button" class="link-button toggle-target-btn">${showTargets ? '目標を隠す' : '目標を見る'}</button>
+      ${showTargets ? renderAllTargets(ex) : ''}
     `;
 
     container.querySelector('.date-nav-prev')!.addEventListener('click', () => void navigate(-1));
@@ -45,16 +48,9 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
       const cardEl = container.closest<HTMLElement>('.card') ?? container;
       void captureElementToClipboard(cardEl, ev.currentTarget as HTMLButtonElement, container.querySelector('.capture-status'));
     });
-    container.querySelectorAll<HTMLButtonElement>('.toggle-target-btn').forEach((btn) => {
-      const cycleId = Number(btn.dataset.cycleId);
-      btn.addEventListener('click', () => {
-        if (openTargetCycleIds.has(cycleId)) {
-          openTargetCycleIds.delete(cycleId);
-        } else {
-          openTargetCycleIds.add(cycleId);
-        }
-        draw(ex);
-      });
+    container.querySelector<HTMLButtonElement>('.toggle-target-btn')!.addEventListener('click', () => {
+      showTargets = !showTargets;
+      draw(ex);
     });
   }
 
@@ -76,7 +72,11 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
   }
 }
 
-function renderCycles(exercises: Exercise[], openTargetCycleIds: Set<number>): string {
+// 記録の無いサイクルはカードごと出さない(2026-08-20、「Pushをしていないのにそのカードを
+// 出す必要はない」との指摘。2026-08-26に一度サイクルごとの目標ボタン付きで常設する形に
+// 変えたが、2026-08-29に「記録が無いところの枠は出したくない」との指摘を受けて元の方針に
+// 戻した。目標の確認はrenderAllTargetsの共通ボタン1つに分離してある)。
+function renderCycles(exercises: Exercise[]): string {
   const active = exercises.filter((e) => !e.is_discontinued);
   const cycleIds = [...new Set(active.map((e) => e.cycle.id))].sort((a, b) => a - b);
 
@@ -84,28 +84,41 @@ function renderCycles(exercises: Exercise[], openTargetCycleIds: Set<number>): s
     return '<p>まだ種目が登録されていません。「種目管理」から追加してください。</p>';
   }
 
-  const blocks = cycleIds
+  return cycleIds
     .map((cycleId) => {
       const cycleExercises = active.filter((e) => e.cycle.id === cycleId);
-      // 実績テーブルは記録の無いサイクルでは出さない(2026-08-20、「Pushをしていないのに
-      // そのカードを出す必要はない」との指摘)が、目標だけはその日の記録の有無に関わらず
-      // いつでも確認できるようにする(2026-08-26、「記録がなくても目標ボタンを押せるように」
-      // との指摘を受けて、カード自体は残し目標ボタンを常に出す形に変更)
       const recordedExercises = cycleExercises.filter((e) => e.current.length > 0);
+      if (recordedExercises.length === 0) return '';
       const label = cycleExercises[0].cycle.label;
-      const showTarget = openTargetCycleIds.has(cycleId);
       return `
         <section class="cycle-block">
           <h3>${escapeHtml(label)}</h3>
-          ${recordedExercises.length > 0 ? renderTable(recordedExercises) : '<p class="field-note">この日の記録はありません</p>'}
-          <button type="button" class="link-button toggle-target-btn" data-cycle-id="${cycleId}">${showTarget ? '目標を隠す' : '目標を見る'}</button>
-          ${showTarget ? renderTargetTable(cycleExercises) : ''}
+          ${renderTable(recordedExercises)}
         </section>
       `;
     })
     .join('');
+}
 
-  return blocks;
+// 目標はその日の記録の有無に関わらずいつでも確認できるよう、サイクルごとではなく
+// 画面に1つだけ置いた共通ボタンで開閉する(2026-08-29)。開いたときはサイクルごとに
+// 見出しを分けて全種目の目標を並べる。
+function renderAllTargets(exercises: Exercise[]): string {
+  const active = exercises.filter((e) => !e.is_discontinued);
+  const cycleIds = [...new Set(active.map((e) => e.cycle.id))].sort((a, b) => a - b);
+
+  return cycleIds
+    .map((cycleId) => {
+      const cycleExercises = active.filter((e) => e.cycle.id === cycleId);
+      const label = cycleExercises[0].cycle.label;
+      return `
+        <section class="cycle-block">
+          <h3>${escapeHtml(label)}</h3>
+          ${renderTargetTable(cycleExercises)}
+        </section>
+      `;
+    })
+    .join('');
 }
 
 // 実績(現在の重量・回数・セット)だけの表。目標は別テーブル(renderTargetTable)に分離した
