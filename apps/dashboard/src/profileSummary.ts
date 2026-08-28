@@ -87,9 +87,10 @@ export function renderProfileSummary(container: HTMLElement): void {
 
     container.innerHTML = `
       <div class="summary-header">
+        <span class="today-badge">${isToday ? '今日' : ''}</span>
         <div class="date-nav">
           <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
-          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)}${isToday ? '・今日' : ''})</strong>
+          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)})</strong>
           <button type="button" class="date-nav-next" aria-label="次の日" title="次の日" ${isToday ? 'disabled' : ''}>›</button>
         </div>
         <button type="button" class="capture-icon-btn" aria-label="画像をコピー" title="画像をコピー">📋</button>

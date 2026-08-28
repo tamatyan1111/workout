@@ -83,31 +83,40 @@ describe('renderBoard', () => {
     expect(container.textContent).toContain('まだ種目が登録されていません');
   });
 
-  // 2026-08-20: 記録がない日には種目名だけの行を並べず、代わりにメッセージを出す
-  it('hides exercises with no records for the currently viewed day', () => {
-    const container = document.createElement('div');
-    renderBoard(container, [makeExercise({ name: 'ベンチプレス', current: [] })]);
-
-    expect(container.textContent).not.toContain('ベンチプレス');
-    expect(container.textContent).toContain('この日の記録はありません');
-  });
-
-  // 2026-08-26: 記録が無い日でもサイクルの見出しと「目標を見る」ボタンは残す
-  // (「目標は記録がなくても押せるようにしたい」との指摘を受けて、2026-08-20時点の
-  // 「カードごと非表示」から変更)
-  it('keeps the cycle heading and target toggle visible even with no records that day', () => {
+  // 2026-08-20・2026-08-29: 記録がない日にはサイクルのカードごと出さない(枠も
+  // 「この日の記録はありません」のようなメッセージも不要、との指摘を受けて維持)。
+  // 目標の確認は下記の共通「目標を見る」ボタン1つに分離してある。
+  it('hides the whole cycle card when nothing was recorded that day', () => {
     const container = document.createElement('div');
     renderBoard(container, [
       makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス', current: [], target: { weight: 80, reps: 5, sets: 3 } }),
     ]);
 
-    expect(container.textContent).toContain('Push');
+    expect(container.textContent).not.toContain('Push');
     expect(container.textContent).not.toContain('ベンチプレス');
+    expect(container.textContent).not.toContain('この日の記録はありません');
+  });
+
+  // 2026-08-29: サイクルごとの目標ボタンではなく、画面に1つだけ常設の「目標を見る」で
+  // 記録の有無に関わらずいつでも全種目の目標を確認できる
+  it('has a single always-present target toggle that shows targets for every cycle regardless of records', () => {
+    const container = document.createElement('div');
+    renderBoard(container, [
+      makeExercise({ id: 1, cycle: { id: 1, label: 'Push' }, name: 'ベンチプレス', current: [], target: { weight: 80, reps: 5, sets: 3 } }),
+      makeExercise({ id: 2, cycle: { id: 3, label: 'Legs' }, name: 'スクワット', current: [{ weight: 100, reps: 5, sets: 3 }], target: { weight: 120, reps: 5, sets: 3 } }),
+    ]);
+
+    const toggleButtons = container.querySelectorAll<HTMLButtonElement>('.toggle-target-btn');
+    expect(toggleButtons).toHaveLength(1);
     expect(container.textContent).not.toContain('80.0');
+    expect(container.textContent).not.toContain('120.0');
 
-    container.querySelector<HTMLButtonElement>('.toggle-target-btn')!.click();
+    toggleButtons[0].click();
 
+    expect(container.textContent).toContain('Push');
     expect(container.textContent).toContain('80.0');
+    expect(container.textContent).toContain('Legs');
+    expect(container.textContent).toContain('120.0');
   });
 
   // 2026-08-20: 目標は実績と同じ行に並べず、トグルで開閉する別テーブルに分離した

@@ -240,6 +240,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
   }
 
   function onBodyWeightSaved(): void {
+    renderProfileSummary(profileSummaryEl);
     void renderRecentBodyWeights(recentBodyWeightsEl);
     renderBodyWeightGraph(bodyWeightGraphEl);
   }
@@ -270,6 +271,7 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       const [exercises, cycles, logs] = await Promise.all([getBoard(todayStr()), getCycles(), getLogs()]);
       renderBoard(boardViewEl, exercises);
       renderRecordForm(recordFormEl, exercises, () => {
+        void loadBoardSummary();
         void renderRecentLogs(recentLogsEl);
         void loadGraph();
       });
@@ -283,6 +285,19 @@ export function renderDashboard(container: HTMLElement, displayName: string, onL
       boardEditEl.innerHTML = message;
       graphEl.innerHTML = message;
       cycleManagementEl.innerHTML = message;
+    }
+  }
+
+  // 記録の追加はサマリー(本日の実績)にも反映したいが、管理表全体の再読み込み(記録フォームの
+  // リセットを伴う)は避けたいため、サマリーだけを軽く取り直す専用の関数を分ける
+  // (2026-08-29発覚: 食事タブは記録保存時にサマリーを再取得していたが、運動タブは
+  // 直近の履歴・グラフしか更新しておらず、サマリーが古いままになっていた)
+  async function loadBoardSummary(): Promise<void> {
+    try {
+      const exercises = await getBoard(todayStr());
+      renderBoard(boardViewEl, exercises);
+    } catch (err) {
+      boardViewEl.innerHTML = `<p class="error">サマリーの取得に失敗しました: ${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
     }
   }
 
