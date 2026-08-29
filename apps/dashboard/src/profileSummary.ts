@@ -3,8 +3,8 @@ import { ACTIVITY_LEVEL_LABELS, ACTIVITY_LEVEL_SHORT_LABELS } from './profileEdi
 import type { NutritionSummary } from './types';
 import { escapeHtml } from 'shared';
 import type { ActivityLevel } from 'shared';
-import { addDays, shortDateLabel, todayStr, weekdayLabel } from './date';
-import { captureElementToClipboard } from './captureImage';
+import { addDays, todayStr } from './date';
+import { summaryHeaderHtml, wireSummaryHeader } from './summaryHeader';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -86,16 +86,7 @@ export function renderProfileSummary(container: HTMLElement): void {
     ];
 
     container.innerHTML = `
-      <div class="summary-header">
-        <span class="today-badge">${isToday ? '今日' : ''}</span>
-        <div class="date-nav">
-          <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
-          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)})</strong>
-          <button type="button" class="date-nav-next" aria-label="次の日" title="次の日" ${isToday ? 'disabled' : ''}>›</button>
-        </div>
-        <button type="button" class="capture-icon-btn" aria-label="画像をコピー" title="画像をコピー">📋</button>
-      </div>
-      <p class="capture-status"></p>
+      ${summaryHeaderHtml(currentDate)}
       <div class="nutrition-stats">
         <div class="stat-card">
           <span class="stat-label">身長</span>
@@ -113,18 +104,9 @@ export function renderProfileSummary(container: HTMLElement): void {
       </div>
     `;
 
-    container.querySelector('.date-nav-prev')!.addEventListener('click', () => {
-      currentDate = addDays(currentDate, -1);
+    wireSummaryHeader(container, currentDate, (deltaDays) => {
+      currentDate = addDays(currentDate, deltaDays);
       load();
-    });
-    container.querySelector<HTMLButtonElement>('.date-nav-next')!.addEventListener('click', () => {
-      if (isToday) return;
-      currentDate = addDays(currentDate, 1);
-      load();
-    });
-    container.querySelector<HTMLButtonElement>('.capture-icon-btn')!.addEventListener('click', (ev) => {
-      const cardEl = container.closest<HTMLElement>('.card') ?? container;
-      void captureElementToClipboard(cardEl, ev.currentTarget as HTMLButtonElement, container.querySelector('.capture-status'));
     });
   }
 }
