@@ -152,6 +152,7 @@ CREATE TABLE exercises (
   target_weight   DECIMAL(5,2) NULL,                -- NULLは「目標重量なし」(旧"-")
   target_reps     SMALLINT UNSIGNED NULL,
   target_sets     SMALLINT UNSIGNED NULL,
+  sort_order      INT NOT NULL DEFAULT 0,            -- 種目管理画面でのドラッグ&ドロップ並べ替え用(2026-08-21追加)
   PRIMARY KEY (id),
   UNIQUE KEY uq_exercises_cycle_id_name (cycle_id, name),
   CONSTRAINT fk_exercises_user_id FOREIGN KEY (user_id) REFERENCES users(id),
@@ -309,6 +310,7 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `add_exercise.php` | POST | `{cycle_id, name, target_weight?, target_reps?, target_sets?}` | `{id}` |
 | `edit_exercise.php` | POST | `{id, target_weight?, target_reps?, target_sets?, discontinued?}` | `{ok:true}` |
 | `delete_exercise.php` | POST | `{id}` | `{ok:true}` または `{ok:false, error:"has_logs"}` |
+| `reorder_exercises.php` | POST | `{ordered_ids:[...]}`(同じサイクル・同じ廃止状態の種目グループを並べ替えた後のid配列) | `{ok:true}`(2026-08-27追加。ドラッグ&ドロップでの並べ替え用) |
 | `get_body_weight_logs.php` | GET | `date_from?`, `date_to?` | 体重の記録一覧 |
 | `add_body_weight_log.php` | POST | `{logged_date, weight}` | `{ok:true}`(同日の既存記録があれば上書き) |
 | `edit_body_weight_log.php` | POST | `{id, logged_date, weight}` | `{ok:true}` または `{ok:false, error:"duplicate_date"}` |
@@ -338,7 +340,8 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `get_shared_recipe.php` | GET(**ログイン不要**) | `token`(クエリ) | `{name, items}`(§2.19、無効なトークンは404) |
 | `get_meals.php` | GET | `date_from?`, `date_to?` | 食事ログ一覧(`meal_items`込み、`recipe_batch_id`でグループ化可能な形) |
 | `add_meal.php` | POST | `{logged_date, meal_type, items:[{master_food_id\|custom_food_id, quantity_g},...]}` または `{logged_date, meal_type, recipe_id}` | `{id, item_ids:[...]}`(レシピ指定時はサーバー側で`recipe_items`を展開し`meal_items`をスナップショット保存) |
-| `add_meal_item.php` | POST | `{meal_id, master_food_id\|custom_food_id, quantity_g}` \| `{meal_id, recipe_id}` | `{ids:[...]}`(既存の食事ログへの追加。カートへの追加操作に対応) |
+| `edit_meal.php` | POST | `{id, logged_date, meal_type}` | `{ok:true}`(2026-08-27追加。食事記録の日付・区分を後から直す。移動先に既に別の食事記録があればエラー) |
+| `add_meal_item.php` | POST | `{meal_id, master_food_id\|custom_food_id, quantity_g}` \| `{meal_id, recipe_id}` | `{ids:[...]}`(既存の食事ログへの追加。レシピをカートに追加する操作に対応。生の食材を直接追加するUIは廃止したため、実際にはrecipe_id指定の呼び出しのみが使われる) |
 | `edit_meal_item.php` | POST | `{id, master_food_id\|custom_food_id, quantity_g}` | `{ok:true}`(食材・分量を直し、`*_snapshot`列を再解決してUPDATE。`meal_id`・`recipe_batch_id`は変更不可) |
 | `delete_meal_item.php` | POST | `{id}` | `{ok:true}`(単品削除) |
 | `delete_meal_item_group.php` | POST | `{recipe_batch_id}` | `{ok:true}`(同じ`recipe_batch_id`を持つ行をまとめて削除) |
@@ -346,6 +349,9 @@ ORDER BY l.exercise_id, l.weight DESC, l.reps DESC;
 | `upload_meal_photo.php` | POST(multipart/form-data) | `meal_id`, `photo`(ファイル) | `{ok:true}`(§2.18参照。既存の写真があれば差し替え) |
 | `delete_meal_photo.php` | POST | `{meal_id}` | `{ok:true}` |
 | `get_meal_photo.php` | GET | `meal_id`(クエリ) | 画像バイナリ(`Content-Type: image/jpeg`)。所有権を検証してから返す |
+| `get_meal_favorites.php` | GET | - | 食事を記録する画面の「よく使う内容」一覧(2026-08-26追加) |
+| `add_meal_favorite.php` | POST | `{master_food_id\|custom_food_id, quantity_g}` | `{id}`(食品+分量の組を「よく使う内容」として登録) |
+| `delete_meal_favorite.php` | POST | `{id}` | `{ok:true}` |
 
 ### 2.11 `nutrition_goals` テーブル — 体重目標・カロリー目標・PFC配分方式(新規、§7対応)
 
@@ -357,10 +363,13 @@ CREATE TABLE nutrition_goals (
   target_weight               DECIMAL(5,2) NOT NULL,
   target_body_fat_percentage  DECIMAL(4,1) NULL,       -- 任意項目。未入力可(2026-08-15、UI再設計フェーズ2)
   target_date                 DATE NOT NULL,
-  pfc_mode                    ENUM('standard', 'bulk', 'cut', 'custom') NOT NULL DEFAULT 'standard',
+  pfc_mode                    ENUM('standard', 'bulk', 'cut', 'custom', 'custom_ratio') NOT NULL DEFAULT 'standard',
   custom_protein_g            DECIMAL(6,1) NULL,       -- pfc_mode='custom' のときのみ使用
   custom_fat_g                DECIMAL(6,1) NULL,
   custom_carb_g               DECIMAL(6,1) NULL,
+  custom_protein_percent      DECIMAL(4,1) NULL,       -- pfc_mode='custom_ratio' のときのみ使用(2026-08-16追加)
+  custom_fat_percent          DECIMAL(4,1) NULL,
+  custom_carb_percent         DECIMAL(4,1) NULL,
   created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_nutrition_goals_user_id_created_at (user_id, created_at),
@@ -372,7 +381,8 @@ CREATE TABLE nutrition_goals (
 
 - 「目標を設定する」操作は常に新しい行を`INSERT`する(体重記録の`current`と同じ考え方で、そのユーザーの**最新の1行**が「現在の目標」になる。`is_active`のようなフラグ列は持たない)。目標を見直す・達成日を過ぎて再設定する場合も、新しい行を追加するだけでよく、履歴としてそのまま残る
 - `start_weight`は、目標を新規作成する瞬間の`body_weight_logs`の最新値をコピーして保存する(進捗率マイルストーンの計算で「どこから始めたか」の基準点が必要なため。後から`body_weight_logs`側が編集されても目標の起点がぶれないよう、あえてスナップショットにする)
-- `pfc_mode`が`standard`/`bulk`/`cut`のとき、具体的な配分(P15%/F25%/C60%、体重×1.8g/kg、体重×2.0g/kg等)はアプリ側の固定定数として扱い、DBには持たせない([requirements.md](requirements.md) §7参照)。`custom`のときのみ、ユーザーが直接入力したグラム数を`custom_protein_g`等に保存する
+- `pfc_mode`が`standard`/`bulk`/`cut`のとき、具体的な配分(P15%/F25%/C60%、体重×1.8g/kg、体重×2.0g/kg等)はアプリ側の固定定数として扱い、DBには持たせない([requirements.md](requirements.md) §7参照)。`custom`のときはユーザーが直接入力したグラム数を`custom_protein_g`等に保存する。`custom_ratio`(2026-08-16追加)は、`standard`の15/25/60%のような固定比率をユーザー自身が指定できるようにしたモードで、グラム数ではなく比率(%)を`custom_protein_percent`等に保存する(3つの合計が100%になるよう、フロント側で入力時にリアルタイム確認する)
+- 目標編集フォーム(`goalSettings.ts`)は、開いたときに前回保存した値(目標体重・達成期日・PFC配分方式・カスタムのグラム数/比率)を`get_nutrition_goal.php`から取得して初期表示する(2026-08-29修正。以前はこの配線が無く、変更のたびに全項目を入力し直す必要があった)
 
 ### 2.12 `foods` テーブル — 食品標準成分表マスタ(新規、全ユーザー共通)
 
@@ -494,8 +504,8 @@ CREATE TABLE meal_items (
 ```
 
 - `meal_items`も`recipe_items`と同じ理由(MariaDBの制限、上記参照)で、`master_food_id`・`custom_food_id`・`eating_out_meal_id`の排他性はCHECK制約では表現せず、`resolve_items_for_meal()`(`php/private/queries.php`)で担保する
-- `meal_items`は`recipe_items`と違い、追加した**瞬間の栄養値をスナップショットする**(`*_snapshot`列)。理由は§2.14と対称: ログは「その時食べたものの記録」という不変の事実であるべきで、後から`foods`のマスタ改訂や`custom_foods`の編集があっても、過去のログの計算結果が遡って変わってはならない(§2.9で確立した「記録は記録として固定する」方針と同じ考え方)
-- `master_food_id`・`custom_food_id`は表示・再検索の手がかりとして残すのみで、栄養計算には使わない(計算は常に`*_snapshot`列を使う)。そのため参照先が削除されても`SET NULL`で構わない(`exercises`/`logs`のような`RESTRICT`は不要)
+- `meal_items`は追加した**瞬間の栄養値を`*_snapshot`列に保存する**。当初(§2.15初版)は`recipe_items`と対称的に「ログは不変の事実であるべき」という考え方でこの値を計算にも使い続ける設計だったが、2026-08-27に「食材・レシピの栄養値を後から直したら、過去の履歴にも反映してほしい(目標カロリー等の再計算も含めて)」という要望を受けて方針を反転した。現在`fetch_meals()`(`php/private/queries.php`)は`master_food_id`/`custom_food_id`/`eating_out_meal_id`で`foods`/`custom_foods`/`eating_out_meals`をLEFT JOINし、`COALESCE(現在の値, *_snapshot列)`で**現在の値を優先**して返す。`*_snapshot`列は、参照先の食品が削除された場合(`ON DELETE SET NULL`)のフォールバックとしてのみ機能する
+- `master_food_id`・`custom_food_id`は、以前は表示・再検索の手がかりとしてのみ残す設計だったが、上記の方針転換により**栄養計算にも実際に使われる**(`fetch_meals()`のJOINキーとして)。参照先が削除された場合のフォールバックとして`*_snapshot`列を使うため、`SET NULL`のままで問題ない(`exercises`/`logs`のような`RESTRICT`は不要)。なお`recipe_name_snapshot`(レシピ名)は`meal_items`に`recipe_id`のFKが無く`recipe_batch_id`(UUID)しか持たないため、この反転の対象外で従来通りスナップショットのまま固定表示する
 - レシピをカートに追加した瞬間、`recipe_items`をJOINして展開し、`meal_items`に食材ごとの行としてスナップショット付きで`INSERT`する。同じ操作で追加された行には共通の`recipe_batch_id`(UUID)を振り、`recipe_name_snapshot`にレシピ名を記録する。これにより、カート画面・保存後の編集画面の両方で「同じ`recipe_batch_id`を持つ行をまとめて1回の操作で削除する」UIが実現できる(個別行だけを`recipe_batch_id`を残したまま削除することも可能)
 - 直接食材を追加した行は`recipe_batch_id`・`recipe_name_snapshot`とも`NULL`のままになる
 - `meals`→`meal_items`は`ON DELETE CASCADE`とする(`meal_items`は`meals`に完全に従属する明細行であり、§1.3のアカウント削除順序の懸念とは別の、単純な親子関係のため)
@@ -561,6 +571,7 @@ CREATE TABLE eating_out_meals (
    - `bulk`: たんぱく質 = 直近体重×1.8(g)。脂質 = 目標カロリー×25%÷9。炭水化物 = (目標カロリー − たんぱく質のkcal − 脂質のkcal)÷4
    - `cut`: たんぱく質 = 直近体重×2.0(g)。脂質・炭水化物は`bulk`と同じ式
    - `custom`: `nutrition_goals.custom_protein_g`・`custom_fat_g`・`custom_carb_g`をそのまま使う
+   - `custom_ratio`(2026-08-16追加): たんぱく質 = 目標カロリー×`custom_protein_percent`%÷4、脂質 = 目標カロリー×`custom_fat_percent`%÷9、炭水化物 = 目標カロリー×`custom_carb_percent`%÷4(`standard`の固定比率15/25/60%を、ユーザー指定の比率に置き換えたものという位置づけ)
    - `bulk`/`cut`で目標カロリーが低すぎる等の理由で炭水化物が負の値になるケースは、0にクランプした上で「カロリー設定を見直してください」という警告を表示する(実装時に詳細UIを詰める)
 
 ### 2.17 目標達成日超過・進捗マイルストーンの判定(読み取り時に計算、§7対応)
@@ -588,7 +599,8 @@ CREATE TABLE eating_out_meals (
   - 完了すると通常のダッシュボードへ
 
 ログイン後(通常時):
-[ヘッダー: ロゴ「からだ手帳」(タップでホーム画面へ) / ようこそ、{display_name}さん]
+[ヘッダー: ロゴ「からだ手帳」(タップでホーム画面へ) / {display_name}さん]
+  (2026-08-26、「ようこそ、」の接頭辞は削除。スマホ幅で表示名が長いと折り返される問題への対処も兼ねる)
 [タブ: 運動 | 食事 | プロフィール]
 
 --- ホーム画面(2026-08-15〜16、UI再設計フェーズ2で新設、design.md未記載だった項目を今回追記) ---
@@ -605,12 +617,13 @@ CREATE TABLE eating_out_meals (
 
 --- 運動タブ ---
 [ランディング]
-  サマリー(管理表をカードで表示): 自分のサイクルごとに区切って一覧表示
-    各行: 種目名・現在重量・現在回数・現在セット・目標重量・目標回数・目標セット(現在側はドロップセット等で複数行になり得る、rowspanで表示)
+  サマリー(管理表をカードで表示、日付ナビ付き): 自分のサイクルごとに区切って一覧表示
+    各行: 種目名・現在重量・現在回数・現在セット(ドロップセット等で複数行になり得る、rowspanで表示)。目標値は同じ行に並べず、下記の共通ボタンで別テーブルとして開閉する(2026-08-20、横幅が窮屈になるとの指摘を受けて分離)
     単位はヘッダー側にのみ表記(重量列ヘッダーを「重量(kg)」とする)。重量は小数点1桁で統一表示する(例: 60.0)
-    種目が0件のサイクルはそのサイクル名の見出しのみ表示する(旧設計の「休憩の特別扱い」は廃止、§2.3参照)
-    廃止済み(`is_discontinued=1`)の種目はこの一覧には表示しない
-  記録を入力(§3.1)
+    その日の記録が無いサイクルはカードごと表示しない(2026-08-20・2026-08-29、旧設計の「休憩の特別扱い」も含めて廃止、§2.3参照)。廃止済み(`is_discontinued=1`)の種目はこの一覧には表示しない
+    「目標を見る」ボタンをサマリー末尾に1つだけ常設し、その日の記録の有無に関わらずいつでも開閉できる。開くと、廃止済みを除く全種目の目標値をサイクルごとにまとめて表示する(2026-08-20〜2026-08-29の間で「サイクルごとに目標ボタンを持たせ記録が無くても常設する」形を経て、最終的に画面共通の1つのボタンに統一した)
+    サマリーヘッダーは日付を中央寄せにし、「今日かどうか」の情報だけ左上のバッジで表示する(2026-08-29、`summaryHeader.ts`として運動・食事・プロフィールタブ共通化)
+  記録を入力(§3.1)。記録を保存すると、直近の記録・グラフに加えてこのサマリーも自動的に再取得される(2026-08-29修正。以前はサマリーが更新されず、タブを離れて戻るまで古い表示のままになっていた)
   直近の記録(§3.3)
 [詳細画面]
   種目を管理する(旧称: 管理表の編集、§3.2)
@@ -621,16 +634,16 @@ CREATE TABLE eating_out_meals (
 
 --- 食事タブ(§7対応) ---
 [ランディング]
-  サマリー: [達成日超過バナー・マイルストーンお祝い表示(該当時のみ)]
+  サマリー(日付ナビ付き): [達成日超過バナー・マイルストーンお祝い表示(該当時のみ)]
     維持カロリー(TDEE): 基礎代謝(BMR)+活動量の内訳を2行で表示(2026-08-15追加、§2.16参照)
-    目標カロリー・目標PFCグラム数
-    目標体重・達成日・PFC配分方式(標準/筋トレ向き/減量向き/カスタム)の設定フォーム
-  食事ログ: 食事区分(朝食/昼食/夕食/間食)を選び、食品グループ絞り込み付きの検索(2026-08-15追加)またはレシピからカートに追加 → まとめて保存
+    目標カロリー・目標PFCグラム数を表示専用で表示する。目標体重・達成日・PFC配分方式(標準/筋トレ向き/減量向き/カスタム(グラム)/カスタム(比率))の**設定・編集フォーム自体はプロフィールタブの詳細画面「目標」に分離**している(このサマリーでは編集できず、未設定時は「プロフィールタブの『目標』から設定できます」という案内のみ表示する)
+  食事を記録する: 食事区分(朝食/昼食/夕食/間食)を選び、食品グループ絞り込み付きの検索(2026-08-15追加)・「よく使う内容」(2026-08-26追加、食品+分量の組を1タップで追加)・レシピからカートに追加 → まとめて保存
     [期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
     グラフ: 摂取カロリー・PFC実績(折れ線) + 目標ライン
     直近の食事ログ一覧(食材/レシピ単位、レシピはグループとしてまとめて削除可能)
-      - 各食材行に編集(食材・分量の直接変更)を追加(2026-08-15)
+      - 各食材行に編集(食材・分量の直接変更)を追加(2026-08-15)。新しい食材の追加はこの編集モードには置かず、記録時にまとめて行う運用に統一(2026-08-27、生の食材を直接追加するUIをここから削除)
       - 各食事(meals、朝食/昼食/夕食/間食の単位)に写真の添付・差し替え・削除を追加(2026-08-15、§2.18)。一覧ではサムネイル表示、クリックで拡大
+      - 編集モードから日付・区分(朝食/昼食/夕食/間食)も直接変更できる(2026-08-27追加、`edit_meal.php`)
 [詳細画面]
   レシピ管理: 作成・編集・削除・共有リンクの発行/停止(2026-08-15、§2.19)
   独自食材を管理する: 登録・編集・削除
@@ -638,15 +651,15 @@ CREATE TABLE eating_out_meals (
 
 --- プロフィールタブ ---
 [ランディング]
-  サマリー: 現在の体重・BMI・体脂肪率と、目標体重・目標BMI・達成日・進捗率を並べて表示(2026-08-15、体重・BMIを食事タブから移動して新設。目標体重は`nutrition_goals`を読み取り専用で表示し、編集は食事タブのサマリーに委ねる)
-  体重を記録する(US-15): 日付・体重・体脂肪率(任意、2026-08-15追加)の入力欄
+  サマリー(日付ナビ付き): 現在の体重・BMI・体脂肪率と、目標体重・目標BMI・達成日・進捗率を並べて表示(2026-08-15、体重・BMIを食事タブから移動して新設。目標体重は`nutrition_goals`を読み取り専用で表示し、編集は詳細画面「目標」に委ねる)
+  体重を記録する(US-15): 日付・体重・体脂肪率(任意、2026-08-15追加)の入力欄。記録を保存するとこのサマリーも自動的に再取得される(2026-08-29修正。以前はサマリーが更新されず、タブを離れて戻るまで古い表示のままになっていた)
     [期間切り替え: 直近30日 / 直近3ヶ月 / 全期間]
     グラフ: 体重推移(折れ線)
     記録一覧、各行に編集・削除(2026-08-15追加。編集は日付・体重・体脂肪率の値を直接書き換え)
 [詳細画面]
   プロフィールを編集する: 表示名・生年月日・性別・身長・活動レベル(US-14、§7で身長・活動レベルを追加)
   データのエクスポート: CSVダウンロードボタン(US-17)
-  アカウント: テーマ切替(端末の設定に合わせる/ライト/ダーク)、ログアウト、確認ダイアログ付きの退会ボタン(US-16)
+  アカウント: テーマ切替(端末の設定に合わせる/ライト/ダーク)、ログアウト、確認ダイアログ付きの退会ボタン(US-16)。退会ボタンは常時表示せず、まず「アカウントを削除する」というリンクのみを出し、押した後に初めて実際の削除ボタンが現れる2段階方式にする(2026-08-27、誤操作を避けたいとの要望を受けて変更)
 ```
 
 体重・設定・サイクル管理を独立タブから運動/プロフィール軸へ再編した理由: 5つのフラットなタブが並んでいるだけの構成から、「運動・食事・プロフィール」という3つの意味のあるまとまりに整理するため(体重はトレーニング成果ではなく身体情報なのでプロフィール軸、サイクル管理は管理表・記録入力が使う設定なので運動軸、プロフィール編集は体重記録と同じ「自分に関する情報」なのでまとめて配置)。
@@ -655,7 +668,7 @@ CREATE TABLE eating_out_meals (
 
 種目選択ドロップダウンは、管理表と同じくサイクルごとに`<optgroup>`でグループ化する。廃止済み種目も元のサイクルのグループ内に含め、種目名の末尾に`(廃止)`と付けて区別する(過去の推移は引き続きグラフで参照できる)。
 
-**実装上の注意(パフォーマンス)**: 運動タブ表示時に`get_board`・`get_logs`(全件)を並列で1回だけ取得し、管理表・グラフの両セクションで使い回す。グラフの種目選択・期間切り替えはAPIを呼び直さず、取得済みの全記録ログをブラウザ側でフィルタするだけで完結させる。記録の追加時のみグラフを取り直す(2026-08-15、タブ統合に伴い「タブを開くたびに再取得」から変更。管理表自体は記録追加直後には自動更新されない既存の挙動を維持している)。
+**実装上の注意(パフォーマンス)**: 運動タブ表示時に`get_board`・`get_logs`(全件)を並列で1回だけ取得し、管理表・グラフの両セクションで使い回す。グラフの種目選択・期間切り替えはAPIを呼び直さず、取得済みの全記録ログをブラウザ側でフィルタするだけで完結させる。記録の追加時はグラフ・直近の記録・管理表(サマリー)のいずれも軽量な専用関数で再取得する(2026-08-15、タブ統合に伴い「タブを開くたびに再取得」から変更。2026-08-29、管理表(サマリー)だけ記録追加時に再取得されておらずタブを離れて戻るまで古い表示のままになる不具合を修正し、他の2つと同じく自動更新されるようにした)。
 
 ### 3.1 入力フォームの項目詳細
 - 日付: 今日の日付を自動入力(手動で変更可)
@@ -670,6 +683,7 @@ CREATE TABLE eating_out_meals (
 - **廃止フラグの切り替え**: 各行に「廃止」チェックボックスを設け、目標値と同時に保存できる。ONにすると`cycle_id`はそのまま(元のサイクルに属したまま)で`is_discontinued`だけが立ち、記録フォーム・この一覧の入力対象からは除外される。グラフでは引き続き元のサイクルのグループ内から選択できる
 - **種目の追加**: サイクル・種目名・目標重量・目標回数・目標セットを入力して新しい種目を追加できる(`is_discontinued`は常に0で開始)。現在値は記録が無いため空配列になる
 - **種目の削除**: 一覧から種目を選んで削除できる。記録が1件でも紐づく種目は削除できない(DBの外部キー制約でも保護される)。使わなくなった種目は物理削除せず「廃止」フラグをONにする運用とする
+- **並べ替え**(2026-08-21・2026-08-27改訂): 同じサイクル・同じ廃止状態の種目どうしでのみ順序を入れ替えられる。`exercises.sort_order`に並び順を保持する。当初はモバイルでの操作不安定さを懸念して▲▼ボタン方式にしていたが、2026-08-27に改めてドラッグ&ドロップ方式に変更した(Pointer Eventsで実装し、`touch-action: none`でタッチ操作時のスクロール誤爆を防ぐ)。ドロップ後の並び順(idの配列)を`reorder_exercises.php`にまとめて送り、1回のトランザクションで反映する
 
 ### 3.3 記録の入力・修正・削除(US-5対応)
 「記録を送信」「削除」「まとめて編集の保存」は、いずれもAPI応答を待ってから画面に結果を反映する、通常の同期的なフローとする(MySQL+PHPへの移行後は1回の呼び出しが数十ms程度で済むため、楽観的更新のような複雑さは導入しない)。
