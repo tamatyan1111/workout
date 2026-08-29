@@ -7,12 +7,13 @@ function isTheme(value: string | null): value is Theme {
 }
 
 // index.htmlのインラインスクリプトと同じロジック。OS設定より明示選択を優先する。
-export function currentTheme(): Theme | null {
+// (renderThemeToggle以外から使われる予定が無いため、外部にはexportしない)
+function currentTheme(): Theme | null {
   const stored = localStorage.getItem(STORAGE_KEY);
   return isTheme(stored) ? stored : null;
 }
 
-export function setTheme(theme: Theme | null): void {
+function setTheme(theme: Theme | null): void {
   if (theme === null) {
     localStorage.removeItem(STORAGE_KEY);
     delete document.documentElement.dataset.theme;

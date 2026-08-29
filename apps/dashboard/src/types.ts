@@ -41,7 +41,8 @@ export type PfcMode = 'standard' | 'bulk' | 'cut' | 'custom' | 'custom_ratio';
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
-// design.md §2.11「nutrition_goals テーブル」に対応
+// design.md §2.11「nutrition_goals テーブル」に対応。保存済みの生の値(GoalSummaryのような
+// 計算済みの結果ではない)を返す、目標編集フォームの初期値復元用(goalSettings.ts参照)
 export interface NutritionGoal {
   id: number;
   start_weight: number;

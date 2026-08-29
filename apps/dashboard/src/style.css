@@ -1280,10 +1280,6 @@ td select {
   color: var(--text-muted);
 }
 
-.pfc-table {
-  max-width: 24rem;
-}
-
 .food-result-row {
   display: flex;
   align-items: center;
@@ -1334,16 +1330,14 @@ td select {
   margin-bottom: 0.75rem;
 }
 
-.recipe-item-list,
-.meal-item-list {
+.recipe-item-list {
   list-style: none;
   padding: 0;
   margin: 0.4rem 0;
   font-size: 0.85rem;
 }
 
-.recipe-item-list li,
-.meal-item-list li {
+.recipe-item-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1531,20 +1525,3 @@ td select {
   border-radius: var(--radius-sm);
 }
 
-.meal-item-edit {
-  flex-direction: column;
-  align-items: flex-start !important;
-  gap: 0.3rem;
-  padding: 0.5rem 0 !important;
-}
-
-.meal-item-edit-qty {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.meal-item-edit-qty input {
-  width: 5rem !important;
-}

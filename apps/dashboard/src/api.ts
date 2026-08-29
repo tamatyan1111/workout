@@ -413,9 +413,6 @@ export const addMealFromRecipe = (
 ): Promise<{ id: number; item_ids: number[] }> =>
   callPost('add_meal.php', { logged_date: loggedDate, meal_type: mealType, recipe_id: recipeId });
 
-export const addMealItem = (mealId: number, item: CartItem): Promise<{ ids: number[] }> =>
-  callPost('add_meal_item.php', { meal_id: mealId, ...foodRefParams(item.ref), quantity_g: item.quantityG });
-
 export const addMealItemFromRecipe = (mealId: number, recipeId: number): Promise<{ ids: number[] }> =>
   callPost('add_meal_item.php', { meal_id: mealId, recipe_id: recipeId });
 
