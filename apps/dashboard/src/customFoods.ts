@@ -1,6 +1,7 @@
 import { addCustomFood, deleteCustomFood, editCustomFood, getCustomFoods } from './api';
 import type { CustomFood } from './types';
 import { escapeHtml } from 'shared';
+import { wireKcalAutoCalc } from './kcalAutoCalc';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -115,23 +116,7 @@ export function renderCustomFoods(container: HTMLElement, onChanged: () => void)
       wrapEl.innerHTML = '';
     });
 
-    // たんぱく質・脂質・炭水化物からカロリーを自動計算する(2026-08-26、手入力の手間を
-    // 減らしたいとの要望を受けて追加)。カロリー欄を直接編集した後は、その値を尊重して
-    // 自動上書きしない(商品表示のカロリーと計算値がわずかに違う場合に合わせられるように)
-    const kcalInput = wrapEl.querySelector<HTMLInputElement>('#cf-kcal')!;
-    let kcalManuallyEdited = false;
-    kcalInput.addEventListener('input', () => {
-      kcalManuallyEdited = true;
-    });
-    ['#cf-protein', '#cf-fat', '#cf-carb'].forEach((selector) => {
-      wrapEl.querySelector<HTMLInputElement>(selector)!.addEventListener('input', () => {
-        if (kcalManuallyEdited) return;
-        const protein = Number(wrapEl.querySelector<HTMLInputElement>('#cf-protein')!.value) || 0;
-        const fat = Number(wrapEl.querySelector<HTMLInputElement>('#cf-fat')!.value) || 0;
-        const carb = Number(wrapEl.querySelector<HTMLInputElement>('#cf-carb')!.value) || 0;
-        kcalInput.value = (protein * 4 + fat * 9 + carb * 4).toFixed(1);
-      });
-    });
+    wireKcalAutoCalc(wrapEl, { kcal: '#cf-kcal', protein: '#cf-protein', fat: '#cf-fat', carb: '#cf-carb' });
 
     wrapEl.querySelector<HTMLFormElement>('#custom-food-form')!.addEventListener('submit', async (ev) => {
       ev.preventDefault();

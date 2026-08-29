@@ -1,8 +1,8 @@
 import type { Exercise } from './types';
 import { escapeHtml } from 'shared';
 import { getBoard } from './api';
-import { addDays, shortDateLabel, todayStr, weekdayLabel } from './date';
-import { captureElementToClipboard } from './captureImage';
+import { addDays, todayStr } from './date';
+import { summaryHeaderHtml, wireSummaryHeader } from './summaryHeader';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -22,32 +22,14 @@ export function renderBoard(container: HTMLElement, exercises: Exercise[]): void
   draw(exercises);
 
   function draw(ex: Exercise[]): void {
-    const isToday = currentDate === todayStr();
     container.innerHTML = `
-      <div class="summary-header">
-        <span class="today-badge">${isToday ? '今日' : ''}</span>
-        <div class="date-nav">
-          <button type="button" class="date-nav-prev" aria-label="前の日" title="前の日">‹</button>
-          <strong class="date-nav-current">${shortDateLabel(currentDate)}(${weekdayLabel(currentDate)})</strong>
-          <button type="button" class="date-nav-next" aria-label="次の日" title="次の日" ${isToday ? 'disabled' : ''}>›</button>
-        </div>
-        <button type="button" class="capture-icon-btn" aria-label="画像をコピー" title="画像をコピー">📋</button>
-      </div>
-      <p class="capture-status"></p>
+      ${summaryHeaderHtml(currentDate)}
       ${renderCycles(ex)}
       <button type="button" class="link-button toggle-target-btn">${showTargets ? '目標を隠す' : '目標を見る'}</button>
       ${showTargets ? renderAllTargets(ex) : ''}
     `;
 
-    container.querySelector('.date-nav-prev')!.addEventListener('click', () => void navigate(-1));
-    container.querySelector<HTMLButtonElement>('.date-nav-next')!.addEventListener('click', () => {
-      if (isToday) return;
-      void navigate(1);
-    });
-    container.querySelector<HTMLButtonElement>('.capture-icon-btn')!.addEventListener('click', (ev) => {
-      const cardEl = container.closest<HTMLElement>('.card') ?? container;
-      void captureElementToClipboard(cardEl, ev.currentTarget as HTMLButtonElement, container.querySelector('.capture-status'));
-    });
+    wireSummaryHeader(container, currentDate, (deltaDays) => void navigate(deltaDays));
     container.querySelector<HTMLButtonElement>('.toggle-target-btn')!.addEventListener('click', () => {
       showTargets = !showTargets;
       draw(ex);
