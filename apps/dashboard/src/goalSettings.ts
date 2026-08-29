@@ -1,7 +1,6 @@
-import { addNutritionGoal, getNutritionSummary } from './api';
-import type { NutritionSummary, PfcMode } from './types';
+import { addNutritionGoal, getNutritionGoal } from './api';
+import type { NutritionGoal, PfcMode } from './types';
 import { escapeHtml } from 'shared';
-import { todayStr } from './date';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -22,24 +21,22 @@ const PFC_MODE_LABELS: Record<PfcMode, string> = {
 export function renderGoalSettings(container: HTMLElement): void {
   container.innerHTML = '<p>読み込み中...</p>';
 
-  void getNutritionSummary(todayStr())
-    .then((summary) => draw(summary))
+  void getNutritionGoal()
+    .then((goal) => draw(goal))
     .catch((err) => {
       container.innerHTML = `<p class="error">目標の取得に失敗しました: ${escapeHtml(errorMessage(err))}</p>`;
     });
 
-  function draw(summary: NutritionSummary): void {
-    const goal = summary.goal;
-
+  function draw(goal: NutritionGoal | null): void {
     container.innerHTML = `
       ${goal ? `<p class="field-note">現在の目標: ${goal.target_weight.toFixed(1)}kg / ${escapeHtml(goal.target_date)}まで</p>` : '<p>目標がまだ設定されていません</p>'}
       <form id="goal-form">
         <div class="field-row">
-          <label class="field">目標体重(kg) <input type="number" step="0.1" id="goal-weight" required /></label>
-          <label class="field"><span>目標体脂肪率(%)<span class="field-note-inline">(任意)</span></span> <input type="number" step="0.1" id="goal-body-fat" /></label>
+          <label class="field">目標体重(kg) <input type="number" step="0.1" id="goal-weight" value="${goal ? goal.target_weight : ''}" required /></label>
+          <label class="field"><span>目標体脂肪率(%)<span class="field-note-inline">(任意)</span></span> <input type="number" step="0.1" id="goal-body-fat" value="${goal?.target_body_fat_percentage ?? ''}" /></label>
         </div>
         <div class="field-row">
-          <label class="field">達成期日 <input type="date" id="goal-date" required /></label>
+          <label class="field">達成期日 <input type="date" id="goal-date" value="${goal ? escapeHtml(goal.target_date) : ''}" required /></label>
           <label class="field">PFC配分方式
             <select id="goal-pfc-mode">
               ${(Object.keys(PFC_MODE_LABELS) as PfcMode[])
@@ -49,14 +46,14 @@ export function renderGoalSettings(container: HTMLElement): void {
           </label>
         </div>
         <div id="custom-pfc-fields" class="field-row" hidden>
-          <label class="field">たんぱく質(g) <input type="number" step="0.1" id="goal-custom-protein" /></label>
-          <label class="field">脂質(g) <input type="number" step="0.1" id="goal-custom-fat" /></label>
-          <label class="field">炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" /></label>
+          <label class="field">たんぱく質(g) <input type="number" step="0.1" id="goal-custom-protein" value="${goal?.custom_protein_g ?? ''}" /></label>
+          <label class="field">脂質(g) <input type="number" step="0.1" id="goal-custom-fat" value="${goal?.custom_fat_g ?? ''}" /></label>
+          <label class="field">炭水化物(g) <input type="number" step="0.1" id="goal-custom-carb" value="${goal?.custom_carb_g ?? ''}" /></label>
         </div>
         <div id="custom-ratio-fields" class="field-row" hidden>
-          <label class="field">たんぱく質(%) <input type="number" step="0.1" id="goal-ratio-protein" /></label>
-          <label class="field">脂質(%) <input type="number" step="0.1" id="goal-ratio-fat" /></label>
-          <label class="field">炭水化物(%) <input type="number" step="0.1" id="goal-ratio-carb" /></label>
+          <label class="field">たんぱく質(%) <input type="number" step="0.1" id="goal-ratio-protein" value="${goal?.custom_protein_percent ?? ''}" /></label>
+          <label class="field">脂質(%) <input type="number" step="0.1" id="goal-ratio-fat" value="${goal?.custom_fat_percent ?? ''}" /></label>
+          <label class="field">炭水化物(%) <input type="number" step="0.1" id="goal-ratio-carb" value="${goal?.custom_carb_percent ?? ''}" /></label>
         </div>
         <p id="ratio-sum-status" class="field-note"></p>
         <button type="submit">保存</button>
@@ -117,7 +114,7 @@ export function renderGoalSettings(container: HTMLElement): void {
           ratioFat.value,
           ratioCarb.value
         );
-        void getNutritionSummary(todayStr()).then((s) => draw(s));
+        void getNutritionGoal().then((g) => draw(g));
       } catch (err) {
         statusEl.textContent = `保存に失敗しました: ${errorMessage(err)}`;
       }

@@ -4,6 +4,7 @@ import { renderAuthScreen, renderPasswordResetConfirm } from './auth';
 import { renderOnboarding } from './onboarding';
 import { renderDashboard } from './dashboard';
 import { renderSharedRecipe } from './sharedRecipe';
+import { escapeHtml } from 'shared';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -52,7 +53,7 @@ async function boot(): Promise<void> {
       renderAuthScreen(app, () => void boot());
       return;
     }
-    app.innerHTML = `<p class="error">読み込みに失敗しました: ${String(err instanceof Error ? err.message : err)}</p>`;
+    app.innerHTML = `<p class="error">読み込みに失敗しました: ${escapeHtml(String(err instanceof Error ? err.message : err))}</p>`;
   }
 }
 
