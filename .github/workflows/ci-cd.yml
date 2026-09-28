@@ -15,10 +15,13 @@ jobs:
       # package-lock.jsonはコミットしていない(Windowsで生成したlockfileだとLinux用の
       # ネイティブバイナリ(rolldown等)を解決できない既知のnpmの問題があるため)。
       # そのためnpmの依存関係キャッシュは使わない。
+      # 2026-09-28、Node 22同梱のnpm(10系)が、ロック無しの完全新規解決時に
+      # 「Cannot read properties of null (reading 'edgesOut')」でクラッシュする問題が発生。
+      # ローカルのNode 24/npm 11では再現しなかったため、npmのバージョンを上げて回避する。
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - run: npm install
       - run: npm run lint
       - run: npm run typecheck
@@ -87,7 +90,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -206,7 +209,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - run: npm install
       - name: Build dashboard
         run: npm run build --workspace=apps/dashboard

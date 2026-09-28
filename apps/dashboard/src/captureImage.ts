@@ -21,7 +21,6 @@ export async function captureElementToClipboard(
 
   const originalContent = buttonEl.textContent;
   buttonEl.disabled = true;
-  if (statusEl) statusEl.textContent = '画像を生成中...';
   try {
     const blob = await toBlob(captureEl, {
       backgroundColor: getComputedStyle(captureEl).backgroundColor,
