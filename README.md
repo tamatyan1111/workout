@@ -130,3 +130,4 @@ CIでは専用のMariaDBサービスコンテナ+`sql/schema.sql`のみ(架空�
 ## ライセンス
 
 [MIT](LICENSE)
+
