@@ -14,6 +14,7 @@ XServer(MySQL/PHP)1つのサブドメイン(`workout.tamachan-blog.com`)に構�
 - [requirements.md](requirements.md) — 要件定義(背景・利用者・ユーザーストーリー・受け入れ基準)
 - [design.md](design.md) — 設計(アーキテクチャ・データモデル・画面構成)
 - [architecture.md](architecture.md) — アーキテクチャ図(図で見るシステム構成)
+- [ci-cd-history.md](ci-cd-history.md) — CI/CD・ブランチ保護の設定がなぜ今の形になったかの経緯
 
 ## 現在のステータス
 マルチユーザー化(ログイン認証・複数ユーザー対応)は実装・本番デプロイ済みで運用中。筋トレ記録(サイクル・種目・記録・体重)に加えて、食事記録機能(カロリー・PFC管理、requirements.md §7)も実装済み。CI/CD(GitHub Actions、`.github/workflows/ci-cd.yml`)によるテスト自動化・本番デプロイの自動化も整備済み(architecture.md「CI/CD」参照)。実装タスクの詳細な記録はgitのコミット履歴を参照。
